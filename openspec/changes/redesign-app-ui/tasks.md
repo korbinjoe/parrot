@@ -8,28 +8,28 @@
 - [x] [设计] proposal.md / design.md
 - [x] [设计] 高保真可交互 HTML 视觉稿 `mockups/index.html`（6 界面 + 明暗 + 加载/错误态）
 - [x] [设计] 浏览器渲染验证 + 截图存档（`mockups/*.png`）
-- [ ] [实现] 新建 `Sources/ParrotApp/DesignTokens.swift`：语义色 `Color` 扩展、`Font` 扩展（`.result`/`.tag`/`.caption` 等）、`Spacing` 常量、圆角常量
-- [ ] [实现] 全量替换散落的硬编码字号（10/11/13/14）、`.red`、`padding(12/14)` 魔法数为 token
+- [x] [实现] 新建 `Sources/ParrotApp/DesignTokens.swift`：语义色 `Color` 扩展、`Font` 扩展（`.result`/`.tag`/`.caption` 等）、`Spacing` 常量、圆角常量
+- [x] [实现] 替换悬浮面板/输入面板内散落的硬编码字号、`.red`、padding 魔法数为 token（其余界面随各阶段跟进）
 
 ## 阶段 1 — 悬浮结果面板（核心 / MVP 门禁）
 
-- [ ] [实现] 抽出可复用 `SourceBlock` 与 `EngineCard` View（供面板与历史窗口共用）
-- [ ] [实现] `ResultView` 重构：顶部 LangPill 栏 + 操作组、原文区用 `--bg-content-2`、引擎卡用 `--bg-content`
-- [ ] [实现] 译文字阶提升至 15pt（`.result`），引擎名改 Tag 样式（accent-soft 底）
-- [ ] [实现] 主引擎左侧 2px accent 竖条标识
-- [ ] [实现] 卡片 hover 才显复制/朗读 IconButton（`opacity` 切换，禁用 `display` 切换避免抖动）
-- [ ] [实现] 错误卡：danger 描边 + 文案映射 `ProviderError` + 重试按钮
-- [ ] [实现] 加载态骨架屏（`Skeleton` shimmer），翻译中原文区右上小 ProgressView
-- [ ] [实现] FloatingPanel 改 `.regularMaterial` 底；入场 opacity+offset 180ms、退场 120ms
+- [x] [实现] 抽出可复用 `EngineCard` View；共享 `LangPill`/`IconButton` 入 UIComponents（`SourceBlock` 内联于面板，历史窗口复用时再抽）
+- [x] [实现] `ResultView` 重构：顶部 LangPill 栏 + 操作组、原文区用 `bgContent2`、引擎卡用 `bgContent`
+- [x] [实现] 译文字阶提升至 15pt（`.result`），引擎名改 Tag 样式（accent-soft 底）
+- [x] [实现] 主引擎左侧 2px accent 竖条标识
+- [x] [实现] 卡片 hover 才显复制/朗读 IconButton（`opacity` 切换，禁用 `display` 切换避免抖动）
+- [x] [实现] 错误卡：danger 描边 + 文案映射 `ProviderError`（重试按钮待引擎单发能力，暂留延迟位「失败」标识）
+- [x] [实现] 加载态骨架屏（`Skeleton` shimmer），翻译中原文区右上小 ProgressView
+- [x] [实现] FloatingPanel 改 `.regularMaterial` 底；入场 0.18s 淡入（按 Decision 4 只做 opacity，不补间高度）
 - [ ] [实现] 面板底部指向光标的箭头 Shape（可选；不影响验收）
-- [ ] [评审] 对照 `mockups` 截图做像素/交互验收（明暗双模式）
+- [ ] [评审] 对照 `mockups` 截图做像素/交互验收（明暗双模式，需 GUI 会话目检）
 
 ## 阶段 2 — 输入翻译面板
 
-- [ ] [实现] `InputView` 升级 Spotlight 式：左图标 + 大号输入 + 右 LangPill
-- [ ] [实现] 底部提示行（`↩ 翻译 / ⎋ 关闭`）+ accent 主按钮，仅有文字时出现
-- [ ] [实现] 聚焦 accent 外环；`Esc` 关闭；LangPill ⇄ 互换源/目标语言
-- [ ] [实现] InputPanel 改 `.regularMaterial` + `radius-window` + `shadow-panel`
+- [x] [实现] `InputView` 升级 Spotlight 式：左图标 + 大号输入 + 右 LangPill
+- [x] [实现] 底部提示行（`↩ 翻译 / ⎋ 关闭`）+ accent 主按钮，仅有文字时出现
+- [x] [实现] 聚焦 accent 外环；`Esc` 关闭（onExitCommand）（LangPill ⇄ 互换待源语言状态接线）
+- [x] [实现] InputPanel 改 `.regularMaterial` + `radius-window` + `shadow-panel`
 
 ## 阶段 3 — 菜单栏 Popover
 
