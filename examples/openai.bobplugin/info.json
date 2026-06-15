@@ -1,0 +1,13 @@
+{
+  "identifier": "com.example.openai",
+  "name": "OpenAI (Plugin)",
+  "version": "1.0.0",
+  "author": "OpenBob",
+  "minOpenBobVersion": "0.1.0",
+  "capabilities": ["translate", "polish"],
+  "permissions": { "network": ["api.openai.com"] },
+  "options": [
+    { "key": "apiKey", "type": "secret", "label": "API Key", "required": true },
+    { "key": "model", "type": "string", "label": "Model", "default": "gpt-4o-mini" }
+  ]
+}

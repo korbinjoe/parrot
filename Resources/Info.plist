@@ -1,0 +1,41 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>CFBundleName</key>
+    <string>OpenBob</string>
+    <key>CFBundleDisplayName</key>
+    <string>OpenBob</string>
+    <key>CFBundleIdentifier</key>
+    <string>com.openbob.app</string>
+    <key>CFBundleVersion</key>
+    <string>0.1.0</string>
+    <key>CFBundleShortVersionString</key>
+    <string>0.1.0</string>
+    <key>CFBundleExecutable</key>
+    <string>OpenBob</string>
+    <key>CFBundlePackageType</key>
+    <string>APPL</string>
+    <key>LSMinimumSystemVersion</key>
+    <string>13.0</string>
+    <!-- Menu-bar agent: no Dock icon -->
+    <key>LSUIElement</key>
+    <true/>
+    <key>NSPrincipalClass</key>
+    <string>NSApplication</string>
+    <key>NSHumanReadableCopyright</key>
+    <string>OpenBob — AGPL-3.0</string>
+    <!-- Custom URL scheme for PopClip / Shortcuts / external integrations -->
+    <key>CFBundleURLTypes</key>
+    <array>
+        <dict>
+            <key>CFBundleURLName</key>
+            <string>com.openbob.app.url</string>
+            <key>CFBundleURLSchemes</key>
+            <array>
+                <string>openbob</string>
+            </array>
+        </dict>
+    </array>
+</dict>
+</plist>
