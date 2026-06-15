@@ -36,6 +36,30 @@ struct LangPill: View {
     }
 }
 
+/// Thin inline status strip for global conditions (e.g. no network). Warning-toned, full width.
+struct WarningBar: View {
+    let text: String
+    let systemImage: String
+
+    init(_ text: String, systemImage: String = "wifi.slash") {
+        self.text = text
+        self.systemImage = systemImage
+    }
+
+    var body: some View {
+        HStack(spacing: 6) {
+            Image(systemName: systemImage).font(.system(size: 11))
+            Text(text).font(Theme.Font.caption)
+            Spacer(minLength: 0)
+        }
+        .foregroundStyle(Theme.Palette.warning)
+        .padding(.horizontal, Theme.Spacing.s12)
+        .padding(.vertical, 5)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(Theme.Palette.warning.opacity(0.12))
+    }
+}
+
 /// Borderless icon button with a consistent 24×24 hit area.
 struct IconButton: View {
     let name: String

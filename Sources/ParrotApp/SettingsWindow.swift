@@ -82,8 +82,11 @@ struct SettingsView: View {
                     .padding(.horizontal, Theme.Spacing.s20 + 4)
                     .padding(.vertical, Theme.Spacing.s20)
                     .frame(maxWidth: .infinity, alignment: .leading)
+                    .id(selection)
+                    .transition(.opacity)
             }
             .background(Theme.Palette.bgContent)
+            .animation(.easeInOut(duration: 0.15), value: selection)
         }
         .frame(width: 640, height: 460)
         .onAppear {

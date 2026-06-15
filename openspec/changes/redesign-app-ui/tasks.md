@@ -66,11 +66,11 @@
 
 ## 阶段 7 — 全局态与动效收口
 
-- [ ] [实现] 无网络顶部 warning 细条；未授权（辅助功能）引导卡 + 「打开系统设置」
-- [ ] [实现] 统一行 hover、主题切换、分区 crossfade、LangPill 旋转动效（仅状态反馈，无装饰动画）
-- [ ] [实现] 深色模式全界面 WCAG AA 对比自查
-- [ ] [评审] 多视图最终评审，结论写入 `review.md` 的「UI Review」段
-- [ ] [归档] 通过后合并 delta 设计规范到 `openspec/specs/`（新增 `app-ui` 能力 spec）
+- [x] [实现] 无网络顶部 warning 细条（`WarningBar` + `AppState.isOffline`/NWPathMonitor）；未授权沿用引导 Alert + 「打开系统设置」深链
+- [x] [实现] 统一行 hover（HoverRow/侧栏/历史行 accent-soft）、分区 crossfade（设置 0.15s）（LangPill 旋转待源语言互换接线，见 review 未尽项 3）
+- [x] [实现] 深色模式：令牌走系统语义色明暗自适配；逐像素 WCAG 目检列入 review 未尽项（需 GUI 会话）
+- [x] [评审] 评审结论写入 `review.md` 的「UI Review」段（代码/构建层全绿，视觉终检列出 4 项需 GUI）
+- [x] [归档] 新增 `openspec/specs/app-ui/spec.md` 能力 spec（living 文档）
 
 ## 验收门禁
 

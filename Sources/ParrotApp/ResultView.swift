@@ -10,33 +10,39 @@ struct ResultView: View {
     @State private var contentHeight: CGFloat = 160
 
     var body: some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: Theme.Spacing.s8) {
-                header
-                sourceBlock
+        VStack(spacing: 0) {
+            if state.isOffline {
+                WarningBar("无网络连接，翻译可能失败")
+            }
+            ScrollView {
+                VStack(alignment: .leading, spacing: Theme.Spacing.s8) {
+                    header
+                    sourceBlock
 
-                if state.isTranslating && state.outcomes.isEmpty {
-                    ForEach(0..<2, id: \.self) { _ in SkeletonCard() }
-                } else if state.outcomes.isEmpty {
-                    Text("无可用引擎或暂无结果")
-                        .foregroundStyle(.secondary)
-                        .font(Theme.Font.callout)
-                        .padding(.vertical, Theme.Spacing.s8)
-                } else {
-                    ForEach(Array(state.outcomes.enumerated()), id: \.element.providerId) { index, outcome in
-                        EngineCard(outcome: outcome,
-                                   isPrimary: index == 0 && outcome.isSuccess,
-                                   onSpeak: { state.speakTranslation($0) },
-                                   onCopy: { copy($0) })
+                    if state.isTranslating && state.outcomes.isEmpty {
+                        ForEach(0..<2, id: \.self) { _ in SkeletonCard() }
+                    } else if state.outcomes.isEmpty {
+                        Text("无可用引擎或暂无结果")
+                            .foregroundStyle(.secondary)
+                            .font(Theme.Font.callout)
+                            .padding(.vertical, Theme.Spacing.s8)
+                    } else {
+                        ForEach(Array(state.outcomes.enumerated()), id: \.element.providerId) { index, outcome in
+                            EngineCard(outcome: outcome,
+                                       isPrimary: index == 0 && outcome.isSuccess,
+                                       onSpeak: { state.speakTranslation($0) },
+                                       onCopy: { copy($0) })
+                        }
                     }
                 }
+                .padding(Theme.Spacing.s12)
+                .background(GeometryReader { geo in
+                    Color.clear.preference(key: ContentHeightKey.self, value: geo.size.height)
+                })
             }
-            .padding(Theme.Spacing.s12)
-            .background(GeometryReader { geo in
-                Color.clear.preference(key: ContentHeightKey.self, value: geo.size.height)
-            })
+            .frame(height: min(contentHeight, 460))
         }
-        .frame(width: 380, height: min(contentHeight, 460))
+        .frame(width: 380)
         .background(.regularMaterial)
         .clipShape(RoundedRectangle(cornerRadius: Theme.Radius.window))
         .onPreferenceChange(ContentHeightKey.self) { contentHeight = $0 }

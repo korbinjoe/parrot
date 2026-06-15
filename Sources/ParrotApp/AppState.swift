@@ -3,6 +3,7 @@ import ParrotCore
 import ParrotEngines
 import ParrotPlugins
 import Combine
+import Network
 
 /// Observable application state shared across the menu bar, input panel and floating result window.
 @MainActor
@@ -20,11 +21,15 @@ final class AppState: ObservableObject {
     @Published var detectedSource: Language = .auto
     @Published var savedRecordId: UUID?
     @Published var isFavorite: Bool = false
+    @Published var isOffline: Bool = false
+
+    private let netMonitor = NWPathMonitor()
 
     init() {
         coordinator = TranslationCoordinator(registry: registry)
 
         targetLanguage = settings.targetLanguage
+        startNetworkMonitor()
 
         // Google — free web endpoint, no key, enabled per settings (default on).
         registry.register(GoogleEngine(), enabled: settings.googleEnabled)
@@ -40,6 +45,15 @@ final class AppState: ObservableObject {
 
         // Community plugins from ~/Library/Application Support/Parrot/Plugins.
         loadPlugins()
+    }
+
+    /// Watch connectivity so the result panel can show a "no network" warning bar. Translation
+    /// engines are all network-backed, so offline = every engine will fail.
+    private func startNetworkMonitor() {
+        netMonitor.pathUpdateHandler = { [weak self] path in
+            Task { @MainActor in self?.isOffline = path.status != .satisfied }
+        }
+        netMonitor.start(queue: DispatchQueue(label: "parrot.net.monitor"))
     }
 
     /// Re-apply settings to the live registry (called after the user edits preferences).
