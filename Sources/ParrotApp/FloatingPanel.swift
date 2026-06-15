@@ -18,7 +18,15 @@ final class FloatingPanel {
         // Force a layout pass so the window adopts the current content size before positioning.
         panel?.layoutIfNeeded()
         positionNearCursor()
+        // Use-and-dismiss entrance: fade in. Height is driven by SwiftUI's preferredContentSize,
+        // so we animate opacity only (no height补间) to avoid NSPanel jitter — see design.md Decision 4.
+        panel?.alphaValue = 0
         panel?.orderFrontRegardless()
+        NSAnimationContext.runAnimationGroup { ctx in
+            ctx.duration = 0.18
+            ctx.timingFunction = CAMediaTimingFunction(name: .easeOut)
+            panel?.animator().alphaValue = 1
+        }
     }
 
     func hide() {
@@ -40,7 +48,10 @@ final class FloatingPanel {
         p.hidesOnDeactivate = false
         p.isMovableByWindowBackground = true
         p.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary]
-        p.backgroundColor = .textBackgroundColor // clean white base; content blocks use a soft gray
+        // Clear base so the SwiftUI .regularMaterial + rounded corners define the visible shape.
+        p.backgroundColor = .clear
+        p.isOpaque = false
+        p.hasShadow = true
 
         // Hide the traffic-light buttons — a lightweight "即用即走" panel shouldn't show window chrome.
         p.standardWindowButton(.closeButton)?.isHidden = true

@@ -2,8 +2,8 @@ import SwiftUI
 import AppKit
 import ParrotCore
 
-/// Floating result content: source text on top, one card per engine below.
-/// Wrapped in a height-capped ScrollView so long text / many engines stay readable.
+/// Floating result content: a language-direction header, the source block, then one card
+/// per engine. Wrapped in a height-capped ScrollView so long text / many engines stay readable.
 struct ResultView: View {
     @ObservedObject var state: AppState
 
@@ -11,69 +11,73 @@ struct ResultView: View {
 
     var body: some View {
         ScrollView {
-        VStack(alignment: .leading, spacing: 10) {
-            // Source block — same card language as the engine results. Full text (no line cap)
-            // so nothing is hidden; long content scrolls within the height-capped window.
-            HStack(alignment: .top, spacing: 8) {
-                    Text(state.sourceText)
-                        .font(.system(size: 13))
-                        .foregroundStyle(.secondary)
-                        .textSelection(.enabled)
-                        .fixedSize(horizontal: false, vertical: true)
-                        .frame(maxWidth: .infinity, alignment: .leading)
+            VStack(alignment: .leading, spacing: Theme.Spacing.s8) {
+                header
+                sourceBlock
 
-                    if state.isTranslating {
-                        ProgressView().controlSize(.small)
-                    }
-                    HStack(spacing: 10) {
-                        iconButton("doc.on.doc", help: "复制原文") { copy(state.sourceText) }
-                        iconButton("speaker.wave.2", help: "朗读原文") { state.speakSource() }
-                        Button { state.toggleFavorite() } label: {
-                            Image(systemName: state.isFavorite ? "star.fill" : "star")
-                                .foregroundStyle(state.isFavorite ? .yellow : .secondary)
-                        }
-                        .buttonStyle(.borderless)
-                        .disabled(state.savedRecordId == nil)
-                        .help("收藏")
-                    }
-                    .fixedSize()
-                }
-                .padding(12)
-                .background(Self.blockBackground)
-                .clipShape(RoundedRectangle(cornerRadius: 10))
-
-                if state.outcomes.isEmpty && !state.isTranslating {
+                if state.isTranslating && state.outcomes.isEmpty {
+                    ForEach(0..<2, id: \.self) { _ in SkeletonCard() }
+                } else if state.outcomes.isEmpty {
                     Text("无可用引擎或暂无结果")
                         .foregroundStyle(.secondary)
-                        .font(.system(size: 12))
-                        .padding(.vertical, 8)
+                        .font(Theme.Font.callout)
+                        .padding(.vertical, Theme.Spacing.s8)
+                } else {
+                    ForEach(Array(state.outcomes.enumerated()), id: \.element.providerId) { index, outcome in
+                        EngineCard(outcome: outcome,
+                                   isPrimary: index == 0 && outcome.isSuccess,
+                                   onSpeak: { state.speakTranslation($0) },
+                                   onCopy: { copy($0) })
+                    }
                 }
-
-                ForEach(state.outcomes, id: \.providerId) { outcome in
-                    EngineCard(outcome: outcome,
-                               onSpeak: { text in state.speakTranslation(text) },
-                               onCopy: { text in copy(text) })
-                }
-        }
-        .padding(14)
-        .background(GeometryReader { geo in
-            Color.clear.preference(key: ContentHeightKey.self, value: geo.size.height)
-        })
+            }
+            .padding(Theme.Spacing.s12)
+            .background(GeometryReader { geo in
+                Color.clear.preference(key: ContentHeightKey.self, value: geo.size.height)
+            })
         }
         .frame(width: 380, height: min(contentHeight, 460))
+        .background(.regularMaterial)
+        .clipShape(RoundedRectangle(cornerRadius: Theme.Radius.window))
         .onPreferenceChange(ContentHeightKey.self) { contentHeight = $0 }
     }
 
-    /// Shared soft-gray block background used by both source and engine cards.
-    static let blockBackground = Color(nsColor: .windowBackgroundColor)
+    // MARK: - Header (language direction + source actions)
 
-    @ViewBuilder
-    private func iconButton(_ name: String, help: String, action: @escaping () -> Void) -> some View {
-        Button(action: action) {
-            Image(systemName: name).foregroundStyle(.secondary)
+    private var header: some View {
+        HStack(spacing: Theme.Spacing.s8) {
+            LangPill(from: state.detectedSource, to: state.targetLanguage)
+            Spacer(minLength: 0)
+            Button { state.toggleFavorite() } label: {
+                Image(systemName: state.isFavorite ? "star.fill" : "star")
+                    .foregroundStyle(state.isFavorite ? Theme.Palette.star : Theme.Palette.label2)
+            }
+            .buttonStyle(.borderless)
+            .disabled(state.savedRecordId == nil)
+            .help("收藏")
+            IconButton("doc.on.doc", help: "复制原文") { copy(state.sourceText) }
+            IconButton("speaker.wave.2", help: "朗读原文") { state.speakSource() }
         }
-        .buttonStyle(.borderless)
-        .help(help)
+        .frame(height: 24)
+    }
+
+    // MARK: - Source block
+
+    private var sourceBlock: some View {
+        HStack(alignment: .top, spacing: Theme.Spacing.s8) {
+            Text(state.sourceText)
+                .font(Theme.Font.body)
+                .foregroundStyle(Theme.Palette.label)
+                .textSelection(.enabled)
+                .fixedSize(horizontal: false, vertical: true)
+                .frame(maxWidth: .infinity, alignment: .leading)
+            if state.isTranslating {
+                ProgressView().controlSize(.small)
+            }
+        }
+        .padding(Theme.Spacing.s12)
+        .background(Theme.Palette.bgContent2)
+        .clipShape(RoundedRectangle(cornerRadius: Theme.Radius.card))
     }
 
     private func copy(_ text: String) {
@@ -93,68 +97,93 @@ private struct ContentHeightKey: PreferenceKey {
     }
 }
 
+// MARK: - Engine card
+
 private struct EngineCard: View {
     let outcome: AggregatedOutcome
+    let isPrimary: Bool
     let onSpeak: (String) -> Void
     let onCopy: (String) -> Void
 
+    @State private var hovering = false
+
     var body: some View {
-        VStack(alignment: .leading, spacing: 6) {
-            HStack(spacing: 6) {
-                Text(outcome.displayName.uppercased())
-                    .font(.system(size: 10, weight: .semibold))
-                    .foregroundStyle(.tertiary)
-                    .tracking(0.5)
-                Spacer()
-                if let result = outcome.result {
-                    Button {
-                        onCopy(result.translated)
-                    } label: {
-                        Image(systemName: "doc.on.doc").font(.system(size: 11)).foregroundStyle(.secondary)
-                    }
-                    .buttonStyle(.borderless)
-                    .help("复制译文")
-                    Button {
-                        onSpeak(result.translated)
-                    } label: {
-                        Image(systemName: "speaker.wave.2").font(.system(size: 11)).foregroundStyle(.secondary)
-                    }
-                    .buttonStyle(.borderless)
-                    .help("朗读译文")
-                }
-                Text("\(outcome.latencyMs)ms")
-                    .font(.system(size: 10))
-                    .foregroundStyle(.tertiary)
+        HStack(spacing: 0) {
+            // Primary engine gets a 2px accent rail on the leading edge.
+            Rectangle()
+                .fill(isPrimary ? Theme.Palette.accent : Color.clear)
+                .frame(width: 2)
+
+            VStack(alignment: .leading, spacing: Theme.Spacing.s4 + 2) {
+                head
+                content
             }
-            if let result = outcome.result {
-                Text(result.translated)
-                    .font(.system(size: 14))
-                    .textSelection(.enabled)
-                    .fixedSize(horizontal: false, vertical: true)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                if let phonetics = result.phonetics, !phonetics.isEmpty {
-                    Text(phonetics.map { "\($0.type) \($0.value)" }.joined(separator: "  "))
-                        .font(.system(size: 11))
-                        .foregroundStyle(.secondary)
-                }
-                if let defs = result.definitions {
-                    ForEach(Array(defs.enumerated()), id: \.offset) { _, d in
-                        Text("\(d.partOfSpeech) \(d.meanings.joined(separator: "；"))")
-                            .font(.system(size: 11))
-                            .foregroundStyle(.secondary)
-                            .fixedSize(horizontal: false, vertical: true)
-                    }
-                }
-            } else if let error = outcome.error {
-                Text(errorText(error))
-                    .font(.system(size: 12))
-                    .foregroundStyle(.red)
-            }
+            .padding(Theme.Spacing.s12)
+            .frame(maxWidth: .infinity, alignment: .leading)
         }
-        .padding(12)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .background(ResultView.blockBackground)
-        .clipShape(RoundedRectangle(cornerRadius: 10))
+        .background(Theme.Palette.bgContent)
+        .clipShape(RoundedRectangle(cornerRadius: Theme.Radius.card))
+        .overlay(
+            RoundedRectangle(cornerRadius: Theme.Radius.card)
+                .strokeBorder(outcome.error != nil ? Theme.Palette.danger : Color.clear, lineWidth: 0.5)
+        )
+        .onHover { hovering = $0 }
+    }
+
+    private var head: some View {
+        HStack(spacing: Theme.Spacing.s8) {
+            Text(outcome.displayName.uppercased())
+                .font(Theme.Font.tag)
+                .foregroundStyle(Theme.Palette.accent)
+                .padding(.horizontal, 6)
+                .padding(.vertical, 2)
+                .background(Theme.Palette.accentSoft)
+                .clipShape(RoundedRectangle(cornerRadius: 5))
+            if let result = outcome.result {
+                HStack(spacing: 0) {
+                    IconButton("doc.on.doc", help: "复制译文", size: 11) { onCopy(result.translated) }
+                    IconButton("speaker.wave.2", help: "朗读译文", size: 11) { onSpeak(result.translated) }
+                }
+                .opacity(hovering ? 1 : 0)
+                .animation(.easeOut(duration: 0.1), value: hovering)
+            }
+            Spacer(minLength: 0)
+            Text(outcome.error != nil ? "失败" : "\(outcome.latencyMs)ms")
+                .font(Theme.Font.caption)
+                .foregroundStyle(Theme.Palette.label3)
+        }
+    }
+
+    @ViewBuilder
+    private var content: some View {
+        if let result = outcome.result {
+            Text(result.translated)
+                .font(Theme.Font.result)
+                .foregroundStyle(Theme.Palette.label)
+                .textSelection(.enabled)
+                .fixedSize(horizontal: false, vertical: true)
+                .frame(maxWidth: .infinity, alignment: .leading)
+            if let phonetics = result.phonetics, !phonetics.isEmpty {
+                Text(phonetics.map { "\($0.type) \($0.value)" }.joined(separator: "  "))
+                    .font(Theme.Font.callout)
+                    .foregroundStyle(Theme.Palette.label2)
+            }
+            if let defs = result.definitions {
+                ForEach(Array(defs.enumerated()), id: \.offset) { _, d in
+                    Text("\(d.partOfSpeech) \(d.meanings.joined(separator: "；"))")
+                        .font(Theme.Font.callout)
+                        .foregroundStyle(Theme.Palette.label2)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+            }
+        } else if let error = outcome.error {
+            HStack(spacing: Theme.Spacing.s4 + 2) {
+                Image(systemName: "exclamationmark.triangle")
+                Text(errorText(error))
+            }
+            .font(Theme.Font.body)
+            .foregroundStyle(Theme.Palette.danger)
+        }
     }
 
     private func errorText(_ e: ProviderError) -> String {
@@ -167,5 +196,91 @@ private struct EngineCard: View {
         case .notConfigured: return "未配置"
         case .plugin(let m): return "插件错误：\(m)"
         }
+    }
+}
+
+// MARK: - Loading skeleton
+
+private struct SkeletonCard: View {
+    @State private var shimmer = false
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: Theme.Spacing.s8) {
+            bar(width: 64).frame(height: 12)
+            bar(width: .infinity).frame(height: 13)
+            bar(width: 200).frame(height: 13)
+        }
+        .padding(Theme.Spacing.s12)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(Theme.Palette.bgContent)
+        .clipShape(RoundedRectangle(cornerRadius: Theme.Radius.card))
+    }
+
+    private func bar(width: CGFloat) -> some View {
+        RoundedRectangle(cornerRadius: 5)
+            .fill(Theme.Palette.bgContent2)
+            .frame(maxWidth: width == .infinity ? .infinity : width, alignment: .leading)
+            .opacity(shimmer ? 0.5 : 1)
+            .animation(.easeInOut(duration: 0.9).repeatForever(autoreverses: true), value: shimmer)
+            .onAppear { shimmer = true }
+    }
+}
+
+// MARK: - Shared primitives
+
+/// Language direction pill: source → target. Shows "自动" until detection resolves.
+private struct LangPill: View {
+    let from: Language
+    let to: Language
+
+    var body: some View {
+        HStack(spacing: 6) {
+            Text(label(from, auto: "自动"))
+            Image(systemName: "arrow.left.arrow.right").font(.system(size: 9))
+                .foregroundStyle(Theme.Palette.accent)
+            Text(label(to, auto: "中"))
+        }
+        .font(.system(size: 11, weight: .semibold))
+        .foregroundStyle(Theme.Palette.label2)
+        .padding(.horizontal, 9)
+        .padding(.vertical, 3)
+        .background(Theme.Palette.bgContent2)
+        .clipShape(Capsule())
+        .overlay(Capsule().strokeBorder(Theme.Palette.separator, lineWidth: 0.5))
+    }
+
+    private func label(_ lang: Language, auto: String) -> String {
+        switch lang {
+        case .auto: return auto
+        case .zh: return "中"
+        case .ja: return "日"
+        case .ko: return "한"
+        default: return (lang.code ?? auto).uppercased()
+        }
+    }
+}
+
+private struct IconButton: View {
+    let name: String
+    let help: String
+    let size: CGFloat
+    let action: () -> Void
+
+    init(_ name: String, help: String, size: CGFloat = 13, action: @escaping () -> Void) {
+        self.name = name
+        self.help = help
+        self.size = size
+        self.action = action
+    }
+
+    var body: some View {
+        Button(action: action) {
+            Image(systemName: name)
+                .font(.system(size: size))
+                .foregroundStyle(Theme.Palette.label2)
+                .frame(width: 24, height: 24)
+        }
+        .buttonStyle(.borderless)
+        .help(help)
     }
 }
