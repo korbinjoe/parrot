@@ -1,8 +1,8 @@
 # Parrot
 
-开源的 macOS 翻译 + OCR 工具，复刻 [Bob](https://bobtranslate.com/) 的核心能力：划词翻译、截图 OCR 翻译、输入翻译、查词、多引擎聚合对比、可扩展插件系统（接入任意 LLM）、历史/收藏、TTS。完全免费、无次数限制。
+开源的 macOS 翻译 + OCR 工具，对标主流商业翻译工具的核心能力：划词翻译、截图 OCR 翻译、输入翻译、查词、多引擎聚合对比、可扩展插件系统（接入任意 LLM）、历史/收藏、TTS。完全免费、无次数限制。
 
-> 规划与设计见 `openspec/changes/macos-translator-bob-clone/`。
+> 规划与设计见 `openspec/changes/macos-translator/`。
 
 ## 功能
 
@@ -54,11 +54,11 @@ Interaction（快捷键/菜单/PopClip/URL）
 - `ParrotPlugins` — JavaScriptCore 沙箱插件运行时（`$http` 主机白名单、`$option`/`$log` 注入）。
 - `ParrotApp` — 菜单栏 App、全局快捷键、悬浮窗、截图 OCR、设置面板、TTS。
 
-详见 `openspec/changes/macos-translator-bob-clone/design.md`。
+详见 `openspec/changes/macos-translator/design.md`。
 
 ## 插件开发
 
-见 [docs/plugin-development.md](./docs/plugin-development.md)。示例：`examples/echo.bobplugin`、`examples/openai.bobplugin`。
+见 [docs/plugin-development.md](./docs/plugin-development.md)。示例：`examples/echo.parrotplugin`、`examples/openai.parrotplugin`。
 
 ## 贡献与安全
 

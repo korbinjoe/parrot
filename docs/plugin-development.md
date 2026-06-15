@@ -1,13 +1,13 @@
 # 插件开发指南
 
-Parrot 插件是一个 `.bobplugin` 目录，包含 `info.json`（清单）与 `main.js`（实现）。插件运行在 JavaScriptCore 沙箱中，可接入任意 LLM 或词典服务。
+Parrot 插件是一个 `.parrotplugin` 目录，包含 `info.json`（清单）与 `main.js`（实现）。插件运行在 JavaScriptCore 沙箱中，可接入任意 LLM 或词典服务。
 
 安装位置：`~/Library/Application Support/Parrot/Plugins/`，应用启动时自动加载。
 
 ## 目录结构
 
 ```
-my-engine.bobplugin/
+my-engine.parrotplugin/
   info.json
   main.js
 ```
@@ -75,4 +75,4 @@ function translate(query) {
 - 加载失败的插件会被静默跳过；用 `$log` 排查。
 - 网络被拒说明目标主机不在 `permissions.network` 白名单。
 
-参考实现：`examples/echo.bobplugin`（最小回显）、`examples/openai.bobplugin`（接入 OpenAI）。
+参考实现：`examples/echo.parrotplugin`（最小回显）、`examples/openai.parrotplugin`（接入 OpenAI）。

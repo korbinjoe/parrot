@@ -48,8 +48,8 @@
 
 ## M4 — 插件系统
 
-- [x] 定义插件 manifest（`info.json`）Codable schema 与 `*.bobplugin` 目录规范
-- [x] JavaScriptCore 运行时 + `translate(query, completion)` 桥接（对齐 Bob 签名）
+- [x] 定义插件 manifest（`info.json`）Codable schema 与 `*.parrotplugin` 目录规范
+- [x] JavaScriptCore 运行时 + `translate(query, completion)` 桥接（对齐同类工具签名）
 - [x] `$http` 网络桥 + 域名白名单（host 后缀匹配）+ 每调用超时（沙箱：独立 JSContext/串行队列/无 fs）
 - [x] `$option` / `$log` 注入；secret 经 `resolveOptions` 合并默认值
 - [x] `PluginProvider` 适配为 `TranslationProvider`，参与聚合

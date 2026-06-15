@@ -3,7 +3,7 @@ import ParrotCore
 
 /// Discovers and instantiates plugins from disk.
 ///
-/// A plugin is a directory (conventionally `*.bobplugin`) containing:
+/// A plugin is a directory (conventionally `*.parrotplugin`) containing:
 ///   - `info.json`  (manifest)
 ///   - `main.js`    (implements `translate(query, completion)`)
 public enum PluginLoader {

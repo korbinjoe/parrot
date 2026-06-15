@@ -99,7 +99,7 @@ protocol TranslationProvider {
 ## 5. 插件系统
 
 - **运行时**：JavaScriptCore（系统自带）。
-- **插件包结构**：`info.json`（manifest：id、name、version、author、需要的配置项 schema、权限声明、支持的能力）+ `main.js`（实现约定的 `translate(query, completion)` 接口，对齐 Bob 插件签名以降低社区迁移成本）。
+- **插件包结构**：`info.json`（manifest：id、name、version、author、需要的配置项 schema、权限声明、支持的能力）+ `main.js`（实现约定的 `translate(query, completion)` 接口，对齐同类工具插件签名以降低社区迁移成本）。
 - **配置注入**：宿主将用户填写的 API Key / Model / Prompt 等通过 `$option` 注入；Key 存 Keychain，不落明文。
 - **安全沙箱**（详见 specs/plugin-system）：
   - JS 上下文无文件系统访问；
@@ -125,7 +125,7 @@ AppSettings(hotkeys, theme, defaultTargetLang, autoDetect, panelBehavior)
 
 ## 7. 全局快捷键与权限
 
-- **全局快捷键**：基于 `CGEvent` tap / Carbon `RegisterEventHotKey`，全部可在设置中自定义；默认对齐 Bob（划词 ⌥D、截图 ⌥S、输入 ⌥A）。
+- **全局快捷键**：基于 `CGEvent` tap / Carbon `RegisterEventHotKey`，全部可在设置中自定义；默认沿用业界惯例（划词 ⌥D、截图 ⌥S、输入 ⌥A）。
 - **选中文本捕获**（划词）：
   1. 首选 Accessibility API（`AXUIElement` 读 focused element 的 selected text）；
   2. 回退：合成 ⌘C 复制 → 读 `NSPasteboard` → 还原剪贴板。
@@ -143,6 +143,6 @@ AppSettings(hotkeys, theme, defaultTargetLang, autoDetect, panelBehavior)
 - **D-1（已定）**：技术栈采用 Swift + SwiftUI + AppKit 原生方案，放弃跨平台。依据：系统级集成是核心价值。
 - **D-2（已定）**：OCR 首选 Apple Vision（离线免费），插件可扩展第三方。
 - **D-3（已定）**：开源 License = **AGPL-3.0**（强 Copyleft，防闭源二次商用）。
-- **D-4（已定）**：插件运行时用 JavaScriptCore 并对齐 Bob 插件接口签名，以复用社区生态；不承诺 100% 兼容。
+- **D-4（已定）**：插件运行时用 JavaScriptCore 并对齐同类工具插件接口签名，以复用社区生态；不承诺 100% 兼容。
 - **D-5（已定）**：持久化用 SQLite/GRDB 而非 Core Data，换取更好的全文检索与可控迁移。
 - **D-6（已定）**：最低系统版本 = **macOS 13 Ventura**。

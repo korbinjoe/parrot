@@ -1,10 +1,10 @@
-# Review: Parrot (Bob 复刻)
+# Review: Parrot
 
-变更：`macos-translator-bob-clone` — 验证日期 2026-06-15。
+变更：`macos-translator` — 验证日期 2026-06-15。
 
 ## 验证结论
 
-构建、测试、打包链路全绿，Bob 核心功能已全部落地，可开箱即用（Google 引擎免 Key）。
+构建、测试、打包链路全绿，核心功能已全部落地，可开箱即用（Google 引擎免 Key）。
 
 ```
 swift build   → Build complete!
@@ -12,9 +12,9 @@ swift test    → 24 tests passed
 build-app.sh  → build/Parrot.app（菜单栏常驻，parrot:// URL scheme 已注册）
 ```
 
-## 功能完成度对照（vs Bob）
+## 功能完成度对照
 
-| Bob 功能 | 状态 | 实现 |
+| 功能 | 状态 | 实现 |
 |----------|------|------|
 | 划词翻译 | ✓ | ⌥D，AX + ⌘C 回退 |
 | 查词（音标/词性/释义） | ✓ | ⌥E，`TranslateMode.lookup`，悬浮窗渲染 |

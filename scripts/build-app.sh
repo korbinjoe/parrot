@@ -22,12 +22,12 @@ cp "$BIN" "$MACOS/Parrot"
 cp "$ROOT/Resources/Info.plist" "$APP/Contents/Info.plist"
 
 # Sign with a stable identity so TCC (Accessibility / Screen Recording) grants survive rebuilds.
-# A self-signed "OpenBob Dev" cert gives a designated requirement keyed to the certificate
+# A self-signed "Parrot Dev" cert gives a designated requirement keyed to the certificate
 # (not the cdhash), so re-signing a fresh binary keeps the same DR and the OS keeps the grant.
-# NOTE: the cert name is "OpenBob Dev" for historical reasons — it's a local dev cert and its
-# name has no functional bearing on the app (bundle id com.parrot.app). Reusing it keeps the
-# designated requirement stable across rebuilds. Falls back to ad-hoc when the cert is absent.
-SIGN_IDENTITY="${PARROT_SIGN_IDENTITY:-OpenBob Dev}"
+# NOTE: the cert name "Parrot Dev" is a local dev cert and its name has no functional bearing
+# on the app (bundle id com.parrot.app). Reusing it keeps the designated requirement stable
+# across rebuilds. Falls back to ad-hoc when the cert is absent.
+SIGN_IDENTITY="${PARROT_SIGN_IDENTITY:-Parrot Dev}"
 if security find-certificate -c "$SIGN_IDENTITY" >/dev/null 2>&1; then
     codesign --force --deep --sign "$SIGN_IDENTITY" "$APP" >/dev/null 2>&1 \
         && echo "  signed with: $SIGN_IDENTITY (TCC grants persist across rebuilds)" \

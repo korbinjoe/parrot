@@ -2,7 +2,7 @@ import AppKit
 import SwiftUI
 
 /// Non-activating floating panel that shows translation results near the cursor and
-/// auto-hides when it loses focus. Mirrors Bob's "即用即走" behavior.
+/// auto-hides when it loses focus. Implements an "即用即走" (use-and-dismiss) behavior.
 @MainActor
 final class FloatingPanel {
     private var panel: NSPanel?

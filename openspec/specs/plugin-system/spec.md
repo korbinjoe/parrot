@@ -2,12 +2,12 @@
 
 ## 目的
 
-允许第三方/社区用 JavaScript 编写翻译插件，接入任意 LLM 或翻译服务，热加载、可配置、沙箱安全；接口尽量贴近 Bob 插件以降低社区迁移成本（不承诺 100% 兼容）。
+允许第三方/社区用 JavaScript 编写翻译插件，接入任意 LLM 或翻译服务，热加载、可配置、沙箱安全；接口尽量贴近同类工具插件以降低社区迁移成本（不承诺 100% 兼容）。
 
 ## 插件包结构
 
 ```
-my-plugin.bobplugin/  (zip 或目录)
+my-plugin.parrotplugin/  (zip 或目录)
 ├── info.json     # manifest
 └── main.js       # 实现 translate 接口
 ```
@@ -64,7 +64,7 @@ function translate(query, completion) {
 
 ## 生命周期
 
-- **安装**：导入 `.bobplugin` → 校验 manifest schema → 展示权限 → 落地到插件目录。
+- **安装**：导入 `.parrotplugin` → 校验 manifest schema → 展示权限 → 落地到插件目录。
 - **配置**：UI 按 `options` 渲染表单；`secret` 写 Keychain。
 - **启用/禁用**：即时生效，禁用的插件不参与聚合。
 - **热加载**：监听插件目录变化，无需重启。

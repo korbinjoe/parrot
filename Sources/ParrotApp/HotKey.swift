@@ -17,7 +17,7 @@ final class HotKey {
     ///   - modifiers: Carbon modifier mask (e.g. `UInt32(optionKey)`).
     init?(keyCode: UInt32, modifiers: UInt32, handler: @escaping () -> Void) {
         HotKey.counter += 1
-        let signature = OSType(0x4F424F42) // 'OBOB'
+        let signature = OSType(0x50525254) // 'PRRT'
         self.id = EventHotKeyID(signature: signature, id: HotKey.counter)
         self.handler = handler
 
