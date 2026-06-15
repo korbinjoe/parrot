@@ -51,11 +51,11 @@
 
 ## 阶段 5 — 历史 / 收藏窗口（新增）
 
-- [ ] [实现] 新建 `HistoryWindow`（NSWindow + SwiftUI），列表 280 + 详情双栏
-- [ ] [实现] 列表：搜索框 + 全部/收藏分段 + 语言对筛选 + HistoryRow
-- [ ] [实现] 详情：复用 SourceBlock/EngineCard + 再翻译/复制/朗读/删除/收藏
-- [ ] [实现] 接 HistoryStore（检索/收藏/删除）；空态占位
-- [ ] [实现] 菜单栏 Popover「查看全部历史」打开此窗口
+- [x] [实现] 新建 `HistoryWindow`（NSWindow + SwiftUI），列表 280 + 详情双栏
+- [x] [实现] 列表：搜索框 + 全部/收藏分段 + 语言对筛选 + HistoryRow
+- [x] [实现] 详情：源文块 + 译文卡（providerId Tag + 时间）+ 再翻译/复制/朗读/删除/收藏
+- [x] [实现] 接 HistoryStore（检索/收藏/删除）；空态占位
+- [ ] [实现] 菜单栏 Popover「查看全部历史」打开此窗口（待阶段 3 AppDelegate 改造，re-translate 闭包已预留）
 
 ## 阶段 6 — 截图 OCR 取词浮层（新增）
 
