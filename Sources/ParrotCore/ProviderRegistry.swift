@@ -15,7 +15,14 @@ public final class ProviderRegistry: @unchecked Sendable {
             order.append(provider.id)
         }
         providers[provider.id] = provider
-        if enabled { self.enabled.insert(provider.id) }
+        if enabled { self.enabled.insert(provider.id) } else { self.enabled.remove(provider.id) }
+    }
+
+    public func removeAll() {
+        lock.lock(); defer { lock.unlock() }
+        providers.removeAll()
+        order.removeAll()
+        enabled.removeAll()
     }
 
     public func setEnabled(_ id: String, _ value: Bool) {

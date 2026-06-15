@@ -48,3 +48,60 @@ import Foundation
         _ = try await engine.translate(TranslateRequest(text: "hi", to: .zh))
     }
 }
+
+@Test func baiduParsesTranslation() throws {
+    let json = """
+    {"from":"en","to":"zh","trans_result":[{"src":"hello","dst":"你好"}]}
+    """
+    let result = try BaiduEngine.parse(Data(json.utf8), providerId: "baidu")
+    #expect(result.translated == "你好")
+}
+
+@Test func youdaoParsesTranslation() throws {
+    let json = """
+    {"errorCode":"0","translation":["你好"]}
+    """
+    let result = try YoudaoEngine.parse(Data(json.utf8), providerId: "youdao")
+    #expect(result.translated == "你好")
+}
+
+@Test func microsoftParsesTranslation() throws {
+    let json = """
+    [{"detectedLanguage":{"language":"en","score":1},"translations":[{"text":"你好","to":"zh-Hans"}]}]
+    """
+    let result = try MicrosoftEngine.parse(Data(json.utf8), providerId: "microsoft")
+    #expect(result.translated == "你好")
+    #expect(result.detectedFrom == .en)
+}
+
+@Test func openAICompatParsesChatCompletion() throws {
+    let json = """
+    {"choices":[{"message":{"content":" 你好 "}}]}
+    """
+    let result = try OpenAICompatEngine.parseChatCompletion(Data(json.utf8), providerId: "openai")
+    #expect(result.translated == "你好")
+}
+
+@Test func geminiParsesContent() throws {
+    let json = """
+    {"candidates":[{"content":{"parts":[{"text":"你好"}]}}]}
+    """
+    let result = try GeminiEngine.parse(Data(json.utf8), providerId: "gemini")
+    #expect(result.translated == "你好")
+}
+
+@Test func tencentParsesTranslation() throws {
+    let json = """
+    {"Response":{"Source":"en","Target":"zh","TargetText":"你好","RequestId":"x"}}
+    """
+    let result = try TencentEngine.parse(Data(json.utf8), providerId: "tencent")
+    #expect(result.translated == "你好")
+}
+
+@Test func caiyunParsesTranslation() throws {
+    let json = """
+    {"target":["你好","世界"]}
+    """
+    let result = try CaiyunEngine.parse(Data(json.utf8), providerId: "caiyun")
+    #expect(result.translated == "你好\n世界")
+}

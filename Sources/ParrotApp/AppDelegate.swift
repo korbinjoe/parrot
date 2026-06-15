@@ -152,7 +152,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     @objc private func translateScreenshot() {
         Task {
             do {
-                let lines = try await ScreenOCR.captureAndRecognizeLines()
+                let lines = try await ScreenOCR.captureAndRecognizeLines(coordinator: state.ocrCoordinator)
                 guard !lines.isEmpty else { return }
                 if lines.count == 1 {
                     // Single line — translate immediately (即用即走), no picker.

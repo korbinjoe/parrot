@@ -1,5 +1,6 @@
 import AppKit
 import Vision
+import ParrotCore
 
 /// Interactive region screenshot + Vision OCR.
 /// Uses the system `screencapture -i` tool for reliable crosshair region selection,
@@ -14,8 +15,18 @@ enum ScreenOCR {
         return try recognize(image, languages: languages)
     }
 
-    /// Like `captureAndRecognize` but keeps the layout-ordered lines separate, so the caller can
-    /// present a per-line picker. Empty lines are dropped.
+    /// Present the system region selector and OCR the result via the given coordinator.
+    static func captureAndRecognizeLines(
+        coordinator: OCRCoordinator,
+        languages: [String] = ["zh-Hans", "en-US"]
+    ) async throws -> [String] {
+        let image = try await interactiveCapture()
+        let hints: [Language] = languages.contains(where: { $0.hasPrefix("zh") }) ? [.zh, .en] : [.en]
+        let result = try await coordinator.recognize(image, languageHints: hints)
+        return result.fullText.split(separator: "\n", omittingEmptySubsequences: true).map(String.init)
+    }
+
+    /// Legacy path using inline Vision (tests / fallback).
     static func captureAndRecognizeLines(languages: [String] = ["zh-Hans", "en-US"]) async throws -> [String] {
         let image = try await interactiveCapture()
         return try recognizeLines(image, languages: languages)

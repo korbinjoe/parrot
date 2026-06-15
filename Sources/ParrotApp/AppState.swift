@@ -5,11 +5,12 @@ import ParrotPlugins
 import Combine
 import Network
 
-/// Observable application state shared across the menu bar, input panel and floating result window.
 @MainActor
 final class AppState: ObservableObject {
     let registry = ProviderRegistry()
     let coordinator: TranslationCoordinator
+    let ocrCoordinator = OCRCoordinator()
+    let ttsCoordinator = TTSCoordinator()
 
     let history = HistoryStore()
     let settings = AppSettings()
@@ -27,28 +28,20 @@ final class AppState: ObservableObject {
 
     init() {
         coordinator = TranslationCoordinator(registry: registry)
-
         targetLanguage = settings.targetLanguage
+        Speaker.shared.coordinator = ttsCoordinator
         startNetworkMonitor()
-
-        // Google — free web endpoint, no key, enabled per settings (default on).
-        registry.register(GoogleEngine(), enabled: settings.googleEnabled)
-
-        // DeepL — needs an API key (free keys end with ":fx"). Enabled only if toggled on AND keyed.
-        registerKeyed(DeepLEngine(), key: settings.deepLKey(), enabled: settings.deepLEnabled)
-
-        // OpenAI — LLM engine, needs a key.
-        registerKeyed(OpenAIEngine(), key: settings.openAIKey(), enabled: settings.openAIEnabled)
-
-        // Mock — offline demo, disabled by default once real engines exist.
-        registry.register(MockEngine(), enabled: false)
-
-        // Community plugins from ~/Library/Application Support/Parrot/Plugins.
+        reloadProviders()
         loadPlugins()
     }
 
-    /// Watch connectivity so the result panel can show a "no network" warning bar. Translation
-    /// engines are all network-backed, so offline = every engine will fail.
+    func reloadProviders() {
+        registry.removeAll()
+        EngineBootstrap.registerAll(into: registry, settings: settings)
+        ocrCoordinator.applySettings(settings)
+        ttsCoordinator.applySettings(settings)
+    }
+
     private func startNetworkMonitor() {
         netMonitor.pathUpdateHandler = { [weak self] path in
             Task { @MainActor in self?.isOffline = path.status != .satisfied }
@@ -56,47 +49,23 @@ final class AppState: ObservableObject {
         netMonitor.start(queue: DispatchQueue(label: "parrot.net.monitor"))
     }
 
-    /// Re-apply settings to the live registry (called after the user edits preferences).
     func applySettings() {
         targetLanguage = settings.targetLanguage
-        registry.setEnabled(GoogleEngine().id, settings.googleEnabled)
-
-        if let key = settings.deepLKey(), !key.isEmpty {
-            let engine = DeepLEngine()
-            try? engine.configure(ProviderConfig(extra: ["apiKey": key]))
-            registry.register(engine, enabled: settings.deepLEnabled)
-        } else {
-            registry.setEnabled(DeepLEngine().id, false)
-        }
-
-        if let key = settings.openAIKey(), !key.isEmpty {
-            let engine = OpenAIEngine()
-            try? engine.configure(ProviderConfig(extra: ["apiKey": key]))
-            registry.register(engine, enabled: settings.openAIEnabled)
-        } else {
-            registry.setEnabled(OpenAIEngine().id, false)
-        }
+        reloadProviders()
+        loadPlugins()
     }
 
-    /// Discover and register installed JS plugins. Failures are skipped silently.
     private func loadPlugins() {
         for plugin in PluginLoader.loadAll() {
             registry.register(plugin, enabled: true)
         }
     }
 
-    /// Register a key-requiring engine: configure it and enable only if a non-empty key exists
-    /// AND the user has it toggled on.
-    private func registerKeyed(_ provider: TranslationProvider, key: String?, enabled: Bool) {
-        if let key, !key.isEmpty {
-            try? provider.configure(ProviderConfig(extra: ["apiKey": key]))
-            registry.register(provider, enabled: enabled)
-        } else {
-            registry.register(provider, enabled: false)
-        }
+    func validateEngine(id: String) async -> Bool {
+        guard let provider = registry.provider(id: id) else { return false }
+        return await EngineValidator.validate(provider)
     }
 
-    /// Translate `text` across all active engines, publish outcomes, and record to history.
     func translate(_ text: String, mode: TranslateMode = .translate) {
         let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else { return }
@@ -111,11 +80,9 @@ final class AppState: ObservableObject {
             self.outcomes = result
             self.isTranslating = false
 
-            // Detected source (from first successful engine) drives TTS for the original text.
             if let detected = result.compactMap({ $0.result?.detectedFrom }).first {
                 self.detectedSource = detected
             }
-            // Record the primary (first successful) translation to history.
             if let primary = result.first(where: { $0.isSuccess })?.result {
                 let record = TranslationRecord(
                     sourceText: trimmed,
@@ -130,7 +97,6 @@ final class AppState: ObservableObject {
         }
     }
 
-    /// Toggle favorite on the most recently saved record.
     func toggleFavorite() {
         guard let id = savedRecordId else { return }
         isFavorite.toggle()

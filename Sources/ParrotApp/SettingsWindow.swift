@@ -1,6 +1,7 @@
 import AppKit
 import SwiftUI
 import ParrotCore
+import ParrotEngines
 
 /// Hosts the SwiftUI settings UI in a standard titled window (separate from the floating panel).
 @MainActor
@@ -34,12 +35,14 @@ struct SettingsView: View {
     @ObservedObject private var settings: AppSettings
 
     enum Pane: String, CaseIterable, Identifiable {
-        case general, engines, keys, shortcuts, plugins, about
+        case general, engines, ocr, tts, keys, shortcuts, plugins, about
         var id: String { rawValue }
         var title: String {
             switch self {
             case .general: return "通用"
-            case .engines: return "引擎"
+            case .engines: return "翻译"
+            case .ocr: return "识别"
+            case .tts: return "语音"
             case .keys: return "密钥"
             case .shortcuts: return "快捷键"
             case .plugins: return "插件"
@@ -50,6 +53,8 @@ struct SettingsView: View {
             switch self {
             case .general: return "gearshape"
             case .engines: return "globe"
+            case .ocr: return "doc.text.viewfinder"
+            case .tts: return "waveform"
             case .keys: return "key"
             case .shortcuts: return "command"
             case .plugins: return "puzzlepiece"
@@ -61,7 +66,26 @@ struct SettingsView: View {
     @State private var selection: Pane = .general
     @State private var deepLKey: String = ""
     @State private var openAIKey: String = ""
+    @State private var tencentCreds: String = ""
+    @State private var baiduCreds: String = ""
+    @State private var youdaoCreds: String = ""
+    @State private var caiyunToken: String = ""
+    @State private var microsoftKey: String = ""
+    @State private var deepSeekKey: String = ""
+    @State private var geminiKey: String = ""
+    @State private var groqKey: String = ""
+    @State private var qwenKey: String = ""
+    @State private var doubaoKey: String = ""
+    @State private var kimiKey: String = ""
+    @State private var zhipuKey: String = ""
+    @State private var siliconFlowKey: String = ""
+    @State private var ollamaEndpointField: String = ""
+    @State private var openAIModelField: String = ""
+    @State private var openAIEndpointField: String = ""
+    @State private var azureEndpointField: String = ""
+    @State private var validateNote: String = ""
     @State private var savedNote: String = ""
+    @State private var engineOrderDraft: [String] = []
 
     private let languages: [(String, String)] = [
         ("zh", "中文"), ("en", "English"), ("ja", "日本語"), ("ko", "한국어"),
@@ -92,6 +116,24 @@ struct SettingsView: View {
         .onAppear {
             deepLKey = settings.deepLKey() ?? ""
             openAIKey = settings.openAIKey() ?? ""
+            tencentCreds = settings.tencentCredentials() ?? ""
+            baiduCreds = settings.baiduCredentials() ?? ""
+            youdaoCreds = settings.youdaoCredentials() ?? ""
+            caiyunToken = settings.caiyunToken() ?? ""
+            microsoftKey = settings.microsoftKey() ?? ""
+            deepSeekKey = settings.deepSeekKey() ?? ""
+            geminiKey = settings.geminiKey() ?? ""
+            groqKey = settings.groqKey() ?? ""
+            qwenKey = settings.qwenKey() ?? ""
+            doubaoKey = settings.doubaoKey() ?? ""
+            kimiKey = settings.kimiKey() ?? ""
+            zhipuKey = settings.zhipuKey() ?? ""
+            siliconFlowKey = settings.siliconFlowKey() ?? ""
+            ollamaEndpointField = settings.ollamaEndpoint
+            openAIModelField = settings.openAIModel
+            openAIEndpointField = settings.openAIEndpoint
+            azureEndpointField = settings.endpoint(for: "azure-openai") ?? ""
+            engineOrderDraft = settings.engineOrder.isEmpty ? EngineBootstrap.defaultOrder : settings.engineOrder
         }
     }
 
@@ -133,6 +175,8 @@ struct SettingsView: View {
         switch selection {
         case .general: generalPane
         case .engines: enginesPane
+        case .ocr: ocrPane
+        case .tts: ttsPane
         case .keys: keysPane
         case .shortcuts: shortcutsPane
         case .plugins: pluginsPane
@@ -157,6 +201,9 @@ struct SettingsView: View {
     private var enginesPane: some View {
         VStack(alignment: .leading, spacing: 0) {
             sectionTitle("翻译引擎")
+            Text("完整对照见 docs/bob-service-matrix.md")
+                .font(Theme.Font.caption).foregroundStyle(Theme.Palette.label3)
+                .padding(.bottom, Theme.Spacing.s8)
             engineRow("Google 翻译", note: "免费 · 无需 Key",
                       status: settings.googleEnabled ? .ok : .off,
                       isOn: $settings.googleEnabled)
@@ -166,27 +213,194 @@ struct SettingsView: View {
             engineRow("OpenAI", note: settings.hasOpenAIKey ? nil : "未配置 Key",
                       status: status(enabled: settings.openAIEnabled, hasKey: settings.hasOpenAIKey),
                       isOn: $settings.openAIEnabled)
+            engineRow("腾讯翻译君", note: settings.hasTencentCredentials ? nil : "SecretId:SecretKey",
+                      status: status(enabled: settings.tencentEnabled, hasKey: settings.hasTencentCredentials),
+                      isOn: $settings.tencentEnabled)
+            engineRow("百度翻译", note: settings.hasBaiduCredentials ? nil : "AppId:Secret",
+                      status: status(enabled: settings.baiduEnabled, hasKey: settings.hasBaiduCredentials),
+                      isOn: $settings.baiduEnabled)
+            engineRow("有道翻译", note: settings.hasYoudaoCredentials ? nil : "AppKey:Secret",
+                      status: status(enabled: settings.youdaoEnabled, hasKey: settings.hasYoudaoCredentials),
+                      isOn: $settings.youdaoEnabled)
+            engineRow("彩云小译", note: settings.hasCaiyunToken ? nil : "Token",
+                      status: status(enabled: settings.caiyunEnabled, hasKey: settings.hasCaiyunToken),
+                      isOn: $settings.caiyunEnabled)
+            engineRow("Microsoft 翻译", note: settings.hasMicrosoftKey ? nil : "订阅 Key",
+                      status: status(enabled: settings.microsoftEnabled, hasKey: settings.hasMicrosoftKey),
+                      isOn: $settings.microsoftEnabled)
+            if AppleTranslationEngine.isSupported {
+                engineRow("系统翻译", note: "macOS 15+ · 离线",
+                          status: settings.appleEnabled ? .ok : .off,
+                          isOn: $settings.appleEnabled)
+            }
+            sectionTitle("LLM 引擎").padding(.top, Theme.Spacing.s12)
+            llmEngineRow("DeepSeek", hasKey: settings.hasDeepSeekKey, isOn: $settings.deepSeekEnabled)
+            llmEngineRow("Gemini", hasKey: settings.hasGeminiKey, isOn: $settings.geminiEnabled)
+            llmEngineRow("Groq", hasKey: settings.hasGroqKey, isOn: $settings.groqEnabled)
+            llmEngineRow("Ollama", hasKey: true, isOn: $settings.ollamaEnabled)
+            llmEngineRow("通义千问", hasKey: settings.hasQwenKey, isOn: $settings.qwenEnabled)
+            llmEngineRow("豆包", hasKey: settings.hasDoubaoKey, isOn: $settings.doubaoEnabled)
+            llmEngineRow("Kimi", hasKey: settings.hasKimiKey, isOn: $settings.kimiEnabled)
+            llmEngineRow("智谱 GLM", hasKey: settings.hasZhipuKey, isOn: $settings.zhipuEnabled)
+            llmEngineRow("硅基流动", hasKey: settings.hasSiliconFlowKey, isOn: $settings.siliconFlowEnabled)
+            sectionTitle("P2 引擎").padding(.top, Theme.Spacing.s12)
+            llmEngineRow("文心一言", hasKey: settings.ernieKey()?.isEmpty == false, isOn: $settings.ernieEnabled)
+            llmEngineRow("混元", hasKey: settings.hunyuanKey()?.isEmpty == false, isOn: $settings.hunyuanEnabled)
+            llmEngineRow("零一万物", hasKey: settings.yiKey()?.isEmpty == false, isOn: $settings.yiEnabled)
+            llmEngineRow("Azure OpenAI", hasKey: settings.azureOpenAIKey()?.isEmpty == false, isOn: $settings.azureOpenAIEnabled)
+            sectionTitle("P3 引擎").padding(.top, Theme.Spacing.s12)
+            engineRow("火山翻译", note: nil, status: settings.volcengineEnabled ? .ok : .off, isOn: $settings.volcengineEnabled)
+            engineRow("阿里翻译", note: nil, status: settings.aliyunEnabled ? .ok : .off, isOn: $settings.aliyunEnabled)
+            engineRow("小牛翻译", note: nil, status: settings.niutransEnabled ? .ok : .off, isOn: $settings.niutransEnabled)
+            engineRow("Amazon 翻译", note: nil, status: settings.amazonEnabled ? .ok : .off, isOn: $settings.amazonEnabled)
+            sectionTitle("引擎排序").padding(.top, Theme.Spacing.s12)
+            Text("拖拽调整翻译结果面板中的引擎顺序（仅影响已注册引擎）")
+                .font(Theme.Font.caption).foregroundStyle(Theme.Palette.label3)
+                .padding(.bottom, Theme.Spacing.s8)
+            VStack(alignment: .leading, spacing: 4) {
+                ForEach(Array(engineOrderDraft.enumerated()), id: \.element) { index, id in
+                    HStack(spacing: Theme.Spacing.s8) {
+                        Text(engineDisplayName(id))
+                            .font(Theme.Font.body)
+                        Spacer()
+                        Button("↑") { moveEngine(from: index, to: index - 1) }
+                            .disabled(index == 0)
+                        Button("↓") { moveEngine(from: index, to: index + 1) }
+                            .disabled(index == engineOrderDraft.count - 1)
+                    }
+                    .frame(minHeight: 24)
+                    Divider()
+                }
+            }
+            .frame(maxHeight: 200)
         }
+    }
+
+    private func engineDisplayName(_ id: String) -> String {
+        switch id {
+        case "google": return "Google 翻译"
+        case "deepl": return "DeepL"
+        case "openai": return "OpenAI"
+        case "tencent": return "腾讯翻译君"
+        case "baidu": return "百度翻译"
+        case "youdao": return "有道翻译"
+        case "caiyun": return "彩云小译"
+        case "microsoft": return "Microsoft 翻译"
+        case "apple": return "系统翻译"
+        case "deepseek": return "DeepSeek"
+        case "gemini": return "Gemini"
+        case "groq": return "Groq"
+        case "ollama": return "Ollama"
+        case "qwen": return "通义千问"
+        case "doubao": return "豆包"
+        case "kimi": return "Kimi"
+        case "zhipu": return "智谱 GLM"
+        case "siliconflow": return "硅基流动"
+        case "ernie": return "文心一言"
+        case "hunyuan": return "混元"
+        case "yi": return "零一万物"
+        case "azure-openai": return "Azure OpenAI"
+        case "volcengine": return "火山翻译"
+        case "aliyun": return "阿里翻译"
+        case "niutrans": return "小牛翻译"
+        case "amazon": return "Amazon 翻译"
+        default: return id
+        }
+    }
+
+    private var ocrPane: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            sectionTitle("文本识别")
+            settingRow("默认 OCR 引擎") {
+                Picker("", selection: $settings.ocrProviderId) {
+                    ForEach(state.ocrCoordinator.availableProviders(), id: \.id) { p in
+                        Text(p.name).tag(p.id)
+                    }
+                }
+                .labelsHidden().frame(width: 200)
+                .onChange(of: settings.ocrProviderId) { _ in state.applySettings() }
+            }
+            callout("离线默认可用 Apple Vision。百度/腾讯 OCR 密钥与翻译相同格式，在「密钥」页配置。")
+            HStack(spacing: Theme.Spacing.s12) {
+                Button("验证 OCR 配置") { validateOCR() }
+                if !validateNote.isEmpty {
+                    Text(validateNote).font(Theme.Font.callout).foregroundStyle(Theme.Palette.label2)
+                }
+                Spacer()
+            }
+            .padding(.top, Theme.Spacing.s12)
+        }
+    }
+
+    private var ttsPane: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            sectionTitle("语音合成")
+            settingRow("默认 TTS 引擎") {
+                Picker("", selection: $settings.ttsProviderId) {
+                    ForEach(state.ttsCoordinator.availableProviders(), id: \.id) { p in
+                        Text(p.name).tag(p.id)
+                    }
+                }
+                .labelsHidden().frame(width: 200)
+                .onChange(of: settings.ttsProviderId) { _ in state.applySettings() }
+            }
+            callout("默认使用系统离线语音。云端 TTS 需在「密钥」页配置对应 API Key。")
+        }
+    }
+
+    private func llmEngineRow(_ name: String, hasKey: Bool, isOn: Binding<Bool>) -> some View {
+        engineRow(name, note: hasKey ? nil : "未配置 Key",
+                  status: status(enabled: isOn.wrappedValue, hasKey: hasKey),
+                  isOn: isOn)
     }
 
     private var keysPane: some View {
         VStack(alignment: .leading, spacing: 0) {
             sectionTitle("API Keys")
-            settingRow("DeepL API Key") {
-                SecureField("免费版以 :fx 结尾", text: $deepLKey).frame(width: 230)
-            }
-            settingRow("OpenAI API Key") {
-                SecureField("sk-…", text: $openAIKey).frame(width: 230)
-            }
+            Text("复合密钥格式：腾讯/百度/有道为 `Id:Secret`")
+                .font(Theme.Font.caption).foregroundStyle(Theme.Palette.label3)
+                .padding(.bottom, Theme.Spacing.s8)
+            keyRow("DeepL", $deepLKey, placeholder: "免费版以 :fx 结尾")
+            keyRow("OpenAI", $openAIKey, placeholder: "sk-…")
+            keyRow("腾讯翻译君", $tencentCreds, placeholder: "SecretId:SecretKey")
+            keyRow("百度翻译", $baiduCreds, placeholder: "AppId:Secret")
+            keyRow("有道翻译", $youdaoCreds, placeholder: "AppKey:AppSecret")
+            keyRow("彩云小译", $caiyunToken, placeholder: "Token")
+            keyRow("Microsoft", $microsoftKey, placeholder: "订阅 Key")
+            keyRow("DeepSeek", $deepSeekKey, placeholder: "API Key")
+            keyRow("Gemini", $geminiKey, placeholder: "API Key")
+            keyRow("Groq", $groqKey, placeholder: "API Key")
+            keyRow("通义千问", $qwenKey, placeholder: "DashScope Key")
+            keyRow("豆包", $doubaoKey, placeholder: "方舟 API Key")
+            keyRow("Kimi", $kimiKey, placeholder: "Moonshot Key")
+            keyRow("智谱 GLM", $zhipuKey, placeholder: "API Key")
+            keyRow("硅基流动", $siliconFlowKey, placeholder: "API Key")
+            sectionTitle("LLM 高级").padding(.top, Theme.Spacing.s12)
+            settingRow("OpenAI Model") { TextField("gpt-4o-mini", text: $openAIModelField).frame(width: 230) }
+            settingRow("OpenAI Endpoint") { TextField("可选", text: $openAIEndpointField).frame(width: 230) }
+            settingRow("Ollama Endpoint") { TextField("http://127.0.0.1:11434/v1/chat/completions", text: $ollamaEndpointField).frame(width: 230) }
+            settingRow("Azure Endpoint") { TextField("Azure deployment URL", text: $azureEndpointField).frame(width: 230) }
             HStack(spacing: Theme.Spacing.s12) {
                 Button("保存到钥匙串") { saveKeys() }
+                Button("验证 OpenAI") { validateEngine("openai") }
+                Button("验证 DeepSeek") { validateEngine("deepseek") }
+                Button("验证智谱") { validateEngine("zhipu") }
+                if !validateNote.isEmpty {
+                    Text(validateNote).font(Theme.Font.callout).foregroundStyle(Theme.Palette.label2)
+                }
                 if !savedNote.isEmpty {
                     Text(savedNote).font(Theme.Font.callout).foregroundStyle(Theme.Palette.success)
                 }
                 Spacer()
             }
             .padding(.top, Theme.Spacing.s12)
-            callout("🔒 API Key 存储于 macOS 钥匙串，绝不写入 UserDefaults、历史库或日志。")
+            callout("🔒 API Key 存储于 macOS 钥匙串。申请教程见 docs/bob-service-matrix.md")
+        }
+    }
+
+    private func keyRow(_ label: String, _ text: Binding<String>, placeholder: String) -> some View {
+        settingRow(label) {
+            SecureField(placeholder, text: text).frame(width: 230)
         }
     }
 
@@ -327,10 +541,62 @@ struct SettingsView: View {
     }
 
     private func saveKeys() {
-        settings.setDeepLKey(deepLKey.trimmingCharacters(in: .whitespacesAndNewlines))
-        settings.setOpenAIKey(openAIKey.trimmingCharacters(in: .whitespacesAndNewlines))
+        let trim: (String) -> String = { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+        settings.setDeepLKey(trim(deepLKey))
+        settings.setOpenAIKey(trim(openAIKey))
+        settings.setTencentCredentials(trim(tencentCreds))
+        settings.setBaiduCredentials(trim(baiduCreds))
+        settings.setYoudaoCredentials(trim(youdaoCreds))
+        settings.setCaiyunToken(trim(caiyunToken))
+        settings.setMicrosoftKey(trim(microsoftKey))
+        settings.setDeepSeekKey(trim(deepSeekKey))
+        settings.setGeminiKey(trim(geminiKey))
+        settings.setGroqKey(trim(groqKey))
+        settings.setQwenKey(trim(qwenKey))
+        settings.setDoubaoKey(trim(doubaoKey))
+        settings.setKimiKey(trim(kimiKey))
+        settings.setZhipuKey(trim(zhipuKey))
+        settings.setSiliconFlowKey(trim(siliconFlowKey))
+        settings.openAIModel = trim(openAIModelField)
+        settings.openAIEndpoint = trim(openAIEndpointField)
+        settings.ollamaEndpoint = trim(ollamaEndpointField)
+        settings.setEndpoint(trim(azureEndpointField), for: "azure-openai")
         state.applySettings()
         savedNote = "已保存 ✓"
         DispatchQueue.main.asyncAfter(deadline: .now() + 2) { savedNote = "" }
+    }
+
+    private func moveEngine(from: Int, to: Int) {
+        guard to >= 0, to < engineOrderDraft.count, from != to else { return }
+        engineOrderDraft.move(fromOffsets: IndexSet(integer: from), toOffset: to > from ? to + 1 : to)
+        settings.setEngineOrder(engineOrderDraft)
+        state.applySettings()
+    }
+
+    private func validateEngine(_ id: String) {
+        Task {
+            let ok = await settings.validateKey(for: id)
+            validateNote = ok ? "验证通过 ✓" : "验证失败"
+            DispatchQueue.main.asyncAfter(deadline: .now() + 3) { validateNote = "" }
+        }
+    }
+
+    private func validateOCR() {
+        let id = settings.ocrProviderId
+        if id == "apple-vision" {
+            validateNote = "离线 OCR 无需 Key ✓"
+            DispatchQueue.main.asyncAfter(deadline: .now() + 3) { validateNote = "" }
+            return
+        }
+        let configured: Bool = switch id {
+        case "baidu-ocr": settings.baiduOCRCredentials()?.isEmpty == false
+        case "tencent-ocr", "tencent-image-translate": settings.tencentOCRCredentials()?.isEmpty == false
+        case "google-ocr": settings.googleOCRKey()?.isEmpty == false
+        case "youdao-ocr": settings.youdaoOCRCredentials()?.isEmpty == false
+        case "volcengine-ocr": settings.volcengineOCRKey()?.isEmpty == false
+        default: false
+        }
+        validateNote = configured ? "OCR 密钥已配置 ✓" : "OCR 密钥未配置"
+        DispatchQueue.main.asyncAfter(deadline: .now() + 3) { validateNote = "" }
     }
 }
