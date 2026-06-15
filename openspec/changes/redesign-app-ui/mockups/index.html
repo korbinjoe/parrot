@@ -1,0 +1,543 @@
+<!DOCTYPE html>
+<html lang="zh" data-theme="light">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Parrot — macOS UI 视觉稿</title>
+<style>
+/* ============================================================
+   Parrot Redesign — High-fidelity interactive mockup
+   Tokens mirror openspec/changes/redesign-app-ui/design.md §1
+   ============================================================ */
+
+:root{
+  --accent:#007AFF; --accent-soft:rgba(0,122,255,.10);
+  --success:#34C759; --warning:#FF9F0A; --danger:#FF3B30; --star:#FFCC00;
+
+  --bg-window:#ECECEC; --bg-content:#FFFFFF; --bg-content-2:#F5F5F7;
+  --bg-sidebar:rgba(246,246,246,.72);
+  --separator:rgba(0,0,0,.10);
+  --label:#1D1D1F; --label-2:rgba(60,60,67,.6); --label-3:rgba(60,60,67,.32);
+
+  --radius-window:12px; --radius-card:10px; --radius-control:6px;
+  --shadow-panel:0 12px 32px rgba(0,0,0,.18), 0 0 0 .5px var(--separator);
+  --s4:4px; --s8:8px; --s12:12px; --s16:16px; --s20:20px; --s24:24px;
+
+  --font:-apple-system,"SF Pro Text","SF Pro Display","PingFang SC",system-ui,sans-serif;
+  --desktop:linear-gradient(135deg,#5b86c9 0%,#8a6fb0 45%,#c97aa0 100%);
+}
+[data-theme="dark"]{
+  --accent:#0A84FF; --accent-soft:rgba(10,132,255,.18);
+  --success:#30D158; --warning:#FF9F0A; --danger:#FF453A; --star:#FFD60A;
+
+  --bg-window:#1E1E1E; --bg-content:#2A2A2C; --bg-content-2:#323234;
+  --bg-sidebar:rgba(40,40,42,.72);
+  --separator:rgba(255,255,255,.12);
+  --label:#F5F5F7; --label-2:rgba(235,235,245,.6); --label-3:rgba(235,235,245,.32);
+  --shadow-panel:0 14px 40px rgba(0,0,0,.5), 0 0 0 .5px var(--separator);
+  --desktop:linear-gradient(135deg,#1c2438 0%,#2c2440 45%,#3a2436 100%);
+}
+
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:var(--font);background:#111;color:var(--label);
+  -webkit-font-smoothing:antialiased;transition:background .2s ease}
+
+/* ---- App chrome (the mockup viewer itself) ---- */
+.stage{min-height:100vh;background:var(--desktop);transition:background .3s ease;
+  display:flex;flex-direction:column}
+.menubar{height:26px;background:rgba(255,255,255,.18);backdrop-filter:blur(20px);
+  -webkit-backdrop-filter:blur(20px);display:flex;align-items:center;gap:16px;
+  padding:0 14px;font-size:13px;color:#fff;font-weight:500;
+  box-shadow:0 .5px 0 rgba(0,0,0,.15)}
+.menubar .brand{font-weight:600}
+.menubar .right{margin-left:auto;display:flex;gap:16px;align-items:center;font-weight:400;opacity:.95}
+.menubar .parrot{display:flex;align-items:center;gap:5px;cursor:pointer;position:relative}
+.menubar .parrot.active::after{content:"";position:absolute;inset:-3px -6px;
+  background:rgba(255,255,255,.25);border-radius:5px;z-index:-1}
+
+/* ---- Viewer controls ---- */
+.controls{position:fixed;top:38px;left:50%;transform:translateX(-50%);z-index:50;
+  display:flex;gap:6px;background:var(--bg-sidebar);backdrop-filter:blur(30px);
+  -webkit-backdrop-filter:blur(30px);padding:5px;border-radius:10px;
+  box-shadow:var(--shadow-panel);flex-wrap:wrap;justify-content:center;max-width:92vw}
+.controls button{font-family:var(--font);font-size:12px;font-weight:500;color:var(--label-2);
+  background:transparent;border:0;padding:5px 11px;border-radius:6px;cursor:pointer;
+  transition:all .12s ease}
+.controls button:hover{background:var(--accent-soft);color:var(--label)}
+.controls button.on{background:var(--accent);color:#fff}
+.controls .sep{width:1px;background:var(--separator);margin:3px 2px}
+.theme-toggle{display:flex;align-items:center;gap:6px;padding:0 8px;color:var(--label-2);font-size:12px}
+
+/* ---- Canvas where a surface is shown ---- */
+.canvas{flex:1;display:flex;align-items:center;justify-content:center;padding:120px 24px 60px;
+  position:relative}
+.surface{display:none}
+.surface.show{display:block;animation:appear .18s ease-out}
+@keyframes appear{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
+
+/* caption under each surface */
+.cap{position:absolute;bottom:22px;left:50%;transform:translateX(-50%);
+  color:rgba(255,255,255,.85);font-size:12px;text-align:center;max-width:560px;line-height:1.5}
+.cap b{color:#fff}
+
+/* ============================================================
+   Shared primitives
+   ============================================================ */
+.iconbtn{width:24px;height:24px;display:inline-flex;align-items:center;justify-content:center;
+  border-radius:6px;color:var(--label-2);cursor:pointer;border:0;background:transparent;
+  transition:background .08s ease;font-size:13px}
+.iconbtn:hover{background:var(--bg-content-2);color:var(--label)}
+.iconbtn svg{width:15px;height:15px;stroke:currentColor;fill:none;stroke-width:1.6;
+  stroke-linecap:round;stroke-linejoin:round}
+.iconbtn.filled svg{fill:currentColor;stroke:none}
+
+.tag{font-size:10px;font-weight:600;letter-spacing:.5px;text-transform:uppercase;
+  color:var(--accent);background:var(--accent-soft);padding:2px 6px;border-radius:5px}
+.langpill{display:inline-flex;align-items:center;gap:6px;font-size:11px;font-weight:600;
+  color:var(--label-2);background:var(--bg-content-2);padding:3px 9px;border-radius:999px;
+  border:.5px solid var(--separator)}
+.langpill .swap{cursor:pointer;color:var(--accent);transition:transform .2s}
+.langpill .swap:hover{transform:rotate(180deg)}
+.dot{width:7px;height:7px;border-radius:50%;display:inline-block}
+.dot.ok{background:var(--success)} .dot.warn{background:var(--warning)} .dot.err{background:var(--danger)}
+
+/* traffic lights */
+.lights{display:flex;gap:8px}
+.lights i{width:12px;height:12px;border-radius:50%;display:block}
+.lights .r{background:#FF5F57} .lights .y{background:#FEBC2E} .lights .g{background:#28C840}
+
+/* skeleton */
+.sk{height:13px;border-radius:5px;background:linear-gradient(90deg,var(--bg-content-2) 25%,
+  rgba(125,125,125,.12) 50%,var(--bg-content-2) 75%);background-size:200% 100%;
+  animation:shimmer 1.2s linear infinite}
+@keyframes shimmer{from{background-position:200% 0}to{background-position:-200% 0}}
+
+/* ============================================================
+   Surface windows
+   ============================================================ */
+.win{background:var(--bg-window);border-radius:var(--radius-window);box-shadow:var(--shadow-panel);
+  overflow:hidden;transition:background .2s ease}
+.win-titlebar{height:38px;display:flex;align-items:center;padding:0 14px;gap:10px;
+  border-bottom:.5px solid var(--separator)}
+.win-title{font-size:13px;font-weight:600;color:var(--label);position:absolute;left:50%;
+  transform:translateX(-50%)}
+
+/* ---- 1. Result Panel ---- */
+.panel{width:380px;background:var(--bg-window);border-radius:var(--radius-window);
+  box-shadow:var(--shadow-panel);padding:12px;position:relative;
+  backdrop-filter:blur(30px);-webkit-backdrop-filter:blur(30px)}
+.panel .topbar{display:flex;align-items:center;height:28px;margin-bottom:8px}
+.panel .topbar .actions{margin-left:auto;display:flex;gap:2px}
+.srcblock{background:var(--bg-content-2);border-radius:var(--radius-card);padding:12px;
+  font-size:13px;line-height:1.5;color:var(--label);display:flex;gap:8px;align-items:flex-start}
+.srcblock .txt{flex:1}
+.spinner{width:14px;height:14px;border:2px solid var(--separator);border-top-color:var(--accent);
+  border-radius:50%;animation:spin .7s linear infinite;flex-shrink:0;margin-top:2px}
+@keyframes spin{to{transform:rotate(360deg)}}
+
+.ecard{background:var(--bg-content);border-radius:var(--radius-card);padding:12px;margin-top:8px;
+  position:relative;border:.5px solid transparent}
+.ecard.primary{border-left:2px solid var(--accent)}
+.ecard .head{display:flex;align-items:center;gap:6px;margin-bottom:6px}
+.ecard .latency{font-size:11px;color:var(--label-3);margin-left:auto}
+.ecard .cardactions{display:flex;gap:0;opacity:0;transition:opacity .1s}
+.ecard:hover .cardactions{opacity:1}
+.ecard .result{font-size:15px;line-height:1.45;color:var(--label)}
+.ecard .phon{font-size:12px;color:var(--label-2);margin-top:5px}
+.ecard .def{font-size:12px;color:var(--label-2);margin-top:3px;line-height:1.5}
+.ecard.error{border:.5px solid var(--danger)}
+.ecard.error .result{color:var(--danger);font-size:13px;display:flex;align-items:center;gap:6px}
+.arrow{position:absolute;bottom:-9px;left:46px;width:18px;height:9px;overflow:hidden}
+.arrow::after{content:"";position:absolute;width:14px;height:14px;background:var(--bg-window);
+  transform:rotate(45deg);left:2px;top:-7px;box-shadow:var(--shadow-panel)}
+
+/* ---- 2. Input Bar ---- */
+.inputbar{width:520px;background:var(--bg-window);border-radius:var(--radius-window);
+  box-shadow:var(--shadow-panel);padding:0 16px;backdrop-filter:blur(30px);
+  -webkit-backdrop-filter:blur(30px);outline:.5px solid var(--separator)}
+.inputbar:focus-within{outline:1.5px solid var(--accent)}
+.inputbar .row{display:flex;align-items:center;gap:12px;height:56px}
+.inputbar .ic{color:var(--label-3);font-size:18px}
+.inputbar input{flex:1;border:0;background:transparent;font-family:var(--font);font-size:15px;
+  color:var(--label);outline:none}
+.inputbar input::placeholder{color:var(--label-3)}
+.inputbar .foot{display:flex;align-items:center;height:38px;border-top:.5px solid var(--separator);
+  font-size:11px;color:var(--label-3);gap:10px}
+.inputbar .foot .hint kbd{font-family:var(--font);background:var(--bg-content-2);
+  padding:1px 5px;border-radius:4px;border:.5px solid var(--separator);font-size:10px;color:var(--label-2)}
+.btn-accent{margin-left:auto;background:var(--accent);color:#fff;border:0;font-family:var(--font);
+  font-size:12px;font-weight:500;padding:5px 14px;border-radius:6px;cursor:pointer}
+
+/* ---- 3. Menu bar Popover ---- */
+.popover{width:260px;background:var(--bg-sidebar);border-radius:var(--radius-window);
+  box-shadow:var(--shadow-panel);backdrop-filter:blur(40px);-webkit-backdrop-filter:blur(40px);
+  padding:6px;position:relative}
+.popover .arrow-top{position:absolute;top:-9px;right:38px;width:18px;height:9px;overflow:hidden}
+.popover .arrow-top::after{content:"";position:absolute;width:14px;height:14px;background:var(--bg-window);
+  transform:rotate(45deg);left:2px;top:5px;box-shadow:var(--shadow-panel)}
+.mrow{display:flex;align-items:center;gap:10px;padding:7px 9px;border-radius:7px;cursor:pointer;
+  font-size:13px;color:var(--label);transition:background .08s}
+.mrow:hover{background:var(--accent-soft)}
+.mrow .mi{width:16px;color:var(--label-2);display:flex;justify-content:center}
+.mrow .kbd{margin-left:auto;font-size:11px;color:var(--label-3)}
+.psep{height:.5px;background:var(--separator);margin:6px 4px}
+.plabel{font-size:11px;color:var(--label-3);padding:4px 9px 2px;font-weight:500}
+.precent{display:flex;flex-direction:column;gap:1px}
+.precent .r{display:flex;gap:8px;align-items:center;padding:5px 9px;border-radius:6px;cursor:pointer;font-size:12px}
+.precent .r:hover{background:var(--accent-soft)}
+.precent .lp{font-size:9px;font-weight:600;color:var(--accent);background:var(--accent-soft);
+  padding:1px 5px;border-radius:4px;flex-shrink:0}
+.precent .t{color:var(--label);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.precent .tm{color:var(--label-3);margin-left:auto;font-size:11px;flex-shrink:0}
+.toggle{position:relative;width:34px;height:20px;border-radius:999px;background:var(--separator);
+  margin-left:auto;cursor:pointer;transition:background .15s;flex-shrink:0}
+.toggle.on{background:var(--success)}
+.toggle::after{content:"";position:absolute;top:2px;left:2px;width:16px;height:16px;border-radius:50%;
+  background:#fff;box-shadow:0 1px 3px rgba(0,0,0,.3);transition:transform .15s}
+.toggle.on::after{transform:translateX(14px)}
+.eng-row{display:flex;align-items:center;gap:8px;padding:6px 9px;font-size:13px;color:var(--label)}
+.link{font-size:12px;color:var(--accent);padding:6px 9px;cursor:pointer;display:block}
+.mfoot{display:flex;gap:4px;padding:2px 4px}
+.mfoot button{flex:1;background:transparent;border:0;font-family:var(--font);font-size:12px;
+  color:var(--label-2);padding:6px;border-radius:6px;cursor:pointer;text-align:left}
+.mfoot button:hover{background:var(--accent-soft);color:var(--label)}
+.mfoot button .kbd{float:right;color:var(--label-3)}
+
+/* ---- 4. Settings ---- */
+.settings{width:640px;height:460px;display:flex;flex-direction:column}
+.settings .body{flex:1;display:flex;min-height:0}
+.settings .side{width:180px;background:var(--bg-sidebar);backdrop-filter:blur(30px);
+  -webkit-backdrop-filter:blur(30px);padding:8px;border-right:.5px solid var(--separator)}
+.srow{display:flex;align-items:center;gap:9px;padding:7px 10px;border-radius:7px;cursor:pointer;
+  font-size:13px;color:var(--label);transition:background .08s}
+.srow:hover{background:var(--accent-soft)}
+.srow.sel{background:var(--accent);color:#fff}
+.srow .si{width:16px;display:flex;justify-content:center;opacity:.9}
+.settings .content{flex:1;background:var(--bg-content);padding:20px 24px;overflow:auto}
+.sec-title{font-size:15px;font-weight:600;color:var(--label);margin:0 0 12px}
+.sec-title.mt{margin-top:24px}
+.setrow{display:flex;align-items:center;min-height:30px;padding:5px 0;font-size:13px;color:var(--label);
+  border-bottom:.5px solid var(--separator)}
+.setrow:last-child{border-bottom:0}
+.setrow .lbl{color:var(--label)}
+.setrow .ctl{margin-left:auto;display:flex;align-items:center;gap:8px}
+.sel-box,.txt-box{font-family:var(--font);font-size:13px;color:var(--label);background:var(--bg-content-2);
+  border:.5px solid var(--separator);border-radius:6px;padding:4px 9px;outline:none}
+.txt-box{width:230px}
+.callout{font-size:12px;color:var(--label-2);background:var(--bg-content-2);border-radius:8px;
+  padding:10px 12px;margin-top:12px;line-height:1.5}
+.kbdcap{font-family:var(--font);font-size:12px;color:var(--label);background:var(--bg-content-2);
+  border:.5px solid var(--separator);border-bottom-width:1.5px;border-radius:6px;padding:3px 9px;font-weight:500}
+.handle{color:var(--label-3);cursor:grab;font-size:14px}
+
+/* ---- 5. History ---- */
+.history{width:720px;height:480px;display:flex;flex-direction:column}
+.history .body{flex:1;display:flex;min-height:0}
+.history .list{width:280px;border-right:.5px solid var(--separator);background:var(--bg-content);
+  display:flex;flex-direction:column}
+.searchbox{margin:10px;display:flex;align-items:center;gap:7px;background:var(--bg-content-2);
+  border-radius:7px;padding:6px 9px;font-size:13px;color:var(--label-3)}
+.seg{display:flex;margin:0 10px 8px;background:var(--bg-content-2);border-radius:7px;padding:2px}
+.seg button{flex:1;font-family:var(--font);font-size:12px;font-weight:500;color:var(--label-2);
+  background:transparent;border:0;padding:4px;border-radius:5px;cursor:pointer}
+.seg button.on{background:var(--bg-content);color:var(--label);box-shadow:0 1px 2px rgba(0,0,0,.12)}
+.hrows{flex:1;overflow:auto}
+.hrow{display:flex;align-items:center;gap:8px;padding:9px 12px;cursor:pointer;
+  border-bottom:.5px solid var(--separator);transition:background .08s}
+.hrow:hover{background:var(--accent-soft)}
+.hrow.sel{background:var(--accent-soft)}
+.hrow .lp{font-size:9px;font-weight:600;color:var(--accent);background:var(--accent-soft);
+  padding:1px 5px;border-radius:4px;flex-shrink:0}
+.hrow .mid{flex:1;min-width:0}
+.hrow .o{font-size:13px;color:var(--label);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.hrow .tm{font-size:11px;color:var(--label-3);margin-top:2px}
+.hrow .star{color:var(--star);font-size:13px}
+.history .detail{flex:1;background:var(--bg-content-2);padding:18px;overflow:auto}
+
+/* ---- 6. OCR overlay ---- */
+.ocr{width:560px;height:360px;border-radius:var(--radius-window);overflow:hidden;position:relative;
+  box-shadow:var(--shadow-panel);background:#3a4a5a url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="40" height="40"><rect width="40" height="40" fill="%23435366"/><text x="6" y="24" font-family="serif" font-size="13" fill="%23b8c4d0">Aあ文</text></svg>')}
+.ocr .mask{position:absolute;inset:0;background:rgba(0,0,0,.4)}
+.ocr .sel{position:absolute;left:90px;top:80px;width:300px;height:140px;border:1px solid var(--accent);
+  box-shadow:0 0 0 9999px rgba(0,0,0,.4);background:rgba(0,122,255,.04)}
+.ocr .sel .h{position:absolute;width:7px;height:7px;background:#fff;border:1px solid var(--accent);border-radius:1px}
+.ocr .sel .h.tl{left:-4px;top:-4px}.ocr .sel .h.tr{right:-4px;top:-4px}
+.ocr .sel .h.bl{left:-4px;bottom:-4px}.ocr .sel .h.br{right:-4px;bottom:-4px}
+.ocr .size{position:absolute;left:90px;top:62px;font-size:11px;color:#fff;background:rgba(0,0,0,.6);
+  padding:2px 7px;border-radius:4px}
+.ocr .card{position:absolute;left:90px;top:232px;width:300px;background:var(--bg-window);
+  border-radius:10px;box-shadow:var(--shadow-panel);padding:10px;font-size:12px}
+.ocr .card .line{display:flex;gap:7px;align-items:center;padding:4px 6px;border-radius:5px;cursor:pointer;color:var(--label)}
+.ocr .card .line:hover{background:var(--accent-soft)}
+.ocr .card .ck{width:14px;height:14px;border-radius:4px;border:1.5px solid var(--accent);flex-shrink:0;
+  display:flex;align-items:center;justify-content:center;color:#fff;font-size:9px}
+.ocr .card .ck.on{background:var(--accent)}
+.ocr .card .bar{display:flex;margin-top:6px;padding-top:6px;border-top:.5px solid var(--separator)}
+
+small.note{display:block;color:var(--label-3);font-size:11px;margin-top:6px}
+</style>
+</head>
+<body>
+<div class="stage">
+  <!-- macOS menu bar -->
+  <div class="menubar">
+    <span class="parrot" id="menuParrot">🦜 <span class="brand">Parrot</span></span>
+    <span style="opacity:.85">文件</span><span style="opacity:.85">编辑</span><span style="opacity:.85">帮助</span>
+    <span class="right"><span>🔆</span><span>📶</span><span>🔋</span><span id="clock">星期一 14:08</span></span>
+  </div>
+
+  <!-- viewer controls -->
+  <div class="controls">
+    <button data-s="panel" class="on">悬浮结果面板</button>
+    <button data-s="input">输入翻译</button>
+    <button data-s="popover">菜单栏 Popover</button>
+    <button data-s="settings">设置</button>
+    <button data-s="history">历史 / 收藏</button>
+    <button data-s="ocr">截图 OCR</button>
+    <span class="sep"></span>
+    <button data-state="loading">加载态</button>
+    <button data-state="error">错误态</button>
+    <span class="sep"></span>
+    <span class="theme-toggle">☀︎ <span class="toggle" id="themeTog" onclick="toggleTheme()"></span> ☾</span>
+  </div>
+
+  <div class="canvas">
+
+    <!-- ============ 1. Result Panel ============ -->
+    <div class="surface show" data-surface="panel">
+      <div class="panel">
+        <div class="topbar">
+          <span class="langpill">EN <span class="swap">⇄</span> 中</span>
+          <span class="actions">
+            <button class="iconbtn filled" title="收藏" style="color:var(--star)"><svg viewBox="0 0 24 24"><path d="M12 2l3 6.5 7 .9-5 4.8 1.3 7-6.3-3.4L5.7 21l1.3-7-5-4.8 7-.9z"/></svg></button>
+            <button class="iconbtn" title="复制原文"><svg viewBox="0 0 24 24"><rect x="9" y="9" width="11" height="11" rx="2"/><path d="M5 15V5a2 2 0 012-2h8"/></svg></button>
+            <button class="iconbtn" title="朗读原文"><svg viewBox="0 0 24 24"><path d="M11 5L6 9H3v6h3l5 4V5z"/><path d="M15.5 8.5a5 5 0 010 7"/></svg></button>
+          </span>
+        </div>
+
+        <div class="srcblock">
+          <span class="txt" id="srcText">The quick brown fox jumps over the lazy dog while the engineer reviews the design spec.</span>
+          <span class="spinner" id="srcSpin" style="display:none"></span>
+        </div>
+
+        <div id="cards">
+          <div class="ecard primary">
+            <div class="head"><span class="tag">Google</span>
+              <span class="cardactions">
+                <button class="iconbtn" title="复制译文"><svg viewBox="0 0 24 24"><rect x="9" y="9" width="11" height="11" rx="2"/><path d="M5 15V5a2 2 0 012-2h8"/></svg></button>
+                <button class="iconbtn" title="朗读译文"><svg viewBox="0 0 24 24"><path d="M11 5L6 9H3v6h3l5 4V5z"/><path d="M15.5 8.5a5 5 0 010 7"/></svg></button>
+              </span>
+              <span class="latency">128ms</span></div>
+            <div class="result">敏捷的棕色狐狸跳过那只懒狗，与此同时工程师正在评审设计规格。</div>
+          </div>
+
+          <div class="ecard">
+            <div class="head"><span class="tag">DeepL</span>
+              <span class="cardactions">
+                <button class="iconbtn" title="复制译文"><svg viewBox="0 0 24 24"><rect x="9" y="9" width="11" height="11" rx="2"/><path d="M5 15V5a2 2 0 012-2h8"/></svg></button>
+                <button class="iconbtn" title="朗读译文"><svg viewBox="0 0 24 24"><path d="M11 5L6 9H3v6h3l5 4V5z"/><path d="M15.5 8.5a5 5 0 010 7"/></svg></button>
+              </span>
+              <span class="latency">204ms</span></div>
+            <div class="result">敏捷的棕色狐狸跃过懒狗，而工程师则在审阅设计规范。</div>
+          </div>
+
+          <div class="ecard">
+            <div class="head"><span class="tag">OpenAI</span>
+              <span class="cardactions">
+                <button class="iconbtn" title="复制译文"><svg viewBox="0 0 24 24"><rect x="9" y="9" width="11" height="11" rx="2"/><path d="M5 15V5a2 2 0 012-2h8"/></svg></button>
+                <button class="iconbtn" title="朗读译文"><svg viewBox="0 0 24 24"><path d="M11 5L6 9H3v6h3l5 4V5z"/><path d="M15.5 8.5a5 5 0 010 7"/></svg></button>
+              </span>
+              <span class="latency">612ms</span></div>
+            <div class="result">那只敏捷的棕狐跳过了懒狗，与此同时，工程师正在审阅设计文档。</div>
+          </div>
+        </div>
+        <div class="arrow"></div>
+      </div>
+      <div class="cap"><b>悬浮结果面板（核心）</b> · 即用即走，靠近光标弹出，失焦自动消失。原文区（灰）/ 多引擎对比（白卡）建立主次，主引擎左侧蓝条标识，hover 卡片显复制/朗读。试试右上「加载态 / 错误态」。</div>
+    </div>
+
+    <!-- ============ 2. Input Bar ============ -->
+    <div class="surface" data-surface="input">
+      <div class="inputbar">
+        <div class="row">
+          <span class="ic">💬</span>
+          <input value="how should we approach the redesign" autofocus>
+          <span class="langpill">自动 <span class="swap">⇄</span> 中</span>
+        </div>
+        <div class="foot">
+          <span class="hint"><kbd>↩</kbd> 翻译　<kbd>⎋</kbd> 关闭</span>
+          <button class="btn-accent">翻译</button>
+        </div>
+      </div>
+      <div class="cap"><b>输入翻译</b> · Spotlight 式命令条，⌥A 唤起。支持语言方向切换（⇄ 互换）、回车翻译、Esc 关闭，结果走悬浮面板。</div>
+    </div>
+
+    <!-- ============ 3. Popover ============ -->
+    <div class="surface" data-surface="popover">
+      <div class="popover">
+        <div class="arrow-top"></div>
+        <div class="mrow"><span class="mi">✦</span>划词翻译<span class="kbd">⌥D</span></div>
+        <div class="mrow"><span class="mi">📖</span>查词<span class="kbd">⌥E</span></div>
+        <div class="mrow"><span class="mi">⛶</span>截图翻译<span class="kbd">⌥S</span></div>
+        <div class="mrow"><span class="mi">⌨</span>输入翻译<span class="kbd">⌥A</span></div>
+        <div class="psep"></div>
+        <div class="plabel">最近</div>
+        <div class="precent">
+          <div class="r"><span class="lp">EN→中</span><span class="t">design spec review</span><span class="tm">2 分钟前</span></div>
+          <div class="r"><span class="lp">JA→中</span><span class="t">設計仕様の確認</span><span class="tm">1 小时前</span></div>
+          <div class="r"><span class="lp">EN→中</span><span class="t">use-and-dismiss</span><span class="tm">昨天</span></div>
+        </div>
+        <span class="link">查看全部历史 →</span>
+        <div class="psep"></div>
+        <div class="plabel">引擎</div>
+        <div class="eng-row">Google<span class="toggle on"></span></div>
+        <div class="eng-row">DeepL<span class="toggle on"></span></div>
+        <div class="eng-row">OpenAI<span class="toggle"></span></div>
+        <div class="psep"></div>
+        <div class="mfoot">
+          <button>设置…<span class="kbd">⌘,</span></button>
+          <button>退出<span class="kbd">⌘Q</span></button>
+        </div>
+      </div>
+      <div class="cap"><b>菜单栏 Popover</b> · 替换裸 NSMenu。四大动作 + 最近 3 条历史（点击再翻译）+ 引擎快捷开关，与设置实时同步。</div>
+    </div>
+
+    <!-- ============ 4. Settings ============ -->
+    <div class="surface" data-surface="settings">
+      <div class="win settings">
+        <div class="win-titlebar"><div class="lights"><i class="r"></i><i class="y"></i><i class="g"></i></div>
+          <span class="win-title">Parrot 设置</span></div>
+        <div class="body">
+          <div class="side">
+            <div class="srow sel"><span class="si">⚙</span>通用</div>
+            <div class="srow"><span class="si">🌐</span>引擎</div>
+            <div class="srow"><span class="si">🔑</span>密钥</div>
+            <div class="srow"><span class="si">⌘</span>快捷键</div>
+            <div class="srow"><span class="si">🧩</span>插件</div>
+            <div class="srow"><span class="si">ⓘ</span>关于</div>
+          </div>
+          <div class="content">
+            <h3 class="sec-title">通用</h3>
+            <div class="setrow"><span class="lbl">默认目标语言</span><span class="ctl">
+              <select class="sel-box"><option>中文</option><option>English</option><option>日本語</option></select></span></div>
+            <div class="setrow"><span class="lbl">开机时启动</span><span class="ctl"><span class="toggle on"></span></span></div>
+            <div class="setrow"><span class="lbl">悬浮窗失焦后自动隐藏</span><span class="ctl"><span class="toggle on"></span></span></div>
+            <div class="setrow"><span class="lbl">在菜单栏显示图标</span><span class="ctl"><span class="toggle on"></span></span></div>
+
+            <h3 class="sec-title mt">引擎优先级（拖拽排序）</h3>
+            <div class="setrow"><span class="lbl"><span class="handle">⠿</span> &nbsp;Google 翻译<small class="note" style="display:inline;margin-left:8px">免费 · 无需 Key</small></span><span class="ctl"><span class="dot ok"></span><span class="toggle on"></span></span></div>
+            <div class="setrow"><span class="lbl"><span class="handle">⠿</span> &nbsp;DeepL</span><span class="ctl"><span class="dot ok"></span><span class="toggle on"></span></span></div>
+            <div class="setrow"><span class="lbl"><span class="handle">⠿</span> &nbsp;OpenAI</span><span class="ctl"><span class="dot warn"></span><span class="toggle"></span></span></div>
+            <div class="callout">🔒 API Key 存储于 macOS 钥匙串，绝不写入 UserDefaults、历史库或日志。</div>
+          </div>
+        </div>
+      </div>
+      <div class="cap"><b>设置</b> · 从单一 grouped Form 升级为「侧栏分区 + 内容面板」。引擎支持拖拽定优先级，状态点指示密钥校验结果。</div>
+    </div>
+
+    <!-- ============ 5. History ============ -->
+    <div class="surface" data-surface="history">
+      <div class="win history">
+        <div class="win-titlebar"><div class="lights"><i class="r"></i><i class="y"></i><i class="g"></i></div>
+          <span class="win-title">历史与收藏</span></div>
+        <div class="body">
+          <div class="list">
+            <div class="searchbox">🔍 搜索原文或译文…</div>
+            <div class="seg"><button class="on">全部</button><button>收藏 ★</button></div>
+            <div class="hrows">
+              <div class="hrow sel"><span class="lp">EN→中</span><div class="mid"><div class="o">design spec review</div><div class="tm">2 分钟前 · Google</div></div><span class="star">★</span></div>
+              <div class="hrow"><span class="lp">JA→中</span><div class="mid"><div class="o">設計仕様の確認をお願いします</div><div class="tm">1 小时前 · DeepL</div></div></div>
+              <div class="hrow"><span class="lp">EN→中</span><div class="mid"><div class="o">use-and-dismiss interaction</div><div class="tm">昨天 · OpenAI</div></div><span class="star">★</span></div>
+              <div class="hrow"><span class="lp">FR→中</span><div class="mid"><div class="o">revue de la maquette</div><div class="tm">昨天 · Google</div></div></div>
+              <div class="hrow"><span class="lp">DE→中</span><div class="mid"><div class="o">Entwurfsspezifikation</div><div class="tm">3 天前 · DeepL</div></div></div>
+            </div>
+          </div>
+          <div class="detail">
+            <div class="srcblock" style="margin-bottom:8px"><span class="txt">design spec review</span></div>
+            <div class="ecard primary"><div class="head"><span class="tag">Google</span><span class="latency">128ms</span></div><div class="result">设计规格评审</div></div>
+            <div class="ecard"><div class="head"><span class="tag">DeepL</span><span class="latency">204ms</span></div><div class="result">设计规范审查</div></div>
+            <div style="display:flex;gap:8px;margin-top:12px">
+              <button class="btn-accent" style="margin:0">再翻译</button>
+              <button class="iconbtn" style="width:auto;padding:0 10px;background:var(--bg-content-2)">复制</button>
+              <button class="iconbtn" style="width:auto;padding:0 10px;background:var(--bg-content-2)">朗读</button>
+              <button class="iconbtn" style="width:auto;padding:0 10px;background:var(--bg-content-2);color:var(--danger)">删除</button>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="cap"><b>历史 / 收藏（新增）</b> · 列表 + 详情双栏。搜索、全部/收藏分段、语言对标签；详情复用结果面板组件，支持再翻译/复制/朗读/删除。</div>
+    </div>
+
+    <!-- ============ 6. OCR ============ -->
+    <div class="surface" data-surface="ocr">
+      <div class="ocr">
+        <div class="sel">
+          <span class="h tl"></span><span class="h tr"></span><span class="h bl"></span><span class="h br"></span>
+        </div>
+        <div class="size">300 × 140</div>
+        <div class="card">
+          <div class="line"><span class="ck on">✓</span><span>Design Specification v2</span></div>
+          <div class="line"><span class="ck on">✓</span><span>Reviewed by the engineering team</span></div>
+          <div class="line"><span class="ck">　</span><span>Page 3 of 12 — Confidential</span></div>
+          <div class="bar"><button class="btn-accent" style="margin:0;width:100%">翻译选中（2 行）</button></div>
+        </div>
+      </div>
+      <div class="cap"><b>截图 OCR 取词（新增）</b> · ⌥S 框选 → 遮罩高亮 + 四角把手 + 实时尺寸 → Vision 识别后逐行可勾选 → 翻译选中走结果面板。</div>
+    </div>
+
+  </div>
+</div>
+
+<script>
+function toggleTheme(){
+  const r=document.documentElement;
+  const dark=r.getAttribute('data-theme')==='dark';
+  r.setAttribute('data-theme',dark?'light':'dark');
+  document.getElementById('themeTog').classList.toggle('on',!dark);
+}
+// surface switching
+document.querySelectorAll('.controls button[data-s]').forEach(b=>{
+  b.onclick=()=>{
+    document.querySelectorAll('.controls button[data-s]').forEach(x=>x.classList.remove('on'));
+    b.classList.add('on');
+    document.querySelectorAll('.surface').forEach(s=>s.classList.remove('show'));
+    document.querySelector(`.surface[data-surface="${b.dataset.s}"]`).classList.add('show');
+    resetState();
+  };
+});
+// menu bar parrot toggles popover
+document.getElementById('menuParrot').onclick=()=>{
+  document.querySelector('.controls button[data-s="popover"]').click();
+  document.getElementById('menuParrot').classList.add('active');
+};
+// state demos (loading / error) — applied to result panel
+function resetState(){
+  document.getElementById('srcSpin').style.display='none';
+  rebuildCards();
+}
+const STATE={
+  loading:`<div class="ecard"><div class="head"><span class="tag">Google</span><span class="latency">…</span></div>
+      <div class="sk" style="width:90%"></div><div class="sk" style="width:70%;margin-top:7px"></div></div>
+    <div class="ecard"><div class="head"><span class="tag">DeepL</span><span class="latency">…</span></div>
+      <div class="sk" style="width:80%"></div><div class="sk" style="width:60%;margin-top:7px"></div></div>`,
+  error:`<div class="ecard primary"><div class="head"><span class="tag">Google</span><span class="latency">128ms</span></div>
+      <div class="result">敏捷的棕色狐狸跳过那只懒狗。</div></div>
+    <div class="ecard error"><div class="head"><span class="tag">DeepL</span><span class="latency">超时</span></div>
+      <div class="result">⚠︎ 请求超时，请稍后重试</div></div>
+    <div class="ecard error"><div class="head"><span class="tag">OpenAI</span></div>
+      <div class="result">⚠︎ 鉴权失败，请检查 API Key</div></div>`
+};
+let normalCards='';
+function rebuildCards(){ if(normalCards) document.getElementById('cards').innerHTML=normalCards; }
+window.addEventListener('DOMContentLoaded',()=>{ normalCards=document.getElementById('cards').innerHTML; });
+document.querySelectorAll('.controls button[data-state]').forEach(b=>{
+  b.onclick=()=>{
+    document.querySelector('.controls button[data-s="panel"]').click();
+    const st=b.dataset.state;
+    document.getElementById('srcSpin').style.display = st==='loading'?'block':'none';
+    document.getElementById('cards').innerHTML=STATE[st];
+  };
+});
+</script>
+</body>
+</html>
