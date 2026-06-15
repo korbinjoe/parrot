@@ -1,4 +1,5 @@
 import AppKit
+import SwiftUI
 import Carbon.HIToolbox
 import ParrotCore
 
@@ -13,6 +14,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         self?.runTranslation(text)
     }
     private lazy var settingsWindow = SettingsWindow(state: state)
+    private lazy var historyWindow = HistoryWindow(state: state) { [weak self] text in
+        self?.runTranslation(text)
+    }
+    private let popover = NSPopover()
 
     private var hotkeys: [HotKey] = []
 
@@ -49,17 +54,40 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private func setupStatusItem() {
         let item = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
         item.button?.image = NSImage(systemSymbolName: "character.bubble", accessibilityDescription: "Parrot")
-        let menu = NSMenu()
-        menu.addItem(withTitle: "划词翻译 (⌥D)", action: #selector(translateSelection), keyEquivalent: "")
-        menu.addItem(withTitle: "查词 (⌥E)", action: #selector(lookupSelection), keyEquivalent: "")
-        menu.addItem(withTitle: "截图翻译 (⌥S)", action: #selector(translateScreenshot), keyEquivalent: "")
-        menu.addItem(withTitle: "输入翻译 (⌥A)", action: #selector(showInput), keyEquivalent: "")
-        menu.addItem(.separator())
-        menu.addItem(withTitle: "设置…", action: #selector(showSettings), keyEquivalent: ",")
-        menu.addItem(withTitle: "退出 Parrot", action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q")
-        menu.items.forEach { $0.target = self }
-        item.menu = menu
+        item.button?.action = #selector(togglePopover)
+        item.button?.target = self
         self.statusItem = item
+
+        let content = MenuBarPopoverView(
+            state: state,
+            settings: state.settings,
+            onSelection: { [weak self] in self?.closePopoverThen { self?.translateSelection() } },
+            onLookup: { [weak self] in self?.closePopoverThen { self?.lookupSelection() } },
+            onScreenshot: { [weak self] in self?.closePopoverThen { self?.translateScreenshot() } },
+            onInput: { [weak self] in self?.closePopoverThen { self?.showInput() } },
+            onSettings: { [weak self] in self?.closePopoverThen { self?.showSettings() } },
+            onHistory: { [weak self] in self?.closePopoverThen { self?.historyWindow.show() } },
+            onRetranslate: { [weak self] text in self?.closePopoverThen { self?.runTranslation(text) } },
+            onQuit: { NSApp.terminate(nil) }
+        )
+        popover.contentViewController = NSHostingController(rootView: content)
+        popover.behavior = .transient
+    }
+
+    @objc private func togglePopover() {
+        guard let button = statusItem?.button else { return }
+        if popover.isShown {
+            popover.performClose(nil)
+        } else {
+            NSApp.activate(ignoringOtherApps: true)
+            popover.show(relativeTo: button.bounds, of: button, preferredEdge: .minY)
+        }
+    }
+
+    /// Close the popover first so capture/focus targets the frontmost app, then run the action.
+    private func closePopoverThen(_ action: @escaping () -> Void) {
+        popover.performClose(nil)
+        action()
     }
 
     // MARK: - Hotkeys
@@ -86,15 +114,32 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         floating.hide() // ensure focus is on the target app, not our panel, before capturing
         let text = SelectionCapture.selectedText()
         DebugLog.log("translateSelection: captured=\(text.map { "\"\($0.prefix(40))\" len=\($0.count)" } ?? "nil")")
-        guard let text, !text.isEmpty else { return }
+        guard let text, !text.isEmpty else { warnIfNoAccessibility(); return }
         runTranslation(text)
     }
 
     @objc private func lookupSelection() {
         floating.hide()
-        guard let text = SelectionCapture.selectedText(), !text.isEmpty else { return }
+        guard let text = SelectionCapture.selectedText(), !text.isEmpty else { warnIfNoAccessibility(); return }
         state.translate(text, mode: .lookup)
         floating.show()
+    }
+
+    /// When selection capture comes back empty, distinguish "no text selected" (silent — 即用即走)
+    /// from "Accessibility permission missing" (loud — otherwise the hotkey just appears dead, e.g.
+    /// after the app's identity changes and macOS drops the previously-granted permission).
+    private func warnIfNoAccessibility() {
+        guard !SelectionCapture.hasAccessibilityPermission(prompt: false) else { return }
+        NSApp.activate(ignoringOtherApps: true)
+        let alert = NSAlert()
+        alert.messageText = "Parrot 需要「辅助功能」权限"
+        alert.informativeText = "无法读取选中的文字。请在 系统设置 → 隐私与安全性 → 辅助功能 中重新勾选 Parrot，然后重试 ⌥D。"
+        alert.addButton(withTitle: "打开设置")
+        alert.addButton(withTitle: "取消")
+        if alert.runModal() == .alertFirstButtonReturn,
+           let url = URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility") {
+            NSWorkspace.shared.open(url)
+        }
     }
 
     @objc private func showSettings() {

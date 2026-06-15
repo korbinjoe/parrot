@@ -33,11 +33,11 @@
 
 ## 阶段 3 — 菜单栏 Popover
 
-- [ ] [实现] 用 `NSPopover` + SwiftUI 替换 AppDelegate 的裸 `NSMenu`
-- [ ] [实现] 四大动作行（图标 + 名 + 快捷键 caption，hover accent-soft）
-- [ ] [实现] 「最近」区：注入最多 3 条 HistoryStore 记录，点击再翻译 + 「查看全部历史」入口
-- [ ] [实现] 引擎快捷开关（Google/DeepL/OpenAI Toggle），与 AppSettings 双向同步
-- [ ] [实现] 底部「设置… ⌘,」「退出 ⌘Q」
+- [x] [实现] 用 `NSPopover` + SwiftUI 替换 AppDelegate 的裸 `NSMenu`
+- [x] [实现] 四大动作行（图标 + 名 + 快捷键 caption，hover accent-soft）
+- [x] [实现] 「最近」区：注入最多 3 条 HistoryStore 记录，点击再翻译 + 「查看全部历史」入口
+- [x] [实现] 引擎快捷开关（Google/DeepL/OpenAI Toggle），与 AppSettings 双向同步（无 Key 禁用）
+- [x] [实现] 底部「设置… ⌘,」「退出 ⌘Q」
 
 ## 阶段 4 — 设置窗口
 
