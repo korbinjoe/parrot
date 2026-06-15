@@ -1,7 +1,7 @@
 import Testing
 import Foundation
-@testable import OpenBobCore
-@testable import OpenBobEngines
+@testable import ParrotCore
+@testable import ParrotEngines
 
 @Test func googleParsesTranslationAndDetectedLang() throws {
     // Shape: [[["你好","hello",null,null,10]],null,"en",...]

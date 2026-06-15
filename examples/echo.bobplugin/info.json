@@ -2,8 +2,8 @@
   "identifier": "com.example.echo",
   "name": "Echo (Example)",
   "version": "1.0.0",
-  "author": "OpenBob",
-  "minOpenBobVersion": "0.1.0",
+  "author": "Parrot",
+  "minParrotVersion": "0.1.0",
   "capabilities": ["translate"],
   "permissions": { "network": [] },
   "options": [

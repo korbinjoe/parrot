@@ -6,6 +6,7 @@ import SwiftUI
 @MainActor
 final class FloatingPanel {
     private var panel: NSPanel?
+    private var hosting: NSHostingController<ResultView>?
     private let state: AppState
 
     init(state: AppState) {
@@ -14,6 +15,8 @@ final class FloatingPanel {
 
     func show() {
         if panel == nil { build() }
+        // Force a layout pass so the window adopts the current content size before positioning.
+        panel?.layoutIfNeeded()
         positionNearCursor()
         panel?.orderFrontRegardless()
     }
@@ -24,6 +27,10 @@ final class FloatingPanel {
 
     private func build() {
         let hosting = NSHostingController(rootView: ResultView(state: state))
+        // Let the window track the SwiftUI content's ideal size automatically — including when
+        // translations arrive asynchronously and the content grows/shrinks.
+        hosting.sizingOptions = [.preferredContentSize]
+        self.hosting = hosting
         let p = NSPanel(contentViewController: hosting)
         p.styleMask = [.titled, .closable, .nonactivatingPanel, .fullSizeContentView]
         p.titleVisibility = .hidden
@@ -33,7 +40,13 @@ final class FloatingPanel {
         p.hidesOnDeactivate = false
         p.isMovableByWindowBackground = true
         p.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary]
-        p.backgroundColor = .windowBackgroundColor
+        p.backgroundColor = .textBackgroundColor // clean white base; content blocks use a soft gray
+
+        // Hide the traffic-light buttons — a lightweight "即用即走" panel shouldn't show window chrome.
+        p.standardWindowButton(.closeButton)?.isHidden = true
+        p.standardWindowButton(.miniaturizeButton)?.isHidden = true
+        p.standardWindowButton(.zoomButton)?.isHidden = true
+
         self.panel = p
 
         // Auto-hide when the panel resigns key.

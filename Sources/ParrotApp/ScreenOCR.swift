@@ -17,7 +17,7 @@ enum ScreenOCR {
     /// Run `screencapture -i` to a temp file and load it as a CGImage.
     private static func interactiveCapture() async throws -> CGImage {
         let tmp = FileManager.default.temporaryDirectory
-            .appendingPathComponent("openbob-ocr-\(UUID().uuidString).png")
+            .appendingPathComponent("parrot-ocr-\(UUID().uuidString).png")
 
         try await withCheckedThrowingContinuation { (cont: CheckedContinuation<Void, Error>) in
             let proc = Process()

@@ -1,6 +1,6 @@
 import AppKit
 import SwiftUI
-import OpenBobCore
+import ParrotCore
 
 /// Hosts the SwiftUI settings UI in a standard titled window (separate from the floating panel).
 @MainActor
@@ -16,7 +16,7 @@ final class SettingsWindow {
         if window == nil {
             let hosting = NSHostingController(rootView: SettingsView(state: state))
             let win = NSWindow(contentViewController: hosting)
-            win.title = "OpenBob 设置"
+            win.title = "Parrot 设置"
             win.styleMask = [.titled, .closable, .miniaturizable]
             win.isReleasedWhenClosed = false
             win.setContentSize(NSSize(width: 460, height: 420))

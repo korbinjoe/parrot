@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Sign, package, and notarize OpenBob.app for distribution.
+# Sign, package, and notarize Parrot.app for distribution.
 #
 # Prerequisites (set as env vars before running):
 #   DEVELOPER_ID        e.g. "Developer ID Application: Your Name (TEAMID)"
@@ -10,8 +10,8 @@
 # Usage: DEVELOPER_ID="..." NOTARY_PROFILE="..." bash scripts/notarize.sh
 set -euo pipefail
 
-APP="build/OpenBob.app"
-ZIP="build/OpenBob.zip"
+APP="build/Parrot.app"
+ZIP="build/Parrot.zip"
 
 : "${DEVELOPER_ID:?Set DEVELOPER_ID to your 'Developer ID Application' identity}"
 : "${NOTARY_PROFILE:?Set NOTARY_PROFILE to your notarytool keychain profile}"

@@ -3,17 +3,17 @@
 <plist version="1.0">
 <dict>
     <key>CFBundleName</key>
-    <string>OpenBob</string>
+    <string>Parrot</string>
     <key>CFBundleDisplayName</key>
-    <string>OpenBob</string>
+    <string>Parrot</string>
     <key>CFBundleIdentifier</key>
-    <string>com.openbob.app</string>
+    <string>com.parrot.app</string>
     <key>CFBundleVersion</key>
     <string>0.1.0</string>
     <key>CFBundleShortVersionString</key>
     <string>0.1.0</string>
     <key>CFBundleExecutable</key>
-    <string>OpenBob</string>
+    <string>Parrot</string>
     <key>CFBundlePackageType</key>
     <string>APPL</string>
     <key>LSMinimumSystemVersion</key>
@@ -24,16 +24,16 @@
     <key>NSPrincipalClass</key>
     <string>NSApplication</string>
     <key>NSHumanReadableCopyright</key>
-    <string>OpenBob — AGPL-3.0</string>
+    <string>Parrot — AGPL-3.0</string>
     <!-- Custom URL scheme for PopClip / Shortcuts / external integrations -->
     <key>CFBundleURLTypes</key>
     <array>
         <dict>
             <key>CFBundleURLName</key>
-            <string>com.openbob.app.url</string>
+            <string>com.parrot.app.url</string>
             <key>CFBundleURLSchemes</key>
             <array>
-                <string>openbob</string>
+                <string>parrot</string>
             </array>
         </dict>
     </array>

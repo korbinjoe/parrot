@@ -1,4 +1,4 @@
-# Review: OpenBob (Bob 复刻)
+# Review: Parrot (Bob 复刻)
 
 变更：`macos-translator-bob-clone` — 验证日期 2026-06-15。
 
@@ -9,7 +9,7 @@
 ```
 swift build   → Build complete!
 swift test    → 24 tests passed
-build-app.sh  → build/OpenBob.app（菜单栏常驻，openbob:// URL scheme 已注册）
+build-app.sh  → build/Parrot.app（菜单栏常驻，parrot:// URL scheme 已注册）
 ```
 
 ## 功能完成度对照（vs Bob）
@@ -24,7 +24,7 @@ build-app.sh  → build/OpenBob.app（菜单栏常驻，openbob:// URL scheme �
 | 插件系统（接入 LLM） | ✓ | JavaScriptCore 沙箱 + `$http` 白名单 + `$option`/`$log` |
 | 历史 / 收藏 / 检索 | ✓ | `HistoryStore` actor + JSON 持久化 |
 | TTS 朗读 | ✓ | `AVSpeechSynthesizer`，原文/译文，多语言 |
-| PopClip 集成 | ✓ | `examples/OpenBob.popclipext` + URL scheme |
+| PopClip 集成 | ✓ | `examples/Parrot.popclipext` + URL scheme |
 | 设置面板 | ✓ | 目标语言/引擎开关/API Key（钥匙串） |
 | 悬浮窗即用即走 | ✓ | nonactivating NSPanel，失焦自动隐藏 |
 

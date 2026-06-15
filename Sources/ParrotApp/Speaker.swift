@@ -1,5 +1,5 @@
 import AVFoundation
-import OpenBobCore
+import ParrotCore
 
 /// Text-to-speech wrapper around AVSpeechSynthesizer. Picks a voice by language.
 @MainActor

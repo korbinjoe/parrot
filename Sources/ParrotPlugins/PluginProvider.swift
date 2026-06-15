@@ -1,5 +1,5 @@
 import Foundation
-import OpenBobCore
+import ParrotCore
 
 /// Wraps a loaded JS plugin so it participates in the engine registry / aggregation exactly
 /// like a built-in `TranslationProvider`.

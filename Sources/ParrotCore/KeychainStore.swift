@@ -7,8 +7,8 @@ import Security
 /// service namespace so the whole app's secrets can be enumerated/cleared together.
 /// Keys are NEVER written to UserDefaults, the history DB, or logs.
 public enum KeychainStore {
-    /// Namespace under which all OpenBob secrets live.
-    public static let service = "com.openbob.OpenBob.secrets"
+    /// Namespace under which all Parrot secrets live.
+    public static let service = "com.parrot.Parrot.secrets"
 
     /// Store (or update) a secret for `account`. Passing an empty string deletes the entry.
     @discardableResult

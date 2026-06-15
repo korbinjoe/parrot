@@ -1,7 +1,7 @@
 import Foundation
-import OpenBobCore
-import OpenBobEngines
-import OpenBobPlugins
+import ParrotCore
+import ParrotEngines
+import ParrotPlugins
 import Combine
 
 /// Observable application state shared across the menu bar, input panel and floating result window.
@@ -38,7 +38,7 @@ final class AppState: ObservableObject {
         // Mock — offline demo, disabled by default once real engines exist.
         registry.register(MockEngine(), enabled: false)
 
-        // Community plugins from ~/Library/Application Support/OpenBob/Plugins.
+        // Community plugins from ~/Library/Application Support/Parrot/Plugins.
         loadPlugins()
     }
 

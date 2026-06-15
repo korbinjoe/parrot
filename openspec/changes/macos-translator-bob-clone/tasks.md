@@ -1,4 +1,4 @@
-# Tasks: OpenBob 实现任务拆解
+# Tasks: Parrot 实现任务拆解
 
 按里程碑分阶段。每个里程碑有明确门禁（Definition of Done），通过后方进入下一阶段，控制范围蔓延。
 
@@ -15,7 +15,7 @@
 
 ## M1 — MVP：划词 + 输入翻译 + 单引擎 + 悬浮窗
 
-- [x] 定义 `TranslationProvider` 协议与 `TranslateRequest/Result` 模型（OpenBobCore）
+- [x] 定义 `TranslationProvider` 协议与 `TranslateRequest/Result` 模型（ParrotCore）
 - [x] 实现参考引擎：`OpenAIEngine`（LLM）+ `MockEngine`（离线 demo）
 - [x] `TranslationCoordinator`（`NLLanguageRecognizer` 语言检测 + 并发聚合 + 超时 + 错误隔离）
 - [x] 单元测试覆盖协调器/引擎/检测/错误隔离（Swift Testing，6 passing）
@@ -68,7 +68,7 @@
 - [x] TTS：`AVSpeechSynthesizer` 朗读原文/译文，多语言（`Speaker`，Language→BCP-47 映射）
 - [x] 历史记录（`HistoryStore` actor + JSON 持久化 + 检索，自动记录首个成功译文）
 - [x] 收藏夹（`setFavorite`/`favorites`，悬浮窗 ⭐️ 切换，trim 优先保留收藏）
-- [x] PopClip 扩展集成（`examples/OpenBob.popclipext` + `openbob://` URL scheme）
+- [x] PopClip 扩展集成（`examples/Parrot.popclipext` + `parrot://` URL scheme）
 - [~] 历史/配置 JSON 导入导出（历史已 JSON 落盘；显式导入导出 UI 待补）
 - **DoD**：查词、朗读、历史、收藏、PopClip 全部可用 ✓
 

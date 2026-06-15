@@ -20,7 +20,7 @@ my-plugin.bobplugin/  (zip 或目录)
   "name": "GPT Translate",
   "version": "1.0.0",
   "author": "name",
-  "minOpenBobVersion": "1.0.0",
+  "minParrotVersion": "1.0.0",
   "capabilities": ["translate", "lookup"],
   "permissions": {
     "network": ["api.openai.com"]      // 域名白名单

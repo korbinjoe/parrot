@@ -1,6 +1,6 @@
 import Testing
-@testable import OpenBobCore
-@testable import OpenBobEngines
+@testable import ParrotCore
+@testable import ParrotEngines
 
 @Test func mockEngineTranslates() async throws {
     let engine = MockEngine()

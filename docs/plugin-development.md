@@ -1,8 +1,8 @@
 # 插件开发指南
 
-OpenBob 插件是一个 `.bobplugin` 目录，包含 `info.json`（清单）与 `main.js`（实现）。插件运行在 JavaScriptCore 沙箱中，可接入任意 LLM 或词典服务。
+Parrot 插件是一个 `.bobplugin` 目录，包含 `info.json`（清单）与 `main.js`（实现）。插件运行在 JavaScriptCore 沙箱中，可接入任意 LLM 或词典服务。
 
-安装位置：`~/Library/Application Support/OpenBob/Plugins/`，应用启动时自动加载。
+安装位置：`~/Library/Application Support/Parrot/Plugins/`，应用启动时自动加载。
 
 ## 目录结构
 

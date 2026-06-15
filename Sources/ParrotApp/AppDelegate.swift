@@ -1,6 +1,6 @@
 import AppKit
 import Carbon.HIToolbox
-import OpenBobCore
+import ParrotCore
 
 /// Menu-bar agent: owns the status item, registers global hotkeys, and routes
 /// 划词(⌥D) / 截图OCR(⌥S) / 输入(⌥A) actions into the translation pipeline.
@@ -19,17 +19,18 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     func applicationDidFinishLaunching(_ notification: Notification) {
         setupStatusItem()
         registerHotKeys()
-        _ = SelectionCapture.hasAccessibilityPermission(prompt: true)
+        let trusted = SelectionCapture.hasAccessibilityPermission(prompt: true)
+        DebugLog.log("launch: pid=\(getpid()) AXIsProcessTrusted=\(trusted) exe=\(Bundle.main.executablePath ?? "?")")
     }
 
-    // MARK: - URL scheme (openbob://translate?text=... | openbob://lookup?text=...)
+    // MARK: - URL scheme (parrot://translate?text=... | parrot://lookup?text=...)
 
     func application(_ application: NSApplication, open urls: [URL]) {
         for url in urls { handle(url) }
     }
 
     private func handle(_ url: URL) {
-        guard url.scheme == "openbob",
+        guard url.scheme == "parrot",
               let comps = URLComponents(url: url, resolvingAgainstBaseURL: false) else { return }
         let action = comps.host ?? url.host ?? "translate"
         let text = comps.queryItems?.first(where: { $0.name == "text" })?.value ?? ""
@@ -47,7 +48,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     private func setupStatusItem() {
         let item = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
-        item.button?.image = NSImage(systemSymbolName: "character.bubble", accessibilityDescription: "OpenBob")
+        item.button?.image = NSImage(systemSymbolName: "character.bubble", accessibilityDescription: "Parrot")
         let menu = NSMenu()
         menu.addItem(withTitle: "划词翻译 (⌥D)", action: #selector(translateSelection), keyEquivalent: "")
         menu.addItem(withTitle: "查词 (⌥E)", action: #selector(lookupSelection), keyEquivalent: "")
@@ -55,7 +56,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         menu.addItem(withTitle: "输入翻译 (⌥A)", action: #selector(showInput), keyEquivalent: "")
         menu.addItem(.separator())
         menu.addItem(withTitle: "设置…", action: #selector(showSettings), keyEquivalent: ",")
-        menu.addItem(withTitle: "退出 OpenBob", action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q")
+        menu.addItem(withTitle: "退出 Parrot", action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q")
         menu.items.forEach { $0.target = self }
         item.menu = menu
         self.statusItem = item
@@ -82,11 +83,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     // MARK: - Actions
 
     @objc private func translateSelection() {
-        guard let text = SelectionCapture.selectedText(), !text.isEmpty else { return }
+        floating.hide() // ensure focus is on the target app, not our panel, before capturing
+        let text = SelectionCapture.selectedText()
+        DebugLog.log("translateSelection: captured=\(text.map { "\"\($0.prefix(40))\" len=\($0.count)" } ?? "nil")")
+        guard let text, !text.isEmpty else { return }
         runTranslation(text)
     }
 
     @objc private func lookupSelection() {
+        floating.hide()
         guard let text = SelectionCapture.selectedText(), !text.isEmpty else { return }
         state.translate(text, mode: .lookup)
         floating.show()

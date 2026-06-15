@@ -1,0 +1,14 @@
+# Parrot PopClip Extension
+# Install: double-click this folder (zip → rename to Parrot.popclipextz) or drag into PopClip.
+# Adds two actions to the PopClip bar that hand the selected text to Parrot via its URL scheme.
+name: Parrot
+identifier: com.parrot.popclip
+description: Translate or look up the selected text with Parrot.
+icon: square.fill OB
+actions:
+  - title: Parrot 翻译
+    icon: symbol:character.bubble
+    url: parrot://translate?text={popclip text}
+  - title: Parrot 查词
+    icon: symbol:book
+    url: parrot://lookup?text={popclip text}

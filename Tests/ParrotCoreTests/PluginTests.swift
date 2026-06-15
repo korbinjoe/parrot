@@ -1,7 +1,7 @@
 import Testing
 import Foundation
-@testable import OpenBobCore
-@testable import OpenBobPlugins
+@testable import ParrotCore
+@testable import ParrotPlugins
 
 @Test func manifestParses() throws {
     let json = """

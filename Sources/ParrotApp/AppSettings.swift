@@ -1,5 +1,5 @@
 import Foundation
-import OpenBobCore
+import ParrotCore
 
 /// User-facing preferences, persisted to UserDefaults (non-secret) and Keychain (API keys).
 ///

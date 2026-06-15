@@ -1,4 +1,4 @@
-# Proposal: OpenBob — macOS 开源翻译与 OCR 工具（复刻 Bob 全部功能）
+# Proposal: Parrot — macOS 开源翻译与 OCR 工具（复刻 Bob 全部功能）
 
 - **Change name**: `macos-translator-bob-clone`
 - **Status**: Proposed
@@ -7,7 +7,7 @@
 
 ## Summary
 
-构建一款 macOS 原生开源翻译 + OCR 工具（暂名 **OpenBob**），完整复刻商业软件 Bob（bobtranslate.com）的全部核心能力：划词翻译、截图 OCR 翻译、输入翻译、查单词、多翻译引擎聚合对比、可扩展插件系统（接入 GPT/Claude/Gemini/DeepSeek 等大模型）、历史记录与收藏夹、语音合成（TTS），以悬浮窗「即用即走」的非侵入式交互呈现。项目以开源协议发布，核心价值在于**可扩展的引擎/插件架构**与**完全免费、无次数限制**。
+构建一款 macOS 原生开源翻译 + OCR 工具（暂名 **Parrot**），完整复刻商业软件 Bob（bobtranslate.com）的全部核心能力：划词翻译、截图 OCR 翻译、输入翻译、查单词、多翻译引擎聚合对比、可扩展插件系统（接入 GPT/Claude/Gemini/DeepSeek 等大模型）、历史记录与收藏夹、语音合成（TTS），以悬浮窗「即用即走」的非侵入式交互呈现。项目以开源协议发布，核心价值在于**可扩展的引擎/插件架构**与**完全免费、无次数限制**。
 
 ## Motivation
 

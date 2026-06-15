@@ -2,45 +2,45 @@
 import PackageDescription
 
 let package = Package(
-    name: "OpenBob",
+    name: "Parrot",
     platforms: [
         .macOS(.v13)
     ],
     products: [
         // Core abstraction layer — buildable & testable without Xcode GUI toolchain.
-        .library(name: "OpenBobCore", targets: ["OpenBobCore"]),
+        .library(name: "ParrotCore", targets: ["ParrotCore"]),
         // Built-in translation engines.
-        .library(name: "OpenBobEngines", targets: ["OpenBobEngines"]),
+        .library(name: "ParrotEngines", targets: ["ParrotEngines"]),
         // Plugin runtime (JavaScriptCore) for community LLM/translation plugins.
-        .library(name: "OpenBobPlugins", targets: ["OpenBobPlugins"]),
+        .library(name: "ParrotPlugins", targets: ["ParrotPlugins"]),
         // App executable (SwiftUI/AppKit) — requires full Xcode to build the .app bundle.
-        .executable(name: "OpenBob", targets: ["OpenBobApp"])
+        .executable(name: "Parrot", targets: ["ParrotApp"])
     ],
     dependencies: [],
     targets: [
         .target(
-            name: "OpenBobCore",
-            path: "Sources/OpenBobCore"
+            name: "ParrotCore",
+            path: "Sources/ParrotCore"
         ),
         .target(
-            name: "OpenBobEngines",
-            dependencies: ["OpenBobCore"],
-            path: "Sources/OpenBobEngines"
+            name: "ParrotEngines",
+            dependencies: ["ParrotCore"],
+            path: "Sources/ParrotEngines"
         ),
         .target(
-            name: "OpenBobPlugins",
-            dependencies: ["OpenBobCore"],
-            path: "Sources/OpenBobPlugins"
+            name: "ParrotPlugins",
+            dependencies: ["ParrotCore"],
+            path: "Sources/ParrotPlugins"
         ),
         .executableTarget(
-            name: "OpenBobApp",
-            dependencies: ["OpenBobCore", "OpenBobEngines", "OpenBobPlugins"],
-            path: "Sources/OpenBobApp"
+            name: "ParrotApp",
+            dependencies: ["ParrotCore", "ParrotEngines", "ParrotPlugins"],
+            path: "Sources/ParrotApp"
         ),
         .testTarget(
-            name: "OpenBobCoreTests",
-            dependencies: ["OpenBobCore", "OpenBobEngines", "OpenBobPlugins"],
-            path: "Tests/OpenBobCoreTests"
+            name: "ParrotCoreTests",
+            dependencies: ["ParrotCore", "ParrotEngines", "ParrotPlugins"],
+            path: "Tests/ParrotCoreTests"
         )
     ]
 )

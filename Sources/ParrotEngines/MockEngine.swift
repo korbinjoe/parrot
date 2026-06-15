@@ -1,5 +1,5 @@
 import Foundation
-import OpenBobCore
+import ParrotCore
 
 /// Deterministic offline engine for tests and first-run demo. No network.
 public struct MockEngine: TranslationProvider {

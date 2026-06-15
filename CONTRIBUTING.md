@@ -1,6 +1,6 @@
 # 贡献指南
 
-感谢参与 OpenBob！本项目使用 OpenSpec 变更流程驱动开发。
+感谢参与 Parrot！本项目使用 OpenSpec 变更流程驱动开发。
 
 ## 开发环境
 
@@ -32,9 +32,9 @@ swift build && swift test
 
 ## 新增翻译引擎
 
-1. 在 `Sources/OpenBobEngines/` 新建类型实现 `TranslationProvider`。
+1. 在 `Sources/ParrotEngines/` 新建类型实现 `TranslationProvider`。
 2. 在 `AppState.init()` 注册（按需经 `registerKeyed` 接入钥匙串密钥）。
-3. 在 `Tests/OpenBobCoreTests/` 补充解析单测。
+3. 在 `Tests/ParrotCoreTests/` 补充解析单测。
 
 ## 新增插件
 

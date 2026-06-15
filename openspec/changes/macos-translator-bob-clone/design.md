@@ -1,4 +1,4 @@
-# Design: OpenBob — macOS 翻译与 OCR 工具
+# Design: Parrot — macOS 翻译与 OCR 工具
 
 ## 1. 技术栈选型
 

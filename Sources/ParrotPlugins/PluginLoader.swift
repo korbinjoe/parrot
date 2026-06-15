@@ -1,5 +1,5 @@
 import Foundation
-import OpenBobCore
+import ParrotCore
 
 /// Discovers and instantiates plugins from disk.
 ///
@@ -10,7 +10,7 @@ public enum PluginLoader {
 
     public static let defaultDirectory: URL = {
         let base = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first!
-        return base.appendingPathComponent("OpenBob/Plugins", isDirectory: true)
+        return base.appendingPathComponent("Parrot/Plugins", isDirectory: true)
     }()
 
     /// Load a single plugin directory into a ready `PluginProvider`.

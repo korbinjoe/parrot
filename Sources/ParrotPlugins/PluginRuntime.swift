@@ -24,7 +24,7 @@ public final class PluginRuntime: @unchecked Sendable {
                 timeout: TimeInterval = 20) throws {
         guard let ctx = JSContext() else { throw PluginError.scriptLoadFailed("no JSContext") }
         self.context = ctx
-        self.queue = DispatchQueue(label: "openbob.plugin.\(UUID().uuidString)")
+        self.queue = DispatchQueue(label: "parrot.plugin.\(UUID().uuidString)")
         self.allowedHosts = allowedHosts
         self.options = options
         self.session = session

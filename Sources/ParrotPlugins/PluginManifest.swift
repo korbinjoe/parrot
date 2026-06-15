@@ -18,7 +18,7 @@ public struct PluginManifest: Codable, Sendable {
     public let name: String
     public let version: String
     public let author: String?
-    public let minOpenBobVersion: String?
+    public let minParrotVersion: String?
     public let capabilities: [String]?   // "translate" | "lookup" | "polish"
     public let permissions: Permissions?
     public let options: [Option]?

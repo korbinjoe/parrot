@@ -14,7 +14,7 @@
 
 ## 数据落盘
 
-- 历史记录默认存储于 `~/Library/Application Support/OpenBob/history.json`，仅含原文/译文/引擎 ID/语言/时间戳，**不含密钥**。
+- 历史记录默认存储于 `~/Library/Application Support/Parrot/history.json`，仅含原文/译文/引擎 ID/语言/时间戳，**不含密钥**。
 
 ## 权限
 

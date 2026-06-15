@@ -1,10 +1,10 @@
 import Testing
 import Foundation
-@testable import OpenBobCore
+@testable import ParrotCore
 
 private func tempStore(max: Int = 5000) -> HistoryStore {
     let url = FileManager.default.temporaryDirectory
-        .appendingPathComponent("openbob-test-\(UUID().uuidString).json")
+        .appendingPathComponent("parrot-test-\(UUID().uuidString).json")
     return HistoryStore(fileURL: url, maxRecords: max)
 }
 
@@ -44,7 +44,7 @@ private func record(_ src: String, _ dst: String, fav: Bool = false) -> Translat
 
 @Test func persistsAcrossInstances() async {
     let url = FileManager.default.temporaryDirectory
-        .appendingPathComponent("openbob-persist-\(UUID().uuidString).json")
+        .appendingPathComponent("parrot-persist-\(UUID().uuidString).json")
     let s1 = HistoryStore(fileURL: url)
     await s1.add(record("persist", "持久"))
     let s2 = HistoryStore(fileURL: url)

@@ -44,7 +44,7 @@ public actor HistoryStore {
             self.fileURL = fileURL
         } else {
             let base = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first!
-            let dir = base.appendingPathComponent("OpenBob", isDirectory: true)
+            let dir = base.appendingPathComponent("Parrot", isDirectory: true)
             try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
             self.fileURL = dir.appendingPathComponent("history.json")
         }

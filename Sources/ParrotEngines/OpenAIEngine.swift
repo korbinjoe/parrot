@@ -1,5 +1,5 @@
 import Foundation
-import OpenBobCore
+import ParrotCore
 
 #if canImport(FoundationNetworking)
 import FoundationNetworking
