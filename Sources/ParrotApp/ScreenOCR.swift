@@ -14,6 +14,13 @@ enum ScreenOCR {
         return try recognize(image, languages: languages)
     }
 
+    /// Like `captureAndRecognize` but keeps the layout-ordered lines separate, so the caller can
+    /// present a per-line picker. Empty lines are dropped.
+    static func captureAndRecognizeLines(languages: [String] = ["zh-Hans", "en-US"]) async throws -> [String] {
+        let image = try await interactiveCapture()
+        return try recognizeLines(image, languages: languages)
+    }
+
     /// Run `screencapture -i` to a temp file and load it as a CGImage.
     private static func interactiveCapture() async throws -> CGImage {
         let tmp = FileManager.default.temporaryDirectory
@@ -38,6 +45,11 @@ enum ScreenOCR {
 
     /// Vision text recognition with layout-aware ordering (top→bottom, left→right).
     static func recognize(_ image: CGImage, languages: [String]) throws -> String {
+        try recognizeLines(image, languages: languages).joined(separator: "\n")
+    }
+
+    /// Layout-ordered recognized lines (top→bottom, left→right). Drops empties.
+    static func recognizeLines(_ image: CGImage, languages: [String]) throws -> [String] {
         let request = VNRecognizeTextRequest()
         request.recognitionLevel = .accurate
         request.usesLanguageCorrection = true
@@ -59,6 +71,6 @@ enum ScreenOCR {
             }
             return a.0.origin.x < b.0.origin.x
         }
-        return ordered.map { $0.1 }.joined(separator: "\n")
+        return ordered.map { $0.1 }.filter { !$0.trimmingCharacters(in: .whitespaces).isEmpty }
     }
 }

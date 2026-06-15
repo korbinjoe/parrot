@@ -17,6 +17,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private lazy var historyWindow = HistoryWindow(state: state) { [weak self] text in
         self?.runTranslation(text)
     }
+    private lazy var ocrResultPanel = OCRResultPanel { [weak self] text in
+        self?.runTranslation(text)
+    }
     private let popover = NSPopover()
 
     private var hotkeys: [HotKey] = []
@@ -149,8 +152,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     @objc private func translateScreenshot() {
         Task {
             do {
-                let text = try await ScreenOCR.captureAndRecognize()
-                if !text.isEmpty { runTranslation(text) }
+                let lines = try await ScreenOCR.captureAndRecognizeLines()
+                guard !lines.isEmpty else { return }
+                if lines.count == 1 {
+                    // Single line — translate immediately (即用即走), no picker.
+                    runTranslation(lines[0])
+                } else {
+                    // Multiple lines — let the user pick which to translate.
+                    ocrResultPanel.present(lines: lines)
+                }
             } catch {
                 // user cancelled or nothing recognized — silently ignore (即用即走)
             }
