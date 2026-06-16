@@ -25,20 +25,26 @@ struct ResultView: View {
                     header
                     sourceBlock
 
-                    if state.isTranslating && state.outcomes.isEmpty {
+                    if state.isTranslating && state.outcomes.isEmpty && state.pendingProviders.isEmpty {
                         ForEach(0..<2, id: \.self) { _ in SkeletonCard() }
-                    } else if state.outcomes.isEmpty {
+                    } else if state.outcomes.isEmpty && state.pendingProviders.isEmpty {
                         Text("无可用引擎或暂无结果")
                             .foregroundStyle(.secondary)
                             .font(Theme.Font.callout)
                             .padding(.vertical, Theme.Spacing.s8)
                     } else {
-                        ForEach(Array(state.outcomes.enumerated()), id: \.element.providerId) { index, outcome in
+                        ForEach(fastOutcomes, id: \.providerId) { outcome in
                             EngineCard(outcome: outcome,
-                                       isPrimary: index == 0 && outcome.isSuccess,
+                                       isPrimary: outcome.providerId == primaryProviderId,
                                        onSpeak: { state.speakTranslation($0) },
                                        onCopy: { copy($0) },
                                        onConfigure: onConfigureProvider)
+                        }
+                        ForEach(fastPendingProviders) { provider in
+                            PendingEngineCard(provider: provider)
+                        }
+                        if !slowOutcomes.isEmpty || !slowPendingProviders.isEmpty {
+                            slowSection
                         }
                     }
                 }
@@ -98,6 +104,50 @@ struct ResultView: View {
         let pb = NSPasteboard.general
         pb.clearContents()
         pb.setString(text, forType: .string)
+    }
+
+    private var fastPendingProviders: [PendingProviderViewState] {
+        state.pendingProviders.filter { !$0.isSlow }
+    }
+
+    private var slowPendingProviders: [PendingProviderViewState] {
+        state.pendingProviders.filter(\.isSlow)
+    }
+
+    private var fastOutcomes: [AggregatedOutcome] {
+        state.outcomes.filter { !state.slowProviderIDs.contains($0.providerId) }
+    }
+
+    private var slowOutcomes: [AggregatedOutcome] {
+        state.outcomes.filter { state.slowProviderIDs.contains($0.providerId) }
+    }
+
+    private var primaryProviderId: String? {
+        state.outcomes.first(where: \.isSuccess)?.providerId
+    }
+
+    private var slowSection: some View {
+        VStack(alignment: .leading, spacing: Theme.Spacing.s8) {
+            HStack(spacing: Theme.Spacing.s8) {
+                Text("慢速 LLM")
+                    .font(Theme.Font.caption)
+                    .foregroundStyle(Theme.Palette.label2)
+                Spacer(minLength: 0)
+                Text("不阻塞基础机翻")
+                    .font(Theme.Font.caption)
+                    .foregroundStyle(Theme.Palette.label3)
+            }
+            ForEach(slowOutcomes, id: \.providerId) { outcome in
+                EngineCard(outcome: outcome,
+                           isPrimary: outcome.providerId == primaryProviderId,
+                           onSpeak: { state.speakTranslation($0) },
+                           onCopy: { copy($0) },
+                           onConfigure: onConfigureProvider)
+            }
+            ForEach(slowPendingProviders) { provider in
+                PendingEngineCard(provider: provider)
+            }
+        }
     }
 }
 
@@ -222,6 +272,55 @@ private struct EngineCard: View {
         case .auth, .notConfigured: return true
         default: return false
         }
+    }
+}
+
+// MARK: - Pending cards
+
+private struct PendingEngineCard: View {
+    let provider: PendingProviderViewState
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: Theme.Spacing.s8) {
+            HStack(spacing: Theme.Spacing.s8) {
+                Text(provider.displayName.uppercased())
+                    .font(Theme.Font.tag)
+                    .foregroundStyle(Theme.Palette.label2)
+                    .padding(.horizontal, 6)
+                    .padding(.vertical, 2)
+                    .background(Theme.Palette.bgContent2)
+                    .clipShape(RoundedRectangle(cornerRadius: 5))
+                Spacer(minLength: 0)
+                HStack(spacing: 6) {
+                    ProgressView().controlSize(.small)
+                    Text(provider.softTimedOut ? "仍在生成" : (provider.isSlow ? "生成中" : "请求中"))
+                        .font(Theme.Font.caption)
+                        .foregroundStyle(provider.softTimedOut ? Theme.Palette.warning : Theme.Palette.label3)
+                }
+            }
+            Text(message)
+                .font(Theme.Font.callout)
+                .foregroundStyle(Theme.Palette.label2)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+        .padding(Theme.Spacing.s12)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(Theme.Palette.bgContent)
+        .clipShape(RoundedRectangle(cornerRadius: Theme.Radius.card))
+        .overlay(
+            RoundedRectangle(cornerRadius: Theme.Radius.card)
+                .strokeBorder(provider.softTimedOut ? Theme.Palette.warning.opacity(0.5) : Color.clear, lineWidth: 0.5)
+        )
+    }
+
+    private var message: String {
+        if provider.softTimedOut {
+            return "仍在生成；可先使用已返回的翻译结果。"
+        }
+        if provider.isSlow {
+            return "正在生成；基础机翻结果会先显示。"
+        }
+        return "正在请求翻译结果。"
     }
 }
 

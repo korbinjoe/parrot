@@ -5,6 +5,13 @@ import ParrotPlugins
 import Combine
 import Network
 
+struct PendingProviderViewState: Identifiable, Equatable {
+    let id: String
+    let displayName: String
+    let isSlow: Bool
+    var softTimedOut: Bool = false
+}
+
 @MainActor
 final class AppState: ObservableObject {
     let registry = ProviderRegistry()
@@ -17,6 +24,8 @@ final class AppState: ObservableObject {
 
     @Published var sourceText: String = ""
     @Published var outcomes: [AggregatedOutcome] = []
+    @Published var pendingProviders: [PendingProviderViewState] = []
+    @Published var slowProviderIDs: Set<String> = []
     @Published var isTranslating: Bool = false
     @Published var targetLanguage: Language = .zh
     @Published var detectedSource: Language = .auto
@@ -25,6 +34,11 @@ final class AppState: ObservableObject {
     @Published var isOffline: Bool = false
 
     private let netMonitor = NWPathMonitor()
+    private var translationTask: Task<Void, Never>?
+    private var slowHintTasks: [Task<Void, Never>] = []
+    private var currentTranslationID = UUID()
+    private var didSaveCurrentTranslation = false
+    private static let slowProviderSoftTimeout: TimeInterval = 8
 
     init() {
         coordinator = TranslationCoordinator(registry: registry)
@@ -69,40 +83,111 @@ final class AppState: ObservableObject {
     func translate(_ text: String, mode: TranslateMode = .translate) {
         let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else { return }
+        translationTask?.cancel()
+        slowHintTasks.forEach { $0.cancel() }
+        slowHintTasks = []
+
+        let runID = UUID()
+        currentTranslationID = runID
+        didSaveCurrentTranslation = false
+
         reloadProviders()
         loadPlugins()
         sourceText = trimmed
         isTranslating = true
         outcomes = []
+        let activeProviders = registry.activeProviders()
+        slowProviderIDs = Set(activeProviders.filter(Self.isSlowProvider).map(\.id))
+        pendingProviders = activeProviders.map {
+            PendingProviderViewState(
+                id: $0.id,
+                displayName: $0.displayName,
+                isSlow: Self.isSlowProvider($0)
+            )
+        }
         savedRecordId = nil
         isFavorite = false
-        Task {
-            let req = TranslateRequest(text: trimmed, from: .auto, to: targetLanguage, mode: mode)
-            let result = await coordinator.translateAll(req)
-            for outcome in result {
-                if let error = outcome.error {
-                    DebugLog.log("translate: provider=\(outcome.providerId) error=\(error) latencyMs=\(outcome.latencyMs)")
-                } else if let translated = outcome.result?.translated {
-                    DebugLog.log("translate: provider=\(outcome.providerId) ok latencyMs=\(outcome.latencyMs) chars=\(translated.count)")
+
+        scheduleSlowProviderHints(runID: runID)
+
+        let req = TranslateRequest(text: trimmed, from: .auto, to: targetLanguage, mode: mode)
+        let coordinator = coordinator
+        translationTask = Task { [weak self, coordinator] in
+            let stream = await coordinator.translateIncrementally(req)
+            for await outcome in stream {
+                guard !Task.isCancelled else { break }
+                await self?.handleIncrementalOutcome(outcome, sourceText: trimmed, runID: runID)
+            }
+            self?.finishTranslation(runID: runID)
+        }
+    }
+
+    private static func isSlowProvider(_ provider: TranslationProvider) -> Bool {
+        provider.id == "opencode" || provider.capabilities.supportsStream
+    }
+
+    private func scheduleSlowProviderHints(runID: UUID) {
+        for provider in pendingProviders where provider.isSlow {
+            let task = Task { [weak self, providerID = provider.id] in
+                try? await Task.sleep(nanoseconds: UInt64(Self.slowProviderSoftTimeout * 1_000_000_000))
+                guard !Task.isCancelled else { return }
+                await MainActor.run {
+                    guard let self, self.currentTranslationID == runID else { return }
+                    if let index = self.pendingProviders.firstIndex(where: { $0.id == providerID }) {
+                        self.pendingProviders[index].softTimedOut = true
+                    }
                 }
             }
-            self.outcomes = result
-            self.isTranslating = false
+            slowHintTasks.append(task)
+        }
+    }
 
-            if let detected = result.compactMap({ $0.result?.detectedFrom }).first {
-                self.detectedSource = detected
-            }
-            if let primary = result.first(where: { $0.isSuccess })?.result {
-                let record = TranslationRecord(
-                    sourceText: trimmed,
-                    translated: primary.translated,
-                    providerId: primary.providerId,
-                    sourceLang: (self.detectedSource.code ?? "auto"),
-                    targetLang: (self.targetLanguage.code ?? "")
-                )
-                await self.history.add(record)
-                self.savedRecordId = record.id
-            }
+    private func handleIncrementalOutcome(
+        _ outcome: AggregatedOutcome,
+        sourceText trimmed: String,
+        runID: UUID
+    ) async {
+        guard currentTranslationID == runID else { return }
+        log(outcome)
+
+        if let index = outcomes.firstIndex(where: { $0.providerId == outcome.providerId }) {
+            outcomes[index] = outcome
+        } else {
+            outcomes.append(outcome)
+        }
+        pendingProviders.removeAll { $0.id == outcome.providerId }
+
+        if let detected = outcome.result?.detectedFrom {
+            detectedSource = detected
+        }
+
+        guard let primary = outcome.result, !didSaveCurrentTranslation else { return }
+        didSaveCurrentTranslation = true
+        let record = TranslationRecord(
+            sourceText: trimmed,
+            translated: primary.translated,
+            providerId: primary.providerId,
+            sourceLang: (detectedSource.code ?? "auto"),
+            targetLang: (targetLanguage.code ?? "")
+        )
+        await history.add(record)
+        guard currentTranslationID == runID else { return }
+        savedRecordId = record.id
+    }
+
+    private func finishTranslation(runID: UUID) {
+        guard currentTranslationID == runID else { return }
+        isTranslating = false
+        pendingProviders = []
+        slowHintTasks.forEach { $0.cancel() }
+        slowHintTasks = []
+    }
+
+    private func log(_ outcome: AggregatedOutcome) {
+        if let error = outcome.error {
+            DebugLog.log("translate: provider=\(outcome.providerId) error=\(error) latencyMs=\(outcome.latencyMs)")
+        } else if let translated = outcome.result?.translated {
+            DebugLog.log("translate: provider=\(outcome.providerId) ok latencyMs=\(outcome.latencyMs) chars=\(translated.count)")
         }
     }
 

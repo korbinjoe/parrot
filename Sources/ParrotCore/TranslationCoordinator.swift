@@ -78,6 +78,68 @@ public actor TranslationCoordinator {
         return providers.compactMap { outcomes[$0.id] }
     }
 
+    /// Fan out to every active provider concurrently and yield each outcome as soon as it finishes.
+    /// The stream order is completion order, so fast machine-translation providers can appear before
+    /// slower LLM providers finish.
+    public func translateIncrementally(_ request: TranslateRequest) -> AsyncStream<AggregatedOutcome> {
+        let req = resolved(request)
+        let providers = registry.activeProviders()
+        let baseTimeout = perProviderTimeout
+
+        return AsyncStream { continuation in
+            guard !providers.isEmpty else {
+                continuation.finish()
+                return
+            }
+
+            let task = Task {
+                await withTaskGroup(of: AggregatedOutcome.self) { group in
+                    for provider in providers {
+                        group.addTask {
+                            await Self.run(provider, req: req, baseTimeout: baseTimeout)
+                        }
+                    }
+                    for await outcome in group {
+                        continuation.yield(outcome)
+                    }
+                }
+                continuation.finish()
+            }
+
+            continuation.onTermination = { _ in task.cancel() }
+        }
+    }
+
+    private static func run(
+        _ provider: TranslationProvider,
+        req: TranslateRequest,
+        baseTimeout: TimeInterval
+    ) async -> AggregatedOutcome {
+        let start = Date()
+        do {
+            let timeout = Self.timeout(for: provider, base: baseTimeout)
+            let result = try await Self.withTimeout(timeout) {
+                try await provider.translate(req)
+            }
+            return AggregatedOutcome(
+                providerId: provider.id,
+                displayName: provider.displayName,
+                result: result,
+                error: nil,
+                latencyMs: Int(Date().timeIntervalSince(start) * 1000)
+            )
+        } catch {
+            let pErr = (error as? ProviderError) ?? .network
+            return AggregatedOutcome(
+                providerId: provider.id,
+                displayName: provider.displayName,
+                result: nil,
+                error: pErr,
+                latencyMs: Int(Date().timeIntervalSince(start) * 1000)
+            )
+        }
+    }
+
     /// Provider-specific timeout budget for slower LLM services.
     static func timeout(for provider: TranslationProvider, base: TimeInterval) -> TimeInterval {
         if provider.id == "opencode" {

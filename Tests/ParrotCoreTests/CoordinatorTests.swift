@@ -47,6 +47,23 @@ import Testing
     #expect(failing?.error == .network)
 }
 
+@Test func coordinatorStreamsOutcomesInCompletionOrder() async {
+    let registry = ProviderRegistry()
+    registry.register(DelayedEngine(id: "slow", delayMs: 120))
+    registry.register(DelayedEngine(id: "fast", delayMs: 10))
+    let coordinator = TranslationCoordinator(registry: registry)
+
+    let stream = await coordinator.translateIncrementally(
+        TranslateRequest(text: "x", to: .zh)
+    )
+    var ids: [String] = []
+    for await outcome in stream {
+        ids.append(outcome.providerId)
+    }
+
+    #expect(ids == ["fast", "slow"])
+}
+
 @Test func languageDetection() {
     let detector = LanguageDetector()
     let lang = detector.detect("This is clearly an English sentence with enough words.")
@@ -74,5 +91,18 @@ struct FailingEngine: TranslationProvider {
     let capabilities = ProviderCapabilities()
     func translate(_ req: TranslateRequest) async throws -> TranslateResult {
         throw ProviderError.network
+    }
+}
+
+struct DelayedEngine: TranslationProvider {
+    let id: String
+    let delayMs: UInt64
+    var displayName: String { id }
+    var supportedLanguages: [Language] { [.auto, .zh] }
+    var capabilities: ProviderCapabilities { ProviderCapabilities() }
+
+    func translate(_ req: TranslateRequest) async throws -> TranslateResult {
+        try await Task.sleep(nanoseconds: delayMs * 1_000_000)
+        return TranslateResult(providerId: id, translated: id)
     }
 }
