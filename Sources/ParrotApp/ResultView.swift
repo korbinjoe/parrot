@@ -91,8 +91,8 @@ struct ResultView: View {
     private var header: some View {
         HStack(spacing: Theme.Spacing.s8) {
             LanguageDirectionControl(
-                sourceCode: state.settings.sourceLanguageCode,
-                targetCode: state.settings.targetLanguageCode,
+                sourceCode: state.sourceLanguage == .auto ? "auto" : (state.sourceLanguage.code ?? state.settings.sourceLanguageCode),
+                targetCode: state.targetLanguage.code ?? state.settings.targetLanguageCode,
                 onSourceChange: { state.setLanguageDirection(sourceCode: $0) },
                 onTargetChange: { state.setLanguageDirection(targetCode: $0) },
                 onSwap: swapLanguages

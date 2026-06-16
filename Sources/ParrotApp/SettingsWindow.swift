@@ -18,8 +18,9 @@ final class SettingsWindow {
             let hosting = NSHostingController(rootView: SettingsView(state: state))
             let win = NSWindow(contentViewController: hosting)
             win.title = "Parrot 设置"
-            win.styleMask = [.titled, .closable, .miniaturizable]
+            win.styleMask = [.titled, .closable, .miniaturizable, .resizable]
             win.isReleasedWhenClosed = false
+            win.contentMinSize = NSSize(width: 640, height: 420)
             win.setContentSize(NSSize(width: 720, height: 500))
             window = win
         }
@@ -63,6 +64,18 @@ struct SettingsView: View {
         }
     }
 
+    private enum EngineCategory: Equatable {
+        case base, machine, llm, more
+    }
+
+    private struct EngineOption: Identifiable {
+        let id: String
+        let name: String
+        let category: EngineCategory
+        let note: String?
+        let hasKey: Bool
+    }
+
     @State private var selection: Pane = .general
     @State private var deepLKey: String = ""
     @State private var openAIKey: String = ""
@@ -89,10 +102,10 @@ struct SettingsView: View {
     @State private var validateNote: String = ""
     @State private var savedNote: String = ""
     @State private var engineOrderDraft: [String] = []
-    @State private var showMachineEngines = false
-    @State private var showLLMEngines = false
-    @State private var showMoreEngines = false
-    @State private var showEngineOrder = false
+    @State private var showMachineEngines = true
+    @State private var showLLMEngines = true
+    @State private var showMoreEngines = true
+    @State private var showEngineOrder = true
     @State private var showMachineKeys = false
     @State private var showLLMKeys = false
     @State private var showAdvancedKeys = false
@@ -122,7 +135,7 @@ struct SettingsView: View {
             .background(Theme.Palette.bgCanvas)
             .animation(.easeInOut(duration: 0.15), value: selection)
         }
-        .frame(width: 720, height: 500)
+        .frame(minWidth: 640, minHeight: 420)
         .onAppear {
             ollamaEndpointField = settings.ollamaEndpoint
             ollamaModelField = settings.model(for: "ollama") ?? "llama3.2"
@@ -210,70 +223,22 @@ struct SettingsView: View {
     private var enginesPane: some View {
         VStack(alignment: .leading, spacing: 0) {
             sectionTitle("翻译引擎")
-            subsectionTitle("常用")
-            formGroup {
-                engineRow("Google 翻译", note: "免费 · 无需 Key",
-                          status: settings.googleEnabled ? .ok : .off,
-                          isOn: $settings.googleEnabled)
-                engineRow("DeepL", note: settings.hasDeepLKey ? nil : "未配置 Key",
-                          status: status(enabled: settings.deepLEnabled, hasKey: settings.hasDeepLKey),
-                          isOn: $settings.deepLEnabled)
-                engineRow("OpenAI", note: settings.hasOpenAIKey ? nil : "未配置 Key",
-                          status: status(enabled: settings.openAIEnabled, hasKey: settings.hasOpenAIKey),
-                          isOn: $settings.openAIEnabled)
-                if AppleTranslationEngine.isSupported {
-                    engineRow("系统翻译", note: "macOS 15+ · 需离线语言包",
-                              status: settings.appleEnabled ? .ok : .off,
-                              isOn: $settings.appleEnabled)
-                }
-            }
+            subsectionTitle("已开启")
+            engineOptionsGroup(enabledEngineOptions, emptyText: "还没有开启任何翻译引擎")
+
+            subsectionTitle("基础服务")
+            engineOptionsGroup(disabledEngineOptions(in: .base), emptyText: "基础服务都已开启")
 
             disclosureSection("国内与云厂商", isExpanded: $showMachineEngines) {
-                formGroup {
-                    engineRow("腾讯翻译君", note: settings.hasTencentCredentials ? nil : "SecretId:SecretKey",
-                              status: status(enabled: settings.tencentEnabled, hasKey: settings.hasTencentCredentials),
-                              isOn: $settings.tencentEnabled)
-                    engineRow("百度翻译", note: settings.hasBaiduCredentials ? nil : "AppId:Secret",
-                              status: status(enabled: settings.baiduEnabled, hasKey: settings.hasBaiduCredentials),
-                              isOn: $settings.baiduEnabled)
-                    engineRow("有道翻译", note: settings.hasYoudaoCredentials ? nil : "AppKey:Secret",
-                              status: status(enabled: settings.youdaoEnabled, hasKey: settings.hasYoudaoCredentials),
-                              isOn: $settings.youdaoEnabled)
-                    engineRow("彩云小译", note: settings.hasCaiyunToken ? nil : "Token",
-                              status: status(enabled: settings.caiyunEnabled, hasKey: settings.hasCaiyunToken),
-                              isOn: $settings.caiyunEnabled)
-                    engineRow("Microsoft 翻译", note: settings.hasMicrosoftKey ? nil : "订阅 Key",
-                              status: status(enabled: settings.microsoftEnabled, hasKey: settings.hasMicrosoftKey),
-                              isOn: $settings.microsoftEnabled)
-                }
+                engineOptionsGroup(disabledEngineOptions(in: .machine), emptyText: "国内与云厂商引擎都已开启")
             }
 
             disclosureSection("LLM 服务", isExpanded: $showLLMEngines) {
-                formGroup {
-                    llmEngineRow("OpenCode Go", hasKey: settings.hasOpenCodeKey, isOn: $settings.openCodeEnabled)
-                    llmEngineRow("DeepSeek", hasKey: settings.hasDeepSeekKey, isOn: $settings.deepSeekEnabled)
-                    llmEngineRow("Gemini", hasKey: settings.hasGeminiKey, isOn: $settings.geminiEnabled)
-                    llmEngineRow("Groq", hasKey: settings.hasGroqKey, isOn: $settings.groqEnabled)
-                    llmEngineRow("Ollama", hasKey: true, isOn: $settings.ollamaEnabled)
-                    llmEngineRow("通义千问", hasKey: settings.hasQwenKey, isOn: $settings.qwenEnabled)
-                    llmEngineRow("豆包", hasKey: settings.hasDoubaoKey, isOn: $settings.doubaoEnabled)
-                    llmEngineRow("Kimi", hasKey: settings.hasKimiKey, isOn: $settings.kimiEnabled)
-                    llmEngineRow("智谱 GLM", hasKey: settings.hasZhipuKey, isOn: $settings.zhipuEnabled)
-                    llmEngineRow("硅基流动", hasKey: settings.hasSiliconFlowKey, isOn: $settings.siliconFlowEnabled)
-                }
+                engineOptionsGroup(disabledEngineOptions(in: .llm), emptyText: "LLM 服务都已开启")
             }
 
             disclosureSection("更多服务", isExpanded: $showMoreEngines) {
-                formGroup {
-                    llmEngineRow("文心一言", hasKey: settings.ernieKey()?.isEmpty == false, isOn: $settings.ernieEnabled)
-                    llmEngineRow("混元", hasKey: settings.hunyuanKey()?.isEmpty == false, isOn: $settings.hunyuanEnabled)
-                    llmEngineRow("零一万物", hasKey: settings.yiKey()?.isEmpty == false, isOn: $settings.yiEnabled)
-                    llmEngineRow("Azure OpenAI", hasKey: settings.azureOpenAIKey()?.isEmpty == false, isOn: $settings.azureOpenAIEnabled)
-                    engineRow("火山翻译", note: nil, status: settings.volcengineEnabled ? .ok : .off, isOn: $settings.volcengineEnabled)
-                    engineRow("阿里翻译", note: nil, status: settings.aliyunEnabled ? .ok : .off, isOn: $settings.aliyunEnabled)
-                    engineRow("小牛翻译", note: nil, status: settings.niutransEnabled ? .ok : .off, isOn: $settings.niutransEnabled)
-                    engineRow("Amazon 翻译", note: nil, status: settings.amazonEnabled ? .ok : .off, isOn: $settings.amazonEnabled)
-                }
+                engineOptionsGroup(disabledEngineOptions(in: .more), emptyText: "更多服务都已开启")
             }
 
             disclosureSection("结果顺序", isExpanded: $showEngineOrder) {
@@ -307,6 +272,125 @@ struct SettingsView: View {
                     .frame(maxHeight: 220)
                 }
             }
+        }
+    }
+
+    private var engineOptions: [EngineOption] {
+        var options: [EngineOption] = [
+            EngineOption(id: "google", name: "Google 翻译", category: .base, note: "免费 · 无需 Key", hasKey: true),
+            EngineOption(id: "deepl", name: "DeepL", category: .base, note: settings.hasDeepLKey ? nil : "未配置 Key", hasKey: settings.hasDeepLKey),
+            EngineOption(id: "openai", name: "OpenAI", category: .base, note: settings.hasOpenAIKey ? nil : "未配置 Key", hasKey: settings.hasOpenAIKey),
+            EngineOption(id: "tencent", name: "腾讯翻译君", category: .machine, note: settings.hasTencentCredentials ? nil : "SecretId:SecretKey", hasKey: settings.hasTencentCredentials),
+            EngineOption(id: "baidu", name: "百度翻译", category: .machine, note: settings.hasBaiduCredentials ? nil : "AppId:Secret", hasKey: settings.hasBaiduCredentials),
+            EngineOption(id: "youdao", name: "有道翻译", category: .machine, note: settings.hasYoudaoCredentials ? nil : "AppKey:Secret", hasKey: settings.hasYoudaoCredentials),
+            EngineOption(id: "caiyun", name: "彩云小译", category: .machine, note: settings.hasCaiyunToken ? nil : "Token", hasKey: settings.hasCaiyunToken),
+            EngineOption(id: "microsoft", name: "Microsoft 翻译", category: .machine, note: settings.hasMicrosoftKey ? nil : "订阅 Key", hasKey: settings.hasMicrosoftKey),
+            EngineOption(id: "opencode", name: "OpenCode Go", category: .llm, note: settings.hasOpenCodeKey ? nil : "未配置 Key", hasKey: settings.hasOpenCodeKey),
+            EngineOption(id: "deepseek", name: "DeepSeek", category: .llm, note: settings.hasDeepSeekKey ? nil : "未配置 Key", hasKey: settings.hasDeepSeekKey),
+            EngineOption(id: "gemini", name: "Gemini", category: .llm, note: settings.hasGeminiKey ? nil : "未配置 Key", hasKey: settings.hasGeminiKey),
+            EngineOption(id: "groq", name: "Groq", category: .llm, note: settings.hasGroqKey ? nil : "未配置 Key", hasKey: settings.hasGroqKey),
+            EngineOption(id: "ollama", name: "Ollama", category: .llm, note: "本地服务 · 无需 Key", hasKey: true),
+            EngineOption(id: "qwen", name: "通义千问", category: .llm, note: settings.hasQwenKey ? nil : "未配置 Key", hasKey: settings.hasQwenKey),
+            EngineOption(id: "doubao", name: "豆包", category: .llm, note: settings.hasDoubaoKey ? nil : "未配置 Key", hasKey: settings.hasDoubaoKey),
+            EngineOption(id: "kimi", name: "Kimi", category: .llm, note: settings.hasKimiKey ? nil : "未配置 Key", hasKey: settings.hasKimiKey),
+            EngineOption(id: "zhipu", name: "智谱 GLM", category: .llm, note: settings.hasZhipuKey ? nil : "未配置 Key", hasKey: settings.hasZhipuKey),
+            EngineOption(id: "siliconflow", name: "硅基流动", category: .llm, note: settings.hasSiliconFlowKey ? nil : "未配置 Key", hasKey: settings.hasSiliconFlowKey),
+            EngineOption(id: "ernie", name: "文心一言", category: .more, note: hasSecret(AppSettings.ernieAccount, env: "ERNIE_API_KEY") ? nil : "未配置 Key", hasKey: hasSecret(AppSettings.ernieAccount, env: "ERNIE_API_KEY")),
+            EngineOption(id: "hunyuan", name: "混元", category: .more, note: hasSecret(AppSettings.hunyuanAccount, env: "HUNYUAN_API_KEY") ? nil : "未配置 Key", hasKey: hasSecret(AppSettings.hunyuanAccount, env: "HUNYUAN_API_KEY")),
+            EngineOption(id: "yi", name: "零一万物", category: .more, note: hasSecret(AppSettings.yiAccount, env: "YI_API_KEY") ? nil : "未配置 Key", hasKey: hasSecret(AppSettings.yiAccount, env: "YI_API_KEY")),
+            EngineOption(id: "azure-openai", name: "Azure OpenAI", category: .more, note: hasSecret(AppSettings.azureOpenAIAccount, env: "AZURE_OPENAI_API_KEY") ? nil : "未配置 Key", hasKey: hasSecret(AppSettings.azureOpenAIAccount, env: "AZURE_OPENAI_API_KEY")),
+            EngineOption(id: "volcengine", name: "火山翻译", category: .more, note: hasSecret(AppSettings.volcengineAccount, env: "VOLCENGINE_API_KEY") ? nil : "未配置 Key", hasKey: hasSecret(AppSettings.volcengineAccount, env: "VOLCENGINE_API_KEY")),
+            EngineOption(id: "aliyun", name: "阿里翻译", category: .more, note: hasSecret(AppSettings.aliyunAccount, env: "ALIYUN_CREDENTIALS") ? nil : "未配置凭证", hasKey: hasSecret(AppSettings.aliyunAccount, env: "ALIYUN_CREDENTIALS")),
+            EngineOption(id: "niutrans", name: "小牛翻译", category: .more, note: hasSecret(AppSettings.niutransAccount, env: "NIUTRANS_API_KEY") ? nil : "未配置 Key", hasKey: hasSecret(AppSettings.niutransAccount, env: "NIUTRANS_API_KEY")),
+            EngineOption(id: "amazon", name: "Amazon 翻译", category: .more, note: hasSecret(AppSettings.amazonAccount, env: "AWS_CREDENTIALS") ? nil : "未配置凭证", hasKey: hasSecret(AppSettings.amazonAccount, env: "AWS_CREDENTIALS")),
+        ]
+        if AppleTranslationEngine.isSupported {
+            options.insert(
+                EngineOption(id: "apple", name: "系统翻译", category: .base, note: "macOS 15+ · 需离线语言包", hasKey: true),
+                at: min(3, options.count)
+            )
+        }
+        return options
+    }
+
+    private var enabledEngineOptions: [EngineOption] {
+        let optionsByID = Dictionary(uniqueKeysWithValues: engineOptions.map { ($0.id, $0) })
+        return EngineBootstrap.resolvedOrder(settings.engineOrder)
+            .compactMap { optionsByID[$0] }
+            .filter { isEngineEnabled($0.id) }
+    }
+
+    private func disabledEngineOptions(in category: EngineCategory) -> [EngineOption] {
+        engineOptions.filter { $0.category == category && !isEngineEnabled($0.id) }
+    }
+
+    private func hasSecret(_ account: String, env: String) -> Bool {
+        settings.hasSecret(account, env: env)
+    }
+
+    private func isEngineEnabled(_ id: String) -> Bool {
+        switch id {
+        case "google": return settings.googleEnabled
+        case "deepl": return settings.deepLEnabled
+        case "openai": return settings.openAIEnabled
+        case "apple": return settings.appleEnabled
+        case "tencent": return settings.tencentEnabled
+        case "baidu": return settings.baiduEnabled
+        case "youdao": return settings.youdaoEnabled
+        case "caiyun": return settings.caiyunEnabled
+        case "microsoft": return settings.microsoftEnabled
+        case "opencode": return settings.openCodeEnabled
+        case "deepseek": return settings.deepSeekEnabled
+        case "gemini": return settings.geminiEnabled
+        case "groq": return settings.groqEnabled
+        case "ollama": return settings.ollamaEnabled
+        case "qwen": return settings.qwenEnabled
+        case "doubao": return settings.doubaoEnabled
+        case "kimi": return settings.kimiEnabled
+        case "zhipu": return settings.zhipuEnabled
+        case "siliconflow": return settings.siliconFlowEnabled
+        case "ernie": return settings.ernieEnabled
+        case "hunyuan": return settings.hunyuanEnabled
+        case "yi": return settings.yiEnabled
+        case "azure-openai": return settings.azureOpenAIEnabled
+        case "volcengine": return settings.volcengineEnabled
+        case "aliyun": return settings.aliyunEnabled
+        case "niutrans": return settings.niutransEnabled
+        case "amazon": return settings.amazonEnabled
+        default: return false
+        }
+    }
+
+    private func binding(forEngine id: String) -> Binding<Bool> {
+        switch id {
+        case "google": return $settings.googleEnabled
+        case "deepl": return $settings.deepLEnabled
+        case "openai": return $settings.openAIEnabled
+        case "apple": return $settings.appleEnabled
+        case "tencent": return $settings.tencentEnabled
+        case "baidu": return $settings.baiduEnabled
+        case "youdao": return $settings.youdaoEnabled
+        case "caiyun": return $settings.caiyunEnabled
+        case "microsoft": return $settings.microsoftEnabled
+        case "opencode": return $settings.openCodeEnabled
+        case "deepseek": return $settings.deepSeekEnabled
+        case "gemini": return $settings.geminiEnabled
+        case "groq": return $settings.groqEnabled
+        case "ollama": return $settings.ollamaEnabled
+        case "qwen": return $settings.qwenEnabled
+        case "doubao": return $settings.doubaoEnabled
+        case "kimi": return $settings.kimiEnabled
+        case "zhipu": return $settings.zhipuEnabled
+        case "siliconflow": return $settings.siliconFlowEnabled
+        case "ernie": return $settings.ernieEnabled
+        case "hunyuan": return $settings.hunyuanEnabled
+        case "yi": return $settings.yiEnabled
+        case "azure-openai": return $settings.azureOpenAIEnabled
+        case "volcengine": return $settings.volcengineEnabled
+        case "aliyun": return $settings.aliyunEnabled
+        case "niutrans": return $settings.niutransEnabled
+        case "amazon": return $settings.amazonEnabled
+        default: return .constant(false)
         }
     }
 
@@ -385,6 +469,38 @@ struct SettingsView: View {
             }
             callout("默认使用系统离线语音。云端 TTS 需在「密钥」页配置对应 API Key。")
         }
+    }
+
+    private func engineOptionsGroup(_ options: [EngineOption], emptyText: String) -> some View {
+        formGroup {
+            if options.isEmpty {
+                emptyEngineRow(emptyText)
+            } else {
+                ForEach(options) { option in
+                    engineOptionRow(option)
+                }
+            }
+        }
+    }
+
+    private func engineOptionRow(_ option: EngineOption) -> some View {
+        engineRow(
+            option.name,
+            note: option.note,
+            status: status(enabled: isEngineEnabled(option.id), hasKey: option.hasKey),
+            isOn: binding(forEngine: option.id)
+        )
+    }
+
+    private func emptyEngineRow(_ text: String) -> some View {
+        HStack {
+            Text(text)
+                .font(Theme.Font.callout)
+                .foregroundStyle(Theme.Palette.label3)
+            Spacer()
+        }
+        .padding(.horizontal, Theme.Spacing.s12)
+        .frame(minHeight: 40)
     }
 
     private func llmEngineRow(_ name: String, hasKey: Bool, isOn: Binding<Bool>) -> some View {

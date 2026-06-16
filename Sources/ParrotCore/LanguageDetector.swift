@@ -16,3 +16,49 @@ public struct LanguageDetector: Sendable {
         return Language(code: lang.rawValue)
     }
 }
+
+public struct ResolvedTranslationDirection: Sendable, Equatable {
+    public let from: Language
+    public let to: Language
+    public let detected: Language
+    public let targetWasAdjusted: Bool
+}
+
+/// Resolves the request direction before dispatching to providers.
+/// If the input is already in the target language, translate away from it instead of
+/// returning a same-language result.
+public struct TranslationDirectionResolver: Sendable {
+    private let detector: LanguageDetector
+    private let minConfidence: Double
+
+    public init(detector: LanguageDetector = LanguageDetector(), minConfidence: Double = 0.45) {
+        self.detector = detector
+        self.minConfidence = minConfidence
+    }
+
+    public func resolve(text: String, from configuredFrom: Language, to configuredTo: Language) -> ResolvedTranslationDirection {
+        let detected = detector.detect(text, minConfidence: minConfidence)
+        let resolvedFrom = configuredFrom == .auto ? (detected ?? .auto) : configuredFrom
+        let visibleDetected = detected ?? resolvedFrom
+
+        guard let detected, detected == configuredTo else {
+            return ResolvedTranslationDirection(
+                from: resolvedFrom,
+                to: configuredTo,
+                detected: visibleDetected,
+                targetWasAdjusted: false
+            )
+        }
+
+        return ResolvedTranslationDirection(
+            from: detected,
+            to: Self.fallbackTarget(for: configuredTo),
+            detected: detected,
+            targetWasAdjusted: true
+        )
+    }
+
+    private static func fallbackTarget(for target: Language) -> Language {
+        target == .en ? .zh : .en
+    }
+}

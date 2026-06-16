@@ -40,6 +40,7 @@ final class AppState: ObservableObject {
     private var currentTranslationID = UUID()
     private var didSaveCurrentTranslation = false
     private var currentMode: TranslateMode = .translate
+    private let directionResolver = TranslationDirectionResolver()
     private static let slowProviderSoftTimeout: TimeInterval = 8
 
     init() {
@@ -111,7 +112,14 @@ final class AppState: ObservableObject {
         reloadProviders()
         loadPlugins()
         sourceText = trimmed
-        detectedSource = sourceLanguage
+        let direction = directionResolver.resolve(
+            text: trimmed,
+            from: settings.sourceLanguage,
+            to: settings.targetLanguage
+        )
+        sourceLanguage = settings.sourceLanguage == .auto ? .auto : direction.from
+        targetLanguage = direction.to
+        detectedSource = direction.detected
         isTranslating = true
         outcomes = []
         let activeProviders = registry.activeProviders()
@@ -128,7 +136,7 @@ final class AppState: ObservableObject {
 
         scheduleSlowProviderHints(runID: runID)
 
-        let req = TranslateRequest(text: trimmed, from: sourceLanguage, to: targetLanguage, mode: mode)
+        let req = TranslateRequest(text: trimmed, from: direction.from, to: direction.to, mode: mode)
         let coordinator = coordinator
         translationTask = Task { [weak self, coordinator] in
             let stream = await coordinator.translateIncrementally(req)

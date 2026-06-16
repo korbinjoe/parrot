@@ -10,6 +10,10 @@ final class InputPanel {
     private let state: AppState
     private let onSubmit: (String) -> Void
     private let baseSize = NSSize(width: 540, height: 60)
+    private var resignObserver: NSObjectProtocol?
+    private var globalMouseDownMonitor: Any?
+    private var localMouseDownMonitor: Any?
+    private var isHiding = false
 
     init(state: AppState, onSubmit: @escaping (String) -> Void) {
         self.state = state
@@ -18,7 +22,7 @@ final class InputPanel {
 
     func toggle() {
         if let window, window.isVisible {
-            window.orderOut(nil)
+            hide()
         } else {
             show()
         }
@@ -26,19 +30,48 @@ final class InputPanel {
 
     func show() {
         if window == nil { build() }
-        window?.center()
         NSApp.activate(ignoringOtherApps: true)
-        window?.makeKeyAndOrderFront(nil)
+        guard let window else { return }
+        if window.isVisible {
+            window.makeKeyAndOrderFront(nil)
+            return
+        }
+        window.center()
+        isHiding = false
+        window.alphaValue = 0
+        window.makeKeyAndOrderFront(nil)
+        NSAnimationContext.runAnimationGroup { ctx in
+            ctx.duration = 0.14
+            ctx.timingFunction = CAMediaTimingFunction(name: .easeOut)
+            window.animator().alphaValue = 1
+        }
+    }
+
+    func hide() {
+        guard let window, window.isVisible else { return }
+        guard !isHiding else { return }
+        isHiding = true
+        NSAnimationContext.runAnimationGroup { ctx in
+            ctx.duration = 0.12
+            ctx.timingFunction = CAMediaTimingFunction(name: .easeIn)
+            window.animator().alphaValue = 0
+        } completionHandler: { [weak self, weak window] in
+            Task { @MainActor in
+                window?.orderOut(nil)
+                window?.alphaValue = 1
+                self?.isHiding = false
+            }
+        }
     }
 
     private func build() {
         let view = InputView(
-            target: state.targetLanguage,
+            settings: state.settings,
             onSubmit: { [weak self] text in
-                self?.window?.orderOut(nil)
+                self?.hide()
                 self?.onSubmit(text)
             },
-            onCancel: { [weak self] in self?.window?.orderOut(nil) },
+            onCancel: { [weak self] in self?.hide() },
             onHeightChange: { [weak self] height in
                 self?.resize(toContentHeight: height)
             }
@@ -59,6 +92,13 @@ final class InputPanel {
         w.standardWindowButton(.zoomButton)?.isHidden = true
         w.setContentSize(baseSize)
         self.window = w
+
+        resignObserver = NotificationCenter.default.addObserver(
+            forName: NSWindow.didResignKeyNotification, object: w, queue: .main
+        ) { [weak self] _ in
+            Task { @MainActor in self?.hide() }
+        }
+        installOutsideClickMonitors()
     }
 
     private func resize(toContentHeight height: CGFloat) {
@@ -74,10 +114,46 @@ final class InputPanel {
         frame.origin.y = center.y - frame.height / 2
         window.setFrame(frame, display: true, animate: window.isVisible)
     }
+
+    private func installOutsideClickMonitors() {
+        let mask: NSEvent.EventTypeMask = [.leftMouseDown, .rightMouseDown, .otherMouseDown]
+        if globalMouseDownMonitor == nil {
+            globalMouseDownMonitor = NSEvent.addGlobalMonitorForEvents(matching: mask) { [weak self] event in
+                let point = Self.screenPoint(for: event)
+                Task { @MainActor in self?.hideAfterOutsideClickIfNeeded(at: point) }
+            }
+        }
+        if localMouseDownMonitor == nil {
+            localMouseDownMonitor = NSEvent.addLocalMonitorForEvents(matching: mask) { [weak self] event in
+                let point = Self.screenPoint(for: event)
+                Task { @MainActor in self?.hideAfterOutsideClickIfNeeded(at: point) }
+                return event
+            }
+        }
+    }
+
+    private static func screenPoint(for event: NSEvent) -> NSPoint {
+        if let window = event.window {
+            return window.convertPoint(toScreen: event.locationInWindow)
+        }
+        return event.locationInWindow
+    }
+
+    private func hideAfterOutsideClickIfNeeded(at point: NSPoint) {
+        guard let window, window.isVisible else { return }
+        guard !window.frame.insetBy(dx: -6, dy: -6).contains(point) else { return }
+        hide()
+    }
+
+    deinit {
+        if let resignObserver { NotificationCenter.default.removeObserver(resignObserver) }
+        if let globalMouseDownMonitor { NSEvent.removeMonitor(globalMouseDownMonitor) }
+        if let localMouseDownMonitor { NSEvent.removeMonitor(localMouseDownMonitor) }
+    }
 }
 
 private struct InputView: View {
-    let target: Language
+    @ObservedObject var settings: AppSettings
     let onSubmit: (String) -> Void
     let onCancel: () -> Void
     let onHeightChange: (CGFloat) -> Void
@@ -98,7 +174,16 @@ private struct InputView: View {
                     .lineLimit(1...4)
                     .focused($focused)
                     .onSubmit { submit() }
-                LangPill(from: .auto, to: target)
+                LangPill(from: .auto, to: settings.targetLanguage)
+                Button(action: onCancel) {
+                    Image(systemName: "xmark.circle.fill")
+                        .font(.system(size: 15, weight: .medium))
+                        .foregroundStyle(Theme.Palette.label3)
+                        .frame(width: 24, height: 24)
+                }
+                .buttonStyle(.plain)
+                .help("关闭")
+                .accessibilityLabel("关闭输入翻译")
             }
             .padding(.horizontal, Theme.Spacing.s16)
             .frame(minHeight: 60)

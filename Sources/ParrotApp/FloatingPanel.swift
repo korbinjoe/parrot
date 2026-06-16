@@ -20,6 +20,9 @@ final class FloatingPanel {
     private var resizeObserver: NSObjectProtocol?
     private var screenObserver: NSObjectProtocol?
     private var resignObserver: NSObjectProtocol?
+    private var globalMouseDownMonitor: Any?
+    private var localMouseDownMonitor: Any?
+    private var isHiding = false
 
     init(state: AppState, onConfigureProvider: @escaping () -> Void = {}) {
         self.state = state
@@ -41,6 +44,7 @@ final class FloatingPanel {
             panel?.orderFrontRegardless()
             return
         }
+        isHiding = false
         // Use-and-dismiss entrance: fade in. Height is driven by SwiftUI's preferredContentSize,
         // so we animate opacity only (no height补间) to avoid NSPanel jitter — see design.md Decision 4.
         panel?.alphaValue = 0
@@ -55,6 +59,7 @@ final class FloatingPanel {
     func hide() {
         panel?.orderOut(nil)
         panel?.alphaValue = 1
+        isHiding = false
     }
 
     /// Before capturing selected text, hide only transient panels. A pinned panel should keep
@@ -114,9 +119,11 @@ final class FloatingPanel {
             forName: NSWindow.didResignKeyNotification, object: p, queue: .main
         ) { [weak self] _ in
             Task { @MainActor in
-                self?.hideAfterResignKeyIfNeeded()
+                self?.hideTransientPanelIfNeeded()
             }
         }
+
+        installOutsideClickMonitors()
     }
 
     private func togglePinned() {
@@ -126,9 +133,41 @@ final class FloatingPanel {
         }
     }
 
-    private func hideAfterResignKeyIfNeeded() {
+    private func installOutsideClickMonitors() {
+        let mask: NSEvent.EventTypeMask = [.leftMouseDown, .rightMouseDown, .otherMouseDown]
+        if globalMouseDownMonitor == nil {
+            globalMouseDownMonitor = NSEvent.addGlobalMonitorForEvents(matching: mask) { [weak self] event in
+                let point = Self.screenPoint(for: event)
+                Task { @MainActor in self?.hideAfterOutsideClickIfNeeded(at: point) }
+            }
+        }
+        if localMouseDownMonitor == nil {
+            localMouseDownMonitor = NSEvent.addLocalMonitorForEvents(matching: mask) { [weak self] event in
+                let point = Self.screenPoint(for: event)
+                Task { @MainActor in self?.hideAfterOutsideClickIfNeeded(at: point) }
+                return event
+            }
+        }
+    }
+
+    private static func screenPoint(for event: NSEvent) -> NSPoint {
+        if let window = event.window {
+            return window.convertPoint(toScreen: event.locationInWindow)
+        }
+        return event.locationInWindow
+    }
+
+    private func hideAfterOutsideClickIfNeeded(at point: NSPoint) {
+        guard let panel, panel.isVisible else { return }
+        guard !panel.frame.insetBy(dx: -6, dy: -6).contains(point) else { return }
+        hideTransientPanelIfNeeded()
+    }
+
+    private func hideTransientPanelIfNeeded() {
         guard !presentation.isPinned else { return }
         guard let panel, panel.isVisible else { return }
+        guard !isHiding else { return }
+        isHiding = true
         NSAnimationContext.runAnimationGroup { ctx in
             ctx.duration = 0.12
             ctx.timingFunction = CAMediaTimingFunction(name: .easeIn)
@@ -137,6 +176,7 @@ final class FloatingPanel {
             Task { @MainActor in
                 panel.orderOut(nil)
                 panel.alphaValue = 1
+                self.isHiding = false
             }
         }
     }
@@ -163,5 +203,7 @@ final class FloatingPanel {
         if let resizeObserver { NotificationCenter.default.removeObserver(resizeObserver) }
         if let screenObserver { NotificationCenter.default.removeObserver(screenObserver) }
         if let resignObserver { NotificationCenter.default.removeObserver(resignObserver) }
+        if let globalMouseDownMonitor { NSEvent.removeMonitor(globalMouseDownMonitor) }
+        if let localMouseDownMonitor { NSEvent.removeMonitor(localMouseDownMonitor) }
     }
 }

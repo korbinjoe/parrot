@@ -28,9 +28,9 @@ public actor TranslationCoordinator {
 
     /// Resolve `.auto` source language before dispatching.
     private func resolved(_ req: TranslateRequest) -> TranslateRequest {
-        guard req.from == .auto else { return req }
-        let detected = detector.detect(req.text) ?? .auto
-        return TranslateRequest(text: req.text, from: detected, to: req.to, mode: req.mode)
+        let direction = TranslationDirectionResolver(detector: detector)
+            .resolve(text: req.text, from: req.from, to: req.to)
+        return TranslateRequest(text: req.text, from: direction.from, to: direction.to, mode: req.mode)
     }
 
     /// Fan out to every active provider concurrently, preserving registry order in the output.
