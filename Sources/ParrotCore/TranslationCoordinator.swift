@@ -46,7 +46,8 @@ public actor TranslationCoordinator {
                 group.addTask { [perProviderTimeout] in
                     let start = Date()
                     do {
-                        let result = try await Self.withTimeout(perProviderTimeout) {
+                        let timeout = Self.timeout(for: provider, base: perProviderTimeout)
+                        let result = try await Self.withTimeout(timeout) {
                             try await provider.translate(req)
                         }
                         return AggregatedOutcome(
@@ -75,6 +76,20 @@ public actor TranslationCoordinator {
 
         // Preserve display order from the registry.
         return providers.compactMap { outcomes[$0.id] }
+    }
+
+    /// Provider-specific timeout budget for slower LLM services.
+    static func timeout(for provider: TranslationProvider, base: TimeInterval) -> TimeInterval {
+        if provider.id == "opencode" {
+            return max(base, 180)
+        }
+        if provider.id == "zhipu" {
+            return max(base, 90)
+        }
+        if provider.capabilities.supportsStream {
+            return max(base, 45)
+        }
+        return base
     }
 
     /// Runs `operation` with a timeout, throwing `ProviderError.timeout` if it overruns.

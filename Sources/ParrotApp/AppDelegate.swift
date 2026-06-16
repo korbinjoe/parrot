@@ -25,10 +25,53 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var hotkeys: [HotKey] = []
 
     func applicationDidFinishLaunching(_ notification: Notification) {
+        NSAppleEventManager.shared().setEventHandler(
+            self,
+            andSelector: #selector(handleGetURLEvent(_:withReplyEvent:)),
+            forEventClass: AEEventClass(kInternetEventClass),
+            andEventID: AEEventID(kAEGetURL)
+        )
+        setupMainMenu()
         setupStatusItem()
         registerHotKeys()
         let trusted = SelectionCapture.hasAccessibilityPermission(prompt: true)
         DebugLog.log("launch: pid=\(getpid()) AXIsProcessTrusted=\(trusted) exe=\(Bundle.main.executablePath ?? "?")")
+    }
+
+    /// LSUIElement menu-bar apps do not get SwiftUI's standard Edit commands for free.
+    /// Installing an Edit menu keeps Cmd-C/Cmd-V/Cmd-A working in SwiftUI TextField/SecureField
+    /// controls through the normal AppKit responder chain.
+    private func setupMainMenu() {
+        let mainMenu = NSMenu()
+
+        let appMenuItem = NSMenuItem()
+        let appMenu = NSMenu(title: "Parrot")
+        appMenu.addItem(NSMenuItem(title: "退出 Parrot", action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q"))
+        appMenuItem.submenu = appMenu
+        mainMenu.addItem(appMenuItem)
+
+        let editMenuItem = NSMenuItem()
+        let editMenu = NSMenu(title: "编辑")
+        editMenu.addItem(command("撤销", action: Selector(("undo:")), key: "z"))
+        editMenu.addItem(command("重做", action: Selector(("redo:")), key: "Z"))
+        editMenu.addItem(.separator())
+        editMenu.addItem(command("剪切", action: #selector(NSText.cut(_:)), key: "x"))
+        editMenu.addItem(command("复制", action: #selector(NSText.copy(_:)), key: "c"))
+        editMenu.addItem(command("粘贴", action: #selector(NSText.paste(_:)), key: "v"))
+        editMenu.addItem(command("删除", action: #selector(NSText.delete(_:)), key: ""))
+        editMenu.addItem(.separator())
+        editMenu.addItem(command("全选", action: #selector(NSText.selectAll(_:)), key: "a"))
+        editMenuItem.submenu = editMenu
+        mainMenu.addItem(editMenuItem)
+
+        NSApp.mainMenu = mainMenu
+    }
+
+    private func command(_ title: String, action: Selector, key: String) -> NSMenuItem {
+        let item = NSMenuItem(title: title, action: action, keyEquivalent: key)
+        item.keyEquivalentModifierMask = key.isEmpty ? [] : [.command]
+        item.target = nil
+        return item
     }
 
     // MARK: - URL scheme (parrot://translate?text=... | parrot://lookup?text=...)
@@ -43,6 +86,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         let action = comps.host ?? url.host ?? "translate"
         let text = comps.queryItems?.first(where: { $0.name == "text" })?.value ?? ""
         guard !text.isEmpty else { return }
+        DebugLog.log("url: action=\(action) textLen=\(text.count)")
         switch action {
         case "lookup":
             state.translate(text, mode: .lookup)
@@ -50,6 +94,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         default:
             runTranslation(text)
         }
+    }
+
+    @objc private func handleGetURLEvent(_ event: NSAppleEventDescriptor, withReplyEvent replyEvent: NSAppleEventDescriptor) {
+        guard let value = event.paramDescriptor(forKeyword: keyDirectObject)?.stringValue,
+              let url = URL(string: value) else { return }
+        handle(url)
     }
 
     // MARK: - Status item

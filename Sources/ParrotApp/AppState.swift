@@ -69,6 +69,8 @@ final class AppState: ObservableObject {
     func translate(_ text: String, mode: TranslateMode = .translate) {
         let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else { return }
+        reloadProviders()
+        loadPlugins()
         sourceText = trimmed
         isTranslating = true
         outcomes = []
@@ -77,6 +79,13 @@ final class AppState: ObservableObject {
         Task {
             let req = TranslateRequest(text: trimmed, from: .auto, to: targetLanguage, mode: mode)
             let result = await coordinator.translateAll(req)
+            for outcome in result {
+                if let error = outcome.error {
+                    DebugLog.log("translate: provider=\(outcome.providerId) error=\(error) latencyMs=\(outcome.latencyMs)")
+                } else if let translated = outcome.result?.translated {
+                    DebugLog.log("translate: provider=\(outcome.providerId) ok latencyMs=\(outcome.latencyMs) chars=\(translated.count)")
+                }
+            }
             self.outcomes = result
             self.isTranslating = false
 

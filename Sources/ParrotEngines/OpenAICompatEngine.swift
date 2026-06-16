@@ -15,6 +15,7 @@ open class OpenAICompatEngine: TranslationProvider, @unchecked Sendable {
     private let defaultEndpoint: URL
     private let defaultModel: String
     private let requiresAPIKey: Bool
+    private let requestTimeout: TimeInterval
 
     private var apiKey: String?
     private var model: String
@@ -29,6 +30,7 @@ open class OpenAICompatEngine: TranslationProvider, @unchecked Sendable {
         requiresAPIKey: Bool = true,
         supportedLanguages: [Language] = [.auto, .zh, .en, .ja, .ko, .fr, .de, .es, .ru],
         capabilities: ProviderCapabilities = ProviderCapabilities(supportsLookup: true, supportsStream: true, supportsPolish: true),
+        requestTimeout: TimeInterval = 60,
         session: URLSession = .shared
     ) {
         self.id = id
@@ -36,6 +38,7 @@ open class OpenAICompatEngine: TranslationProvider, @unchecked Sendable {
         self.defaultEndpoint = defaultEndpoint
         self.defaultModel = defaultModel
         self.requiresAPIKey = requiresAPIKey
+        self.requestTimeout = requestTimeout
         self.model = defaultModel
         self.endpoint = defaultEndpoint
         self.supportedLanguages = supportedLanguages
@@ -54,7 +57,7 @@ open class OpenAICompatEngine: TranslationProvider, @unchecked Sendable {
             guard let apiKey, !apiKey.isEmpty else { throw ProviderError.notConfigured }
         }
 
-        let payload: [String: Any] = [
+        var payload: [String: Any] = [
             "model": model,
             "messages": [
                 ["role": "system", "content": Self.systemPrompt(for: req)],
@@ -62,9 +65,13 @@ open class OpenAICompatEngine: TranslationProvider, @unchecked Sendable {
             ],
             "temperature": 0.2
         ]
+        for (key, value) in additionalPayload(for: req) {
+            payload[key] = value
+        }
 
         var request = URLRequest(url: endpoint)
         request.httpMethod = "POST"
+        request.timeoutInterval = requestTimeout
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
         if let apiKey, !apiKey.isEmpty {
             request.setValue("Bearer \(apiKey)", forHTTPHeaderField: "Authorization")
@@ -73,14 +80,27 @@ open class OpenAICompatEngine: TranslationProvider, @unchecked Sendable {
 
         let (data, response): (Data, URLResponse)
         do { (data, response) = try await session.data(for: request) }
+        catch let error as URLError where error.code == .timedOut { throw ProviderError.timeout }
         catch { throw ProviderError.network }
 
         if let http = response as? HTTPURLResponse {
             switch http.statusCode {
             case 200: break
-            case 401, 403: throw ProviderError.auth
-            case 429: throw ProviderError.rateLimited
-            default: throw ProviderError.network
+            case 401, 403:
+                if let message = Self.providerErrorMessage(from: data) {
+                    throw ProviderError.service(message)
+                }
+                throw ProviderError.auth
+            case 429:
+                if let message = Self.providerErrorMessage(from: data) {
+                    throw ProviderError.service(message)
+                }
+                throw ProviderError.rateLimited
+            default:
+                if let message = Self.providerErrorMessage(from: data) {
+                    throw ProviderError.service(message)
+                }
+                throw ProviderError.network
             }
         }
 
@@ -103,6 +123,23 @@ open class OpenAICompatEngine: TranslationProvider, @unchecked Sendable {
         )
     }
 
+    static func providerErrorMessage(from data: Data) -> String? {
+        guard
+            let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+            let raw = json["error"]
+        else {
+            return nil
+        }
+        if let message = raw as? String {
+            return message
+        }
+        if let error = raw as? [String: Any],
+           let message = error["message"] as? String {
+            return message
+        }
+        return nil
+    }
+
     static func systemPrompt(for req: TranslateRequest) -> String {
         let target = req.to.code ?? "the target language"
         switch req.mode {
@@ -113,6 +150,10 @@ open class OpenAICompatEngine: TranslationProvider, @unchecked Sendable {
         case .polish:
             return "Polish and improve the user's text in \(target) while preserving meaning. Output only the result."
         }
+    }
+
+    open func additionalPayload(for req: TranslateRequest) -> [String: Any] {
+        [:]
     }
 }
 
@@ -125,6 +166,19 @@ public final class OpenAIEngine: OpenAICompatEngine {
             displayName: "OpenAI",
             defaultEndpoint: URL(string: "https://api.openai.com/v1/chat/completions")!,
             defaultModel: "gpt-4o-mini",
+            session: session
+        )
+    }
+}
+
+public final class OpenCodeGoEngine: OpenAICompatEngine {
+    public init(session: URLSession = .shared) {
+        super.init(
+            id: "opencode",
+            displayName: "OpenCode Go",
+            defaultEndpoint: URL(string: "https://opencode.ai/zen/go/v1/chat/completions")!,
+            defaultModel: "glm-5.1",
+            requestTimeout: 180,
             session: session
         )
     }
@@ -160,7 +214,7 @@ public final class OllamaEngine: OpenAICompatEngine {
             id: "ollama",
             displayName: "Ollama",
             defaultEndpoint: URL(string: "http://127.0.0.1:11434/v1/chat/completions")!,
-            defaultModel: "llama3.2",
+            defaultModel: "glm-5:cloud",
             requiresAPIKey: false,
             session: session
         )
@@ -209,9 +263,17 @@ public final class ZhipuEngine: OpenAICompatEngine {
             id: "zhipu",
             displayName: "智谱 GLM",
             defaultEndpoint: URL(string: "https://open.bigmodel.cn/api/paas/v4/chat/completions")!,
-            defaultModel: "glm-4-flash",
+            defaultModel: "glm-4.7-flash",
+            requestTimeout: 120,
             session: session
         )
+    }
+
+    public override func additionalPayload(for req: TranslateRequest) -> [String: Any] {
+        [
+            "thinking": ["type": "disabled"],
+            "max_tokens": 1024
+        ]
     }
 }
 

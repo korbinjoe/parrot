@@ -5,6 +5,8 @@ import ParrotCore
 @MainActor
 final class AppSettings: ObservableObject {
     private let defaults: UserDefaults
+    private var keyCache: [String: String] = [:]
+    private var missingKeyCache: Set<String> = []
 
     // MARK: - Keychain account IDs
 
@@ -24,6 +26,7 @@ final class AppSettings: ObservableObject {
     static let kimiAccount = "engine.kimi.apiKey"
     static let zhipuAccount = "engine.zhipu.apiKey"
     static let siliconFlowAccount = "engine.siliconflow.apiKey"
+    static let openCodeAccount = "engine.opencode.apiKey"
 
     @Published var targetLanguageCode: String {
         didSet { defaults.set(targetLanguageCode, forKey: "targetLanguageCode") }
@@ -49,6 +52,7 @@ final class AppSettings: ObservableObject {
     @Published var kimiEnabled: Bool { didSet { defaults.set(kimiEnabled, forKey: "engine.kimi.enabled") } }
     @Published var zhipuEnabled: Bool { didSet { defaults.set(zhipuEnabled, forKey: "engine.zhipu.enabled") } }
     @Published var siliconFlowEnabled: Bool { didSet { defaults.set(siliconFlowEnabled, forKey: "engine.siliconflow.enabled") } }
+    @Published var openCodeEnabled: Bool { didSet { defaults.set(openCodeEnabled, forKey: "engine.opencode.enabled") } }
     @Published var ernieEnabled: Bool { didSet { defaults.set(ernieEnabled, forKey: "engine.ernie.enabled") } }
     @Published var hunyuanEnabled: Bool { didSet { defaults.set(hunyuanEnabled, forKey: "engine.hunyuan.enabled") } }
     @Published var yiEnabled: Bool { didSet { defaults.set(yiEnabled, forKey: "engine.yi.enabled") } }
@@ -95,6 +99,7 @@ final class AppSettings: ObservableObject {
         self.kimiEnabled = defaults.object(forKey: "engine.kimi.enabled") as? Bool ?? false
         self.zhipuEnabled = defaults.object(forKey: "engine.zhipu.enabled") as? Bool ?? false
         self.siliconFlowEnabled = defaults.object(forKey: "engine.siliconflow.enabled") as? Bool ?? false
+        self.openCodeEnabled = defaults.object(forKey: "engine.opencode.enabled") as? Bool ?? false
         self.ernieEnabled = defaults.object(forKey: "engine.ernie.enabled") as? Bool ?? false
         self.hunyuanEnabled = defaults.object(forKey: "engine.hunyuan.enabled") as? Bool ?? false
         self.yiEnabled = defaults.object(forKey: "engine.yi.enabled") as? Bool ?? false
@@ -147,39 +152,41 @@ final class AppSettings: ObservableObject {
 
     // MARK: - Keys
 
-    func deepLKey() -> String? { key(Self.deepLAccount, env: "DEEPL_API_KEY") }
-    func openAIKey() -> String? { key(Self.openAIAccount, env: "OPENAI_API_KEY") }
-    func tencentCredentials() -> String? { key(Self.tencentAccount, env: "TENCENT_CREDENTIALS") }
-    func baiduCredentials() -> String? { key(Self.baiduAccount, env: "BAIDU_CREDENTIALS") }
-    func youdaoCredentials() -> String? { key(Self.youdaoAccount, env: "YOUDAO_CREDENTIALS") }
-    func caiyunToken() -> String? { key(Self.caiyunAccount, env: "CAIYUN_TOKEN") }
-    func microsoftKey() -> String? { key(Self.microsoftAccount, env: "MICROSOFT_TRANSLATOR_KEY") }
-    func deepSeekKey() -> String? { key(Self.deepSeekAccount, env: "DEEPSEEK_API_KEY") }
-    func geminiKey() -> String? { key(Self.geminiAccount, env: "GEMINI_API_KEY") }
-    func groqKey() -> String? { key(Self.groqAccount, env: "GROQ_API_KEY") }
-    func ollamaKey() -> String? { key(Self.ollamaAccount, env: "OLLAMA_API_KEY") }
-    func qwenKey() -> String? { key(Self.qwenAccount, env: "DASHSCOPE_API_KEY") }
-    func doubaoKey() -> String? { key(Self.doubaoAccount, env: "DOUBAO_API_KEY") }
-    func kimiKey() -> String? { key(Self.kimiAccount, env: "MOONSHOT_API_KEY") }
-    func zhipuKey() -> String? { key(Self.zhipuAccount, env: "ZHIPU_API_KEY") }
-    func siliconFlowKey() -> String? { key(Self.siliconFlowAccount, env: "SILICONFLOW_API_KEY") }
+    func deepLKey(allowPrompt: Bool = false) -> String? { key(Self.deepLAccount, env: "DEEPL_API_KEY", allowPrompt: allowPrompt) }
+    func openAIKey(allowPrompt: Bool = false) -> String? { key(Self.openAIAccount, env: "OPENAI_API_KEY", allowPrompt: allowPrompt) }
+    func tencentCredentials(allowPrompt: Bool = false) -> String? { key(Self.tencentAccount, env: "TENCENT_CREDENTIALS", allowPrompt: allowPrompt) }
+    func baiduCredentials(allowPrompt: Bool = false) -> String? { key(Self.baiduAccount, env: "BAIDU_CREDENTIALS", allowPrompt: allowPrompt) }
+    func youdaoCredentials(allowPrompt: Bool = false) -> String? { key(Self.youdaoAccount, env: "YOUDAO_CREDENTIALS", allowPrompt: allowPrompt) }
+    func caiyunToken(allowPrompt: Bool = false) -> String? { key(Self.caiyunAccount, env: "CAIYUN_TOKEN", allowPrompt: allowPrompt) }
+    func microsoftKey(allowPrompt: Bool = false) -> String? { key(Self.microsoftAccount, env: "MICROSOFT_TRANSLATOR_KEY", allowPrompt: allowPrompt) }
+    func deepSeekKey(allowPrompt: Bool = false) -> String? { key(Self.deepSeekAccount, env: "DEEPSEEK_API_KEY", allowPrompt: allowPrompt) }
+    func geminiKey(allowPrompt: Bool = false) -> String? { key(Self.geminiAccount, env: "GEMINI_API_KEY", allowPrompt: allowPrompt) }
+    func groqKey(allowPrompt: Bool = false) -> String? { key(Self.groqAccount, env: "GROQ_API_KEY", allowPrompt: allowPrompt) }
+    func ollamaKey(allowPrompt: Bool = false) -> String? { key(Self.ollamaAccount, env: "OLLAMA_API_KEY", allowPrompt: allowPrompt) }
+    func qwenKey(allowPrompt: Bool = false) -> String? { key(Self.qwenAccount, env: "DASHSCOPE_API_KEY", allowPrompt: allowPrompt) }
+    func doubaoKey(allowPrompt: Bool = false) -> String? { key(Self.doubaoAccount, env: "DOUBAO_API_KEY", allowPrompt: allowPrompt) }
+    func kimiKey(allowPrompt: Bool = false) -> String? { key(Self.kimiAccount, env: "MOONSHOT_API_KEY", allowPrompt: allowPrompt) }
+    func zhipuKey(allowPrompt: Bool = false) -> String? { key(Self.zhipuAccount, env: "ZHIPU_API_KEY", allowPrompt: allowPrompt) }
+    func siliconFlowKey(allowPrompt: Bool = false) -> String? { key(Self.siliconFlowAccount, env: "SILICONFLOW_API_KEY", allowPrompt: allowPrompt) }
+    func openCodeKey(allowPrompt: Bool = false) -> String? { key(Self.openCodeAccount, env: "OPENCODE_API_KEY", allowPrompt: allowPrompt) }
 
-    func setDeepLKey(_ v: String) { KeychainStore.set(v, account: Self.deepLAccount) }
-    func setOpenAIKey(_ v: String) { KeychainStore.set(v, account: Self.openAIAccount) }
-    func setTencentCredentials(_ v: String) { KeychainStore.set(v, account: Self.tencentAccount) }
-    func setBaiduCredentials(_ v: String) { KeychainStore.set(v, account: Self.baiduAccount) }
-    func setYoudaoCredentials(_ v: String) { KeychainStore.set(v, account: Self.youdaoAccount) }
-    func setCaiyunToken(_ v: String) { KeychainStore.set(v, account: Self.caiyunAccount) }
-    func setMicrosoftKey(_ v: String) { KeychainStore.set(v, account: Self.microsoftAccount) }
-    func setDeepSeekKey(_ v: String) { KeychainStore.set(v, account: Self.deepSeekAccount) }
-    func setGeminiKey(_ v: String) { KeychainStore.set(v, account: Self.geminiAccount) }
-    func setGroqKey(_ v: String) { KeychainStore.set(v, account: Self.groqAccount) }
-    func setOllamaKey(_ v: String) { KeychainStore.set(v, account: Self.ollamaAccount) }
-    func setQwenKey(_ v: String) { KeychainStore.set(v, account: Self.qwenAccount) }
-    func setDoubaoKey(_ v: String) { KeychainStore.set(v, account: Self.doubaoAccount) }
-    func setKimiKey(_ v: String) { KeychainStore.set(v, account: Self.kimiAccount) }
-    func setZhipuKey(_ v: String) { KeychainStore.set(v, account: Self.zhipuAccount) }
-    func setSiliconFlowKey(_ v: String) { KeychainStore.set(v, account: Self.siliconFlowAccount) }
+    func setDeepLKey(_ v: String) { setKey(v, account: Self.deepLAccount) }
+    func setOpenAIKey(_ v: String) { setKey(v, account: Self.openAIAccount) }
+    func setTencentCredentials(_ v: String) { setKey(v, account: Self.tencentAccount) }
+    func setBaiduCredentials(_ v: String) { setKey(v, account: Self.baiduAccount) }
+    func setYoudaoCredentials(_ v: String) { setKey(v, account: Self.youdaoAccount) }
+    func setCaiyunToken(_ v: String) { setKey(v, account: Self.caiyunAccount) }
+    func setMicrosoftKey(_ v: String) { setKey(v, account: Self.microsoftAccount) }
+    func setDeepSeekKey(_ v: String) { setKey(v, account: Self.deepSeekAccount) }
+    func setGeminiKey(_ v: String) { setKey(v, account: Self.geminiAccount) }
+    func setGroqKey(_ v: String) { setKey(v, account: Self.groqAccount) }
+    func setOllamaKey(_ v: String) { setKey(v, account: Self.ollamaAccount) }
+    func setQwenKey(_ v: String) { setKey(v, account: Self.qwenAccount) }
+    func setDoubaoKey(_ v: String) { setKey(v, account: Self.doubaoAccount) }
+    func setKimiKey(_ v: String) { setKey(v, account: Self.kimiAccount) }
+    func setZhipuKey(_ v: String) { setKey(v, account: Self.zhipuAccount) }
+    func setSiliconFlowKey(_ v: String) { setKey(v, account: Self.siliconFlowAccount) }
+    func setOpenCodeKey(_ v: String) { setKey(v, account: Self.openCodeAccount) }
 
     var hasDeepLKey: Bool { nonEmpty(deepLKey()) }
     var hasOpenAIKey: Bool { nonEmpty(openAIKey()) }
@@ -196,6 +203,7 @@ final class AppSettings: ObservableObject {
     var hasKimiKey: Bool { nonEmpty(kimiKey()) }
     var hasZhipuKey: Bool { nonEmpty(zhipuKey()) }
     var hasSiliconFlowKey: Bool { nonEmpty(siliconFlowKey()) }
+    var hasOpenCodeKey: Bool { nonEmpty(openCodeKey()) }
 
     /// Build ProviderConfig extra dict for an LLM engine including optional model/endpoint.
     func llmExtra(apiKey: String?, model: String? = nil, endpoint: String? = nil) -> [String: String] {
@@ -206,8 +214,30 @@ final class AppSettings: ObservableObject {
         return extra
     }
 
-    func key(_ account: String, env: String) -> String? {
-        KeychainStore.get(account: account) ?? envNonEmpty(env)
+    func key(_ account: String, env: String, allowPrompt: Bool = false) -> String? {
+        if let v = envNonEmpty(env) { return v }
+        if let cached = keyCache[account] { return cached }
+        if !allowPrompt, missingKeyCache.contains(account) { return nil }
+
+        guard let value = KeychainStore.get(account: account, allowPrompt: allowPrompt) else {
+            missingKeyCache.insert(account)
+            return nil
+        }
+        keyCache[account] = value
+        missingKeyCache.remove(account)
+        return value
+    }
+
+    func setKey(_ value: String, account: String) {
+        if KeychainStore.set(value, account: account) {
+            if value.isEmpty {
+                keyCache.removeValue(forKey: account)
+                missingKeyCache.insert(account)
+            } else {
+                keyCache[account] = value
+                missingKeyCache.remove(account)
+            }
+        }
     }
 
     func envNonEmpty(_ name: String) -> String? {

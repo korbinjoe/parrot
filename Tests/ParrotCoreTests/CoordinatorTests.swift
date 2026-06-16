@@ -60,6 +60,12 @@ import Testing
     }
 }
 
+@Test func coordinatorUsesLongerTimeoutForOpenCodeGo() {
+    #expect(TranslationCoordinator.timeout(for: OpenCodeGoEngine(), base: 15) == 180)
+    #expect(TranslationCoordinator.timeout(for: ZhipuEngine(), base: 15) == 90)
+    #expect(TranslationCoordinator.timeout(for: OpenAIEngine(), base: 15) == 45)
+}
+
 /// Test double that always fails, to verify error isolation in the coordinator.
 struct FailingEngine: TranslationProvider {
     let id = "failing"

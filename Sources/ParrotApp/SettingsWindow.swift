@@ -66,6 +66,7 @@ struct SettingsView: View {
     @State private var selection: Pane = .general
     @State private var deepLKey: String = ""
     @State private var openAIKey: String = ""
+    @State private var openCodeKey: String = ""
     @State private var tencentCreds: String = ""
     @State private var baiduCreds: String = ""
     @State private var youdaoCreds: String = ""
@@ -83,10 +84,13 @@ struct SettingsView: View {
     @State private var ollamaModelField: String = ""
     @State private var openAIModelField: String = ""
     @State private var openAIEndpointField: String = ""
+    @State private var openCodeModelField: String = ""
     @State private var azureEndpointField: String = ""
     @State private var validateNote: String = ""
     @State private var savedNote: String = ""
     @State private var engineOrderDraft: [String] = []
+    @State private var keysLoaded = false
+    @State private var loadedSecretAccounts: Set<String> = []
 
     private let languages: [(String, String)] = [
         ("zh", "中文"), ("en", "English"), ("ja", "日本語"), ("ko", "한국어"),
@@ -115,27 +119,13 @@ struct SettingsView: View {
         }
         .frame(width: 640, height: 460)
         .onAppear {
-            deepLKey = settings.deepLKey() ?? ""
-            openAIKey = settings.openAIKey() ?? ""
-            tencentCreds = settings.tencentCredentials() ?? ""
-            baiduCreds = settings.baiduCredentials() ?? ""
-            youdaoCreds = settings.youdaoCredentials() ?? ""
-            caiyunToken = settings.caiyunToken() ?? ""
-            microsoftKey = settings.microsoftKey() ?? ""
-            deepSeekKey = settings.deepSeekKey() ?? ""
-            geminiKey = settings.geminiKey() ?? ""
-            groqKey = settings.groqKey() ?? ""
-            qwenKey = settings.qwenKey() ?? ""
-            doubaoKey = settings.doubaoKey() ?? ""
-            kimiKey = settings.kimiKey() ?? ""
-            zhipuKey = settings.zhipuKey() ?? ""
-            siliconFlowKey = settings.siliconFlowKey() ?? ""
             ollamaEndpointField = settings.ollamaEndpoint
             ollamaModelField = settings.model(for: "ollama") ?? "llama3.2"
             openAIModelField = settings.openAIModel
             openAIEndpointField = settings.openAIEndpoint
+            openCodeModelField = settings.model(for: "opencode") ?? "glm-5.1"
             azureEndpointField = settings.endpoint(for: "azure-openai") ?? ""
-            engineOrderDraft = settings.engineOrder.isEmpty ? EngineBootstrap.defaultOrder : settings.engineOrder
+            engineOrderDraft = EngineBootstrap.resolvedOrder(settings.engineOrder)
         }
     }
 
@@ -236,6 +226,7 @@ struct SettingsView: View {
                           isOn: $settings.appleEnabled)
             }
             sectionTitle("LLM 引擎").padding(.top, Theme.Spacing.s12)
+            llmEngineRow("OpenCode Go", hasKey: settings.hasOpenCodeKey, isOn: $settings.openCodeEnabled)
             llmEngineRow("DeepSeek", hasKey: settings.hasDeepSeekKey, isOn: $settings.deepSeekEnabled)
             llmEngineRow("Gemini", hasKey: settings.hasGeminiKey, isOn: $settings.geminiEnabled)
             llmEngineRow("Groq", hasKey: settings.hasGroqKey, isOn: $settings.groqEnabled)
@@ -283,6 +274,7 @@ struct SettingsView: View {
         case "google": return "Google 翻译"
         case "deepl": return "DeepL"
         case "openai": return "OpenAI"
+        case "opencode": return "OpenCode Go"
         case "tencent": return "腾讯翻译君"
         case "baidu": return "百度翻译"
         case "youdao": return "有道翻译"
@@ -364,6 +356,7 @@ struct SettingsView: View {
                 .padding(.bottom, Theme.Spacing.s8)
             keyRow("DeepL", $deepLKey, placeholder: "免费版以 :fx 结尾")
             keyRow("OpenAI", $openAIKey, placeholder: "sk-…")
+            keyRow("OpenCode Go", $openCodeKey, placeholder: "Go API Key")
             keyRow("腾讯翻译君", $tencentCreds, placeholder: "SecretId:SecretKey")
             keyRow("百度翻译", $baiduCreds, placeholder: "AppId:Secret")
             keyRow("有道翻译", $youdaoCreds, placeholder: "AppKey:AppSecret")
@@ -380,25 +373,33 @@ struct SettingsView: View {
             sectionTitle("LLM 高级").padding(.top, Theme.Spacing.s12)
             settingRow("OpenAI Model") { TextField("gpt-4o-mini", text: $openAIModelField).frame(width: 230) }
             settingRow("OpenAI Endpoint") { TextField("可选", text: $openAIEndpointField).frame(width: 230) }
+            settingRow("OpenCode Go Model") { TextField("glm-5.1", text: $openCodeModelField).frame(width: 230) }
             settingRow("Ollama Model") { TextField("llama3.2", text: $ollamaModelField).frame(width: 230) }
             settingRow("Ollama Endpoint") { TextField("http://127.0.0.1:11434/v1/chat/completions", text: $ollamaEndpointField).frame(width: 230) }
             settingRow("Azure Endpoint") { TextField("Azure deployment URL", text: $azureEndpointField).frame(width: 230) }
-            HStack(spacing: Theme.Spacing.s12) {
-                Button("保存到钥匙串") { saveKeys() }
-                Button("验证 OpenAI") { validateEngine("openai") }
-                Button("验证 DeepSeek") { validateEngine("deepseek") }
-                Button("验证智谱") { validateEngine("zhipu") }
-                if !validateNote.isEmpty {
-                    Text(validateNote).font(Theme.Font.callout).foregroundStyle(Theme.Palette.label2)
+            VStack(alignment: .leading, spacing: Theme.Spacing.s8) {
+                HStack(spacing: Theme.Spacing.s12) {
+                    Button("保存到钥匙串") { saveKeys() }
+                    if !savedNote.isEmpty {
+                        Text(savedNote).font(Theme.Font.callout).foregroundStyle(Theme.Palette.success)
+                    }
+                    Spacer()
                 }
-                if !savedNote.isEmpty {
-                    Text(savedNote).font(Theme.Font.callout).foregroundStyle(Theme.Palette.success)
+                HStack(spacing: Theme.Spacing.s12) {
+                    Button("验证 OpenAI") { validateEngine("openai") }
+                    Button("验证 OpenCode") { validateEngine("opencode") }
+                    Button("验证 DeepSeek") { validateEngine("deepseek") }
+                    Button("验证智谱") { validateEngine("zhipu") }
+                    if !validateNote.isEmpty {
+                        Text(validateNote).font(Theme.Font.callout).foregroundStyle(Theme.Palette.label2)
+                    }
+                    Spacer()
                 }
-                Spacer()
             }
             .padding(.top, Theme.Spacing.s12)
             callout("🔒 API Key 存储于 macOS 钥匙串。申请教程见 docs/bob-service-matrix.md")
         }
+        .onAppear { loadKeysIfNeeded() }
     }
 
     private func keyRow(_ label: String, _ text: Binding<String>, placeholder: String) -> some View {
@@ -545,29 +546,68 @@ struct SettingsView: View {
 
     private func saveKeys() {
         let trim: (String) -> String = { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
-        settings.setDeepLKey(trim(deepLKey))
-        settings.setOpenAIKey(trim(openAIKey))
-        settings.setTencentCredentials(trim(tencentCreds))
-        settings.setBaiduCredentials(trim(baiduCreds))
-        settings.setYoudaoCredentials(trim(youdaoCreds))
-        settings.setCaiyunToken(trim(caiyunToken))
-        settings.setMicrosoftKey(trim(microsoftKey))
-        settings.setDeepSeekKey(trim(deepSeekKey))
-        settings.setGeminiKey(trim(geminiKey))
-        settings.setGroqKey(trim(groqKey))
-        settings.setQwenKey(trim(qwenKey))
-        settings.setDoubaoKey(trim(doubaoKey))
-        settings.setKimiKey(trim(kimiKey))
-        settings.setZhipuKey(trim(zhipuKey))
-        settings.setSiliconFlowKey(trim(siliconFlowKey))
+        saveSecret(AppSettings.deepLAccount, value: trim(deepLKey), setter: settings.setDeepLKey)
+        saveSecret(AppSettings.openAIAccount, value: trim(openAIKey), setter: settings.setOpenAIKey)
+        saveSecret(AppSettings.openCodeAccount, value: trim(openCodeKey), setter: settings.setOpenCodeKey)
+        saveSecret(AppSettings.tencentAccount, value: trim(tencentCreds), setter: settings.setTencentCredentials)
+        saveSecret(AppSettings.baiduAccount, value: trim(baiduCreds), setter: settings.setBaiduCredentials)
+        saveSecret(AppSettings.youdaoAccount, value: trim(youdaoCreds), setter: settings.setYoudaoCredentials)
+        saveSecret(AppSettings.caiyunAccount, value: trim(caiyunToken), setter: settings.setCaiyunToken)
+        saveSecret(AppSettings.microsoftAccount, value: trim(microsoftKey), setter: settings.setMicrosoftKey)
+        saveSecret(AppSettings.deepSeekAccount, value: trim(deepSeekKey), setter: settings.setDeepSeekKey)
+        saveSecret(AppSettings.geminiAccount, value: trim(geminiKey), setter: settings.setGeminiKey)
+        saveSecret(AppSettings.groqAccount, value: trim(groqKey), setter: settings.setGroqKey)
+        saveSecret(AppSettings.qwenAccount, value: trim(qwenKey), setter: settings.setQwenKey)
+        saveSecret(AppSettings.doubaoAccount, value: trim(doubaoKey), setter: settings.setDoubaoKey)
+        saveSecret(AppSettings.kimiAccount, value: trim(kimiKey), setter: settings.setKimiKey)
+        saveSecret(AppSettings.zhipuAccount, value: trim(zhipuKey), setter: settings.setZhipuKey)
+        saveSecret(AppSettings.siliconFlowAccount, value: trim(siliconFlowKey), setter: settings.setSiliconFlowKey)
         settings.openAIModel = trim(openAIModelField)
         settings.openAIEndpoint = trim(openAIEndpointField)
+        settings.setModel(trim(openCodeModelField), for: "opencode")
         settings.setModel(trim(ollamaModelField), for: "ollama")
         settings.ollamaEndpoint = trim(ollamaEndpointField)
         settings.setEndpoint(trim(azureEndpointField), for: "azure-openai")
         state.applySettings()
         savedNote = "已保存 ✓"
         DispatchQueue.main.asyncAfter(deadline: .now() + 2) { savedNote = "" }
+    }
+
+    private func loadKeysIfNeeded() {
+        guard !keysLoaded else { return }
+        deepLKey = loadSecret(AppSettings.deepLAccount, settings.deepLKey(allowPrompt: true))
+        openAIKey = loadSecret(AppSettings.openAIAccount, settings.openAIKey(allowPrompt: true))
+        openCodeKey = loadSecret(AppSettings.openCodeAccount, settings.openCodeKey(allowPrompt: true))
+        tencentCreds = loadSecret(AppSettings.tencentAccount, settings.tencentCredentials(allowPrompt: true))
+        baiduCreds = loadSecret(AppSettings.baiduAccount, settings.baiduCredentials(allowPrompt: true))
+        youdaoCreds = loadSecret(AppSettings.youdaoAccount, settings.youdaoCredentials(allowPrompt: true))
+        caiyunToken = loadSecret(AppSettings.caiyunAccount, settings.caiyunToken(allowPrompt: true))
+        microsoftKey = loadSecret(AppSettings.microsoftAccount, settings.microsoftKey(allowPrompt: true))
+        deepSeekKey = loadSecret(AppSettings.deepSeekAccount, settings.deepSeekKey(allowPrompt: true))
+        geminiKey = loadSecret(AppSettings.geminiAccount, settings.geminiKey(allowPrompt: true))
+        groqKey = loadSecret(AppSettings.groqAccount, settings.groqKey(allowPrompt: true))
+        qwenKey = loadSecret(AppSettings.qwenAccount, settings.qwenKey(allowPrompt: true))
+        doubaoKey = loadSecret(AppSettings.doubaoAccount, settings.doubaoKey(allowPrompt: true))
+        kimiKey = loadSecret(AppSettings.kimiAccount, settings.kimiKey(allowPrompt: true))
+        zhipuKey = loadSecret(AppSettings.zhipuAccount, settings.zhipuKey(allowPrompt: true))
+        siliconFlowKey = loadSecret(AppSettings.siliconFlowAccount, settings.siliconFlowKey(allowPrompt: true))
+        keysLoaded = true
+    }
+
+    private func loadSecret(_ account: String, _ value: String?) -> String {
+        guard let value, !value.isEmpty else { return "" }
+        loadedSecretAccounts.insert(account)
+        return value
+    }
+
+    private func saveSecret(_ account: String, value: String, setter: (String) -> Void) {
+        guard !value.isEmpty || loadedSecretAccounts.contains(account) else { return }
+        setter(value)
+        if value.isEmpty {
+            loadedSecretAccounts.remove(account)
+        } else {
+            loadedSecretAccounts.insert(account)
+        }
     }
 
     private func moveEngine(from: Int, to: Int) {
@@ -578,6 +618,7 @@ struct SettingsView: View {
     }
 
     private func validateEngine(_ id: String) {
+        saveKeys()
         Task {
             let ok = await settings.validateKey(for: id)
             validateNote = ok ? "验证通过 ✓" : "验证失败"

@@ -35,14 +35,17 @@ public enum KeychainStore {
     }
 
     /// Read a secret. Returns nil if absent.
-    public static func get(account: String) -> String? {
-        let query: [String: Any] = [
+    public static func get(account: String, allowPrompt: Bool = false) -> String? {
+        var query: [String: Any] = [
             kSecClass as String: kSecClassGenericPassword,
             kSecAttrService as String: service,
             kSecAttrAccount as String: account,
             kSecReturnData as String: true,
             kSecMatchLimit as String: kSecMatchLimitOne,
         ]
+        if !allowPrompt {
+            query[kSecUseAuthenticationUI as String] = kSecUseAuthenticationUISkip
+        }
         var item: CFTypeRef?
         guard SecItemCopyMatching(query as CFDictionary, &item) == errSecSuccess,
               let data = item as? Data,
@@ -65,6 +68,6 @@ public enum KeychainStore {
     }
 
     public static func has(account: String) -> Bool {
-        get(account: account) != nil
+        get(account: account, allowPrompt: false) != nil
     }
 }

@@ -8,27 +8,27 @@ extension OCRCoordinator {
         register(AppleVisionOCRProvider())
 
         let baidu = BaiduOCRProvider()
-        baidu.configure(settings.baiduOCRCredentials())
+        baidu.configure(settings.ocrProviderId == "baidu-ocr" ? settings.baiduOCRCredentials() : nil)
         register(baidu)
 
         let tencent = TencentOCRProvider()
-        tencent.configure(credentials: settings.tencentOCRCredentials(), region: settings.tencentOCRRegion)
+        tencent.configure(credentials: settings.ocrProviderId == "tencent-ocr" ? settings.tencentOCRCredentials() : nil, region: settings.tencentOCRRegion)
         register(tencent)
 
         let google = GoogleOCRProvider()
-        google.configure(apiKey: settings.googleOCRKey())
+        google.configure(apiKey: settings.ocrProviderId == "google-ocr" ? settings.googleOCRKey() : nil)
         register(google)
 
         let youdao = YoudaoOCRProvider()
-        youdao.configure(settings.youdaoOCRCredentials())
+        youdao.configure(settings.ocrProviderId == "youdao-ocr" ? settings.youdaoOCRCredentials() : nil)
         register(youdao)
 
         let imageTranslate = TencentImageTranslateProvider()
-        imageTranslate.configure(credentials: settings.tencentOCRCredentials(), region: settings.tencentOCRRegion)
+        imageTranslate.configure(credentials: settings.ocrProviderId == "tencent-image-translate" ? settings.tencentOCRCredentials() : nil, region: settings.tencentOCRRegion)
         register(imageTranslate)
 
         let volc = VolcengineOCRProvider()
-        volc.configure(apiKey: settings.volcengineOCRKey())
+        volc.configure(apiKey: settings.ocrProviderId == "volcengine-ocr" ? settings.volcengineOCRKey() : nil)
         register(volc)
 
         setDefaultProvider(id: settings.ocrProviderId)
@@ -57,19 +57,19 @@ extension TTSCoordinator {
         register(SystemTTSProvider())
 
         let tencent = TencentTTSProvider()
-        tencent.configure(settings.tencentOCRCredentials())
+        tencent.configure(settings.ttsProviderId == "tencent-tts" ? settings.tencentOCRCredentials() : nil)
         register(tencent)
 
         let google = GoogleTTSProvider()
-        google.configure(apiKey: settings.googleTTSKey())
+        google.configure(apiKey: settings.ttsProviderId == "google-tts" ? settings.googleTTSKey() : nil)
         register(google)
 
         let microsoft = MicrosoftTTSProvider()
-        microsoft.configure(apiKey: settings.microsoftTTSKey(), region: settings.microsoftRegion)
+        microsoft.configure(apiKey: settings.ttsProviderId == "microsoft-tts" ? settings.microsoftTTSKey() : nil, region: settings.microsoftRegion)
         register(microsoft)
 
         let volc = VolcengineTTSProvider()
-        volc.configure(apiKey: settings.volcengineTTSKey())
+        volc.configure(apiKey: settings.ttsProviderId == "volcengine-tts" ? settings.volcengineTTSKey() : nil)
         register(volc)
 
         defaultProviderId = settings.ttsProviderId

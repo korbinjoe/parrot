@@ -8,7 +8,7 @@ enum EngineValidator {
         do {
             _ = try await provider.translate(TranslateRequest(text: "hi", from: .en, to: .zh))
             return true
-        } catch ProviderError.auth, ProviderError.notConfigured {
+        } catch ProviderError.auth, ProviderError.notConfigured, ProviderError.service(_) {
             return false
         } catch {
             // Network/rate-limit still means credentials likely OK.

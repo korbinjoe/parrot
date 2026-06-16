@@ -134,6 +134,7 @@ public enum ProviderError: Error, Equatable, Sendable {
     case network
     case unsupportedLanguage
     case timeout
+    case service(String)
     case plugin(String)
     case notConfigured
 }

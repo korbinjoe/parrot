@@ -94,6 +94,12 @@ import Foundation
     #expect(result.translated == "你好")
 }
 
+@Test func openCodeGoUsesGoDefaults() {
+    let engine = OpenCodeGoEngine()
+    #expect(engine.id == "opencode")
+    #expect(engine.displayName == "OpenCode Go")
+}
+
 @Test func geminiParsesContent() throws {
     let json = """
     {"candidates":[{"content":{"parts":[{"text":"你好"}]}}]}

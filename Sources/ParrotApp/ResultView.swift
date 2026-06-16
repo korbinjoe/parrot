@@ -200,6 +200,7 @@ private struct EngineCard: View {
         case .timeout: return "请求超时"
         case .unsupportedLanguage: return "不支持的语言"
         case .notConfigured: return "未配置"
+        case .service(let m): return "服务错误：\(m)"
         case .plugin(let m): return "插件错误：\(m)"
         }
     }
@@ -231,4 +232,3 @@ private struct SkeletonCard: View {
             .onAppear { shimmer = true }
     }
 }
-
