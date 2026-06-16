@@ -6,12 +6,21 @@ import ParrotCore
 /// per engine. Wrapped in a height-capped ScrollView so long text / many engines stay readable.
 struct ResultView: View {
     @ObservedObject var state: AppState
+    @ObservedObject var panelPresentation: FloatingPanelPresentation
+    let onTogglePinned: () -> Void
     let onConfigureProvider: () -> Void
 
     @State private var contentHeight: CGFloat = 160
 
-    init(state: AppState, onConfigureProvider: @escaping () -> Void = {}) {
+    init(
+        state: AppState,
+        panelPresentation: FloatingPanelPresentation = FloatingPanelPresentation(),
+        onTogglePinned: @escaping () -> Void = {},
+        onConfigureProvider: @escaping () -> Void = {}
+    ) {
         self.state = state
+        self.panelPresentation = panelPresentation
+        self.onTogglePinned = onTogglePinned
         self.onConfigureProvider = onConfigureProvider
     }
 
@@ -67,6 +76,14 @@ struct ResultView: View {
         HStack(spacing: Theme.Spacing.s8) {
             LangPill(from: state.detectedSource, to: state.targetLanguage)
             Spacer(minLength: 0)
+            Button(action: onTogglePinned) {
+                Image(systemName: panelPresentation.isPinned ? "pin.fill" : "pin")
+                    .foregroundStyle(panelPresentation.isPinned ? Theme.Palette.accent : Theme.Palette.label2)
+                    .frame(width: 24, height: 24)
+            }
+            .buttonStyle(.borderless)
+            .help(panelPresentation.isPinned ? "取消常驻" : "常驻")
+            .accessibilityLabel(panelPresentation.isPinned ? "取消常驻结果面板" : "常驻结果面板")
             Button { state.toggleFavorite() } label: {
                 Image(systemName: state.isFavorite ? "star.fill" : "star")
                     .foregroundStyle(state.isFavorite ? Theme.Palette.star : Theme.Palette.label2)

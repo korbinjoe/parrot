@@ -166,7 +166,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     // MARK: - Actions
 
     @objc private func translateSelection() {
-        floating.hide() // ensure focus is on the target app, not our panel, before capturing
+        floating.prepareForExternalCapture()
         let text = SelectionCapture.selectedText()
         DebugLog.log("translateSelection: captured=\(text.map { "\"\($0.prefix(40))\" len=\($0.count)" } ?? "nil")")
         guard let text, !text.isEmpty else { warnIfNoAccessibility(); return }
@@ -174,7 +174,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     @objc private func lookupSelection() {
-        floating.hide()
+        floating.prepareForExternalCapture()
         guard let text = SelectionCapture.selectedText(), !text.isEmpty else { warnIfNoAccessibility(); return }
         state.translate(text, mode: .lookup)
         floating.show()

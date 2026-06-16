@@ -1,542 +1,1777 @@
-<!DOCTYPE html>
-<html lang="zh" data-theme="light">
+<!doctype html>
+<html lang="zh-CN" data-theme="system">
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Parrot — macOS UI 视觉稿</title>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Parrot macOS UI high-fidelity prototype</title>
 <style>
-/* ============================================================
-   Parrot Redesign — High-fidelity interactive mockup
-   Tokens mirror openspec/changes/redesign-app-ui/design.md §1
-   ============================================================ */
+/* Parrot macOS UI prototype.
+   Design read: native macOS utility UI, Apple HIG-inspired, not marketing.
+   Web material is an honest approximation of native SwiftUI/AppKit material. */
 
-:root{
-  --accent:#007AFF; --accent-soft:rgba(0,122,255,.10);
-  --success:#34C759; --warning:#FF9F0A; --danger:#FF3B30; --star:#FFCC00;
-
-  --bg-window:#ECECEC; --bg-content:#FFFFFF; --bg-content-2:#F5F5F7;
-  --bg-sidebar:rgba(246,246,246,.72);
-  --separator:rgba(0,0,0,.10);
-  --label:#1D1D1F; --label-2:rgba(60,60,67,.6); --label-3:rgba(60,60,67,.32);
-
-  --radius-window:12px; --radius-card:10px; --radius-control:6px;
-  --shadow-panel:0 12px 32px rgba(0,0,0,.18), 0 0 0 .5px var(--separator);
-  --s4:4px; --s8:8px; --s12:12px; --s16:16px; --s20:20px; --s24:24px;
-
-  --font:-apple-system,"SF Pro Text","SF Pro Display","PingFang SC",system-ui,sans-serif;
-  --desktop:linear-gradient(135deg,#5b86c9 0%,#8a6fb0 45%,#c97aa0 100%);
+:root {
+  color-scheme: light dark;
+  --font: -apple-system, BlinkMacSystemFont, "SF Pro Text", "SF Pro Display", "PingFang SC", "Helvetica Neue", Arial, sans-serif;
+  --accent: #007aff;
+  --accent-strong: #0066d6;
+  --accent-soft: rgb(0 122 255 / 10%);
+  --success: #34c759;
+  --warning: #ff9f0a;
+  --danger: #ff3b30;
+  --star: #ffcc00;
+  --desktop-1: #e7edf5;
+  --desktop-2: #bac8d8;
+  --desktop-3: #88a6b8;
+  --wallpaper-grain: rgb(255 255 255 / 18%);
+  --menu-glass: rgb(255 255 255 / 46%);
+  --window: rgb(239 239 241 / 78%);
+  --window-solid: #ececef;
+  --content: rgb(255 255 255 / 82%);
+  --content-solid: #ffffff;
+  --content-2: rgb(247 247 249 / 78%);
+  --sidebar: rgb(248 248 249 / 70%);
+  --control: rgb(255 255 255 / 86%);
+  --control-hover: rgb(255 255 255 / 96%);
+  --separator: rgb(0 0 0 / 12%);
+  --hairline: rgb(0 0 0 / 8%);
+  --label: #1d1d1f;
+  --label-2: rgb(60 60 67 / 67%);
+  --label-3: rgb(60 60 67 / 38%);
+  --shadow-panel: 0 22px 54px rgb(31 41 55 / 24%), 0 0 0 .5px var(--separator);
+  --shadow-pop: 0 18px 42px rgb(31 41 55 / 22%), 0 0 0 .5px var(--separator);
+  --radius-window: 14px;
+  --radius-card: 10px;
+  --radius-control: 7px;
+  --s4: 4px;
+  --s8: 8px;
+  --s12: 12px;
+  --s16: 16px;
+  --s20: 20px;
+  --s24: 24px;
+  --ease: cubic-bezier(.16, 1, .3, 1);
 }
-[data-theme="dark"]{
-  --accent:#0A84FF; --accent-soft:rgba(10,132,255,.18);
-  --success:#30D158; --warning:#FF9F0A; --danger:#FF453A; --star:#FFD60A;
 
-  --bg-window:#1E1E1E; --bg-content:#2A2A2C; --bg-content-2:#323234;
-  --bg-sidebar:rgba(40,40,42,.72);
-  --separator:rgba(255,255,255,.12);
-  --label:#F5F5F7; --label-2:rgba(235,235,245,.6); --label-3:rgba(235,235,245,.32);
-  --shadow-panel:0 14px 40px rgba(0,0,0,.5), 0 0 0 .5px var(--separator);
-  --desktop:linear-gradient(135deg,#1c2438 0%,#2c2440 45%,#3a2436 100%);
+@media (prefers-color-scheme: dark) {
+  :root[data-theme="system"] {
+    --accent: #0a84ff;
+    --accent-strong: #409cff;
+    --accent-soft: rgb(10 132 255 / 18%);
+    --success: #30d158;
+    --warning: #ff9f0a;
+    --danger: #ff453a;
+    --star: #ffd60a;
+    --desktop-1: #171d25;
+    --desktop-2: #202a34;
+    --desktop-3: #35465b;
+    --wallpaper-grain: rgb(255 255 255 / 7%);
+    --menu-glass: rgb(30 30 32 / 62%);
+    --window: rgb(42 42 44 / 76%);
+    --window-solid: #262628;
+    --content: rgb(50 50 52 / 82%);
+    --content-solid: #2c2c2e;
+    --content-2: rgb(58 58 60 / 76%);
+    --sidebar: rgb(42 42 44 / 70%);
+    --control: rgb(72 72 74 / 82%);
+    --control-hover: rgb(86 86 88 / 92%);
+    --separator: rgb(255 255 255 / 13%);
+    --hairline: rgb(255 255 255 / 8%);
+    --label: #f5f5f7;
+    --label-2: rgb(235 235 245 / 67%);
+    --label-3: rgb(235 235 245 / 38%);
+    --shadow-panel: 0 26px 62px rgb(0 0 0 / 48%), 0 0 0 .5px var(--separator);
+    --shadow-pop: 0 20px 48px rgb(0 0 0 / 42%), 0 0 0 .5px var(--separator);
+  }
 }
 
-*{box-sizing:border-box;margin:0;padding:0}
-body{font-family:var(--font);background:#111;color:var(--label);
-  -webkit-font-smoothing:antialiased;transition:background .2s ease}
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --accent: #0a84ff;
+  --accent-strong: #409cff;
+  --accent-soft: rgb(10 132 255 / 18%);
+  --success: #30d158;
+  --warning: #ff9f0a;
+  --danger: #ff453a;
+  --star: #ffd60a;
+  --desktop-1: #171d25;
+  --desktop-2: #202a34;
+  --desktop-3: #35465b;
+  --wallpaper-grain: rgb(255 255 255 / 7%);
+  --menu-glass: rgb(30 30 32 / 62%);
+  --window: rgb(42 42 44 / 76%);
+  --window-solid: #262628;
+  --content: rgb(50 50 52 / 82%);
+  --content-solid: #2c2c2e;
+  --content-2: rgb(58 58 60 / 76%);
+  --sidebar: rgb(42 42 44 / 70%);
+  --control: rgb(72 72 74 / 82%);
+  --control-hover: rgb(86 86 88 / 92%);
+  --separator: rgb(255 255 255 / 13%);
+  --hairline: rgb(255 255 255 / 8%);
+  --label: #f5f5f7;
+  --label-2: rgb(235 235 245 / 67%);
+  --label-3: rgb(235 235 245 / 38%);
+  --shadow-panel: 0 26px 62px rgb(0 0 0 / 48%), 0 0 0 .5px var(--separator);
+  --shadow-pop: 0 20px 48px rgb(0 0 0 / 42%), 0 0 0 .5px var(--separator);
+}
 
-/* ---- App chrome (the mockup viewer itself) ---- */
-.stage{min-height:100vh;background:var(--desktop);transition:background .3s ease;
-  display:flex;flex-direction:column}
-.menubar{height:26px;background:rgba(255,255,255,.18);backdrop-filter:blur(20px);
-  -webkit-backdrop-filter:blur(20px);display:flex;align-items:center;gap:16px;
-  padding:0 14px;font-size:13px;color:#fff;font-weight:500;
-  box-shadow:0 .5px 0 rgba(0,0,0,.15)}
-.menubar .brand{font-weight:600}
-.menubar .right{margin-left:auto;display:flex;gap:16px;align-items:center;font-weight:400;opacity:.95}
-.menubar .parrot{display:flex;align-items:center;gap:5px;cursor:pointer;position:relative}
-.menubar .parrot.active::after{content:"";position:absolute;inset:-3px -6px;
-  background:rgba(255,255,255,.25);border-radius:5px;z-index:-1}
+* { box-sizing: border-box; }
+html, body { margin: 0; min-height: 100%; }
+body {
+  font-family: var(--font);
+  color: var(--label);
+  background: #111;
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+button, input, select { font: inherit; }
+button { color: inherit; }
 
-/* ---- Viewer controls ---- */
-.controls{position:fixed;top:38px;left:50%;transform:translateX(-50%);z-index:50;
-  display:flex;gap:6px;background:var(--bg-sidebar);backdrop-filter:blur(30px);
-  -webkit-backdrop-filter:blur(30px);padding:5px;border-radius:10px;
-  box-shadow:var(--shadow-panel);flex-wrap:wrap;justify-content:center;max-width:92vw}
-.controls button{font-family:var(--font);font-size:12px;font-weight:500;color:var(--label-2);
-  background:transparent;border:0;padding:5px 11px;border-radius:6px;cursor:pointer;
-  transition:all .12s ease}
-.controls button:hover{background:var(--accent-soft);color:var(--label)}
-.controls button.on{background:var(--accent);color:#fff}
-.controls .sep{width:1px;background:var(--separator);margin:3px 2px}
-.theme-toggle{display:flex;align-items:center;gap:6px;padding:0 8px;color:var(--label-2);font-size:12px}
+.desktop {
+  min-height: 100dvh;
+  position: relative;
+  overflow: hidden;
+  background:
+    linear-gradient(135deg, var(--desktop-1), var(--desktop-2) 48%, var(--desktop-3)),
+    #dce5ee;
+}
+.desktop::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  background:
+    linear-gradient(120deg, transparent 0 28%, var(--wallpaper-grain) 28% 29%, transparent 29% 100%),
+    linear-gradient(48deg, transparent 0 62%, rgb(255 255 255 / 10%) 62% 63%, transparent 63% 100%);
+  opacity: .55;
+}
+.desktop::after {
+  content: "";
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  background-image: repeating-linear-gradient(0deg, rgb(255 255 255 / 3%) 0 1px, transparent 1px 4px);
+  mix-blend-mode: soft-light;
+}
 
-/* ---- Canvas where a surface is shown ---- */
-.canvas{flex:1;display:flex;align-items:center;justify-content:center;padding:120px 24px 60px;
-  position:relative}
-.surface{display:none}
-.surface.show{display:block;animation:appear .18s ease-out}
-@keyframes appear{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
+.menubar {
+  height: 28px;
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 0 14px;
+  position: relative;
+  z-index: 30;
+  color: rgb(255 255 255 / 94%);
+  background: var(--menu-glass);
+  -webkit-backdrop-filter: blur(24px) saturate(180%);
+  backdrop-filter: blur(24px) saturate(180%);
+  box-shadow: 0 .5px 0 rgb(0 0 0 / 12%);
+  font-size: 13px;
+  line-height: 1;
+}
+.menubar b { font-weight: 700; }
+.menubar .right {
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  font-variant-numeric: tabular-nums;
+}
 
-/* caption under each surface */
-.cap{position:absolute;bottom:22px;left:50%;transform:translateX(-50%);
-  color:rgba(255,255,255,.85);font-size:12px;text-align:center;max-width:560px;line-height:1.5}
-.cap b{color:#fff}
+.viewer {
+  position: fixed;
+  z-index: 40;
+  top: 44px;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px;
+  max-width: min(1060px, calc(100vw - 28px));
+  overflow-x: auto;
+  border-radius: 13px;
+  background: var(--window);
+  border: .5px solid var(--separator);
+  box-shadow: var(--shadow-pop);
+  -webkit-backdrop-filter: blur(30px) saturate(180%);
+  backdrop-filter: blur(30px) saturate(180%);
+}
+.viewer button {
+  border: 0;
+  background: transparent;
+  border-radius: 8px;
+  color: var(--label-2);
+  height: 28px;
+  padding: 0 12px;
+  white-space: nowrap;
+  cursor: pointer;
+  transition: transform .16s var(--ease), background .16s var(--ease), color .16s var(--ease);
+}
+.viewer button:hover { background: var(--control); color: var(--label); }
+.viewer button:active { transform: translateY(1px); }
+.viewer button.active { background: var(--accent); color: #fff; }
+.viewer .divider { width: 1px; height: 18px; background: var(--separator); flex: 0 0 auto; }
 
-/* ============================================================
-   Shared primitives
-   ============================================================ */
-.iconbtn{width:24px;height:24px;display:inline-flex;align-items:center;justify-content:center;
-  border-radius:6px;color:var(--label-2);cursor:pointer;border:0;background:transparent;
-  transition:background .08s ease;font-size:13px}
-.iconbtn:hover{background:var(--bg-content-2);color:var(--label)}
-.iconbtn svg{width:15px;height:15px;stroke:currentColor;fill:none;stroke-width:1.6;
-  stroke-linecap:round;stroke-linejoin:round}
-.iconbtn.filled svg{fill:currentColor;stroke:none}
+.stage {
+  min-height: calc(100dvh - 28px);
+  padding: 122px 24px 72px;
+  display: grid;
+  place-items: center;
+  position: relative;
+  z-index: 5;
+}
+.surface {
+  display: none;
+  align-items: center;
+  justify-content: center;
+  gap: 24px;
+  width: min(1120px, 100%);
+}
+.surface.active {
+  display: flex;
+  animation: surface-in .22s var(--ease);
+}
+@keyframes surface-in {
+  from { opacity: 0; transform: translateY(10px) scale(.992); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
 
-.tag{font-size:10px;font-weight:600;letter-spacing:.5px;text-transform:uppercase;
-  color:var(--accent);background:var(--accent-soft);padding:2px 6px;border-radius:5px}
-.langpill{display:inline-flex;align-items:center;gap:6px;font-size:11px;font-weight:600;
-  color:var(--label-2);background:var(--bg-content-2);padding:3px 9px;border-radius:999px;
-  border:.5px solid var(--separator)}
-.langpill .swap{cursor:pointer;color:var(--accent);transition:transform .2s}
-.langpill .swap:hover{transform:rotate(180deg)}
-.dot{width:7px;height:7px;border-radius:50%;display:inline-block}
-.dot.ok{background:var(--success)} .dot.warn{background:var(--warning)} .dot.err{background:var(--danger)}
+.review-card {
+  width: 300px;
+  align-self: stretch;
+  min-height: 360px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 14px;
+  border-radius: var(--radius-window);
+  background: var(--window);
+  border: .5px solid var(--separator);
+  box-shadow: var(--shadow-pop);
+  -webkit-backdrop-filter: blur(30px) saturate(180%);
+  backdrop-filter: blur(30px) saturate(180%);
+}
+.review-card h2 {
+  margin: 0;
+  font-size: 15px;
+  line-height: 20px;
+}
+.review-card p {
+  margin: 0;
+  font-size: 12px;
+  line-height: 17px;
+  color: var(--label-2);
+}
+.review-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: grid;
+  gap: 8px;
+}
+.review-list li {
+  display: grid;
+  grid-template-columns: 20px 1fr;
+  gap: 8px;
+  align-items: start;
+  font-size: 12px;
+  line-height: 16px;
+  color: var(--label-2);
+}
+.mark {
+  width: 20px;
+  height: 20px;
+  border-radius: 6px;
+  display: grid;
+  place-items: center;
+  background: var(--accent-soft);
+  color: var(--accent);
+  font-size: 12px;
+  font-weight: 700;
+}
 
-/* traffic lights */
-.lights{display:flex;gap:8px}
-.lights i{width:12px;height:12px;border-radius:50%;display:block}
-.lights .r{background:#FF5F57} .lights .y{background:#FEBC2E} .lights .g{background:#28C840}
+.window, .panel, .popover, .inputbar, .ocr-panel {
+  background: var(--window);
+  border: .5px solid var(--separator);
+  box-shadow: var(--shadow-panel);
+  -webkit-backdrop-filter: blur(34px) saturate(180%);
+  backdrop-filter: blur(34px) saturate(180%);
+}
+.window {
+  overflow: hidden;
+  border-radius: var(--radius-window);
+}
+.titlebar {
+  height: 40px;
+  display: grid;
+  grid-template-columns: 90px 1fr 90px;
+  align-items: center;
+  padding: 0 14px;
+  border-bottom: .5px solid var(--separator);
+}
+.traffic { display: flex; gap: 8px; }
+.traffic i {
+  width: 12px;
+  height: 12px;
+  border-radius: 999px;
+  display: block;
+}
+.traffic i:nth-child(1) { background: #ff5f57; }
+.traffic i:nth-child(2) { background: #febc2e; }
+.traffic i:nth-child(3) { background: #28c840; }
+.titlebar strong {
+  justify-self: center;
+  font-size: 13px;
+  font-weight: 600;
+}
+.titlebar .toolbar {
+  justify-self: end;
+  display: flex;
+  gap: 4px;
+}
 
-/* skeleton */
-.sk{height:13px;border-radius:5px;background:linear-gradient(90deg,var(--bg-content-2) 25%,
-  rgba(125,125,125,.12) 50%,var(--bg-content-2) 75%);background-size:200% 100%;
-  animation:shimmer 1.2s linear infinite}
-@keyframes shimmer{from{background-position:200% 0}to{background-position:-200% 0}}
+.icon-button {
+  width: 26px;
+  height: 26px;
+  display: inline-grid;
+  place-items: center;
+  border: 0;
+  border-radius: var(--radius-control);
+  background: transparent;
+  color: var(--label-2);
+  cursor: pointer;
+  transition: background .14s var(--ease), color .14s var(--ease), transform .14s var(--ease);
+}
+.icon-button:hover { background: var(--control); color: var(--label); }
+.icon-button:active { transform: translateY(1px); }
+.icon-button.star-on { color: var(--star); }
+.icon-button.is-active {
+  color: var(--accent);
+  background: var(--accent-soft);
+}
+.icon-sprite {
+  position: absolute;
+  width: 0;
+  height: 0;
+  overflow: hidden;
+}
+.icon {
+  width: 15px;
+  height: 15px;
+  display: block;
+  stroke: currentColor;
+  fill: none;
+  stroke-width: 1.8;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+.icon.fill {
+  fill: currentColor;
+  stroke: none;
+}
+.menu-row .icon,
+.side-row .icon,
+.search .icon,
+.input-main .icon,
+.ocr-card header .icon {
+  width: 16px;
+  height: 16px;
+  color: var(--label-2);
+}
+.side-row.active .icon { color: currentColor; }
+.glyph {
+  font-size: 14px;
+  line-height: 1;
+  font-weight: 600;
+  letter-spacing: 0;
+}
+.button {
+  border: .5px solid var(--separator);
+  background: var(--control);
+  color: var(--label);
+  border-radius: var(--radius-control);
+  min-height: 28px;
+  padding: 0 12px;
+  cursor: pointer;
+  transition: background .16s var(--ease), transform .16s var(--ease), color .16s var(--ease);
+}
+.button:hover { background: var(--control-hover); }
+.button:active { transform: translateY(1px); }
+.button.primary {
+  border-color: rgb(0 0 0 / 0%);
+  background: var(--accent);
+  color: #fff;
+}
+.button.primary:hover { background: var(--accent-strong); }
 
-/* ============================================================
-   Surface windows
-   ============================================================ */
-.win{background:var(--bg-window);border-radius:var(--radius-window);box-shadow:var(--shadow-panel);
-  overflow:hidden;transition:background .2s ease}
-.win-titlebar{height:38px;display:flex;align-items:center;padding:0 14px;gap:10px;
-  border-bottom:.5px solid var(--separator)}
-.win-title{font-size:13px;font-weight:600;color:var(--label);position:absolute;left:50%;
-  transform:translateX(-50%)}
+.tag, .lang-pill, .status-chip {
+  display: inline-flex;
+  align-items: center;
+  border-radius: 999px;
+  white-space: nowrap;
+}
+.tag {
+  height: 18px;
+  padding: 0 7px;
+  border-radius: 5px;
+  background: var(--accent-soft);
+  color: var(--accent);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: .04em;
+  text-transform: uppercase;
+}
+.lang-pill {
+  gap: 6px;
+  height: 24px;
+  padding: 0 10px;
+  background: var(--control);
+  border: .5px solid var(--separator);
+  color: var(--label-2);
+  font-size: 11px;
+  font-weight: 650;
+}
+.lang-pill button {
+  border: 0;
+  background: transparent;
+  color: var(--accent);
+  cursor: pointer;
+  padding: 0;
+  transition: transform .2s var(--ease);
+}
+.lang-pill button:hover { transform: rotate(180deg); }
+.status-chip {
+  gap: 5px;
+  height: 20px;
+  padding: 0 8px;
+  background: var(--content-2);
+  color: var(--label-2);
+  font-size: 11px;
+}
+.dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 999px;
+  background: var(--label-3);
+}
+.dot.ok { background: var(--success); }
+.dot.warn { background: var(--warning); }
+.dot.err { background: var(--danger); }
 
-/* ---- 1. Result Panel ---- */
-.panel{width:380px;background:var(--bg-window);border-radius:var(--radius-window);
-  box-shadow:var(--shadow-panel);padding:12px;position:relative;
-  backdrop-filter:blur(30px);-webkit-backdrop-filter:blur(30px)}
-.panel .topbar{display:flex;align-items:center;height:28px;margin-bottom:8px}
-.panel .topbar .actions{margin-left:auto;display:flex;gap:2px}
-.srcblock{background:var(--bg-content-2);border-radius:var(--radius-card);padding:12px;
-  font-size:13px;line-height:1.5;color:var(--label);display:flex;gap:8px;align-items:flex-start}
-.srcblock .txt{flex:1}
-.spinner{width:14px;height:14px;border:2px solid var(--separator);border-top-color:var(--accent);
-  border-radius:50%;animation:spin .7s linear infinite;flex-shrink:0;margin-top:2px}
-@keyframes spin{to{transform:rotate(360deg)}}
+/* Result panel */
+.panel {
+  width: 396px;
+  border-radius: var(--radius-window);
+  padding: 12px;
+  position: relative;
+}
+.panel.pinned {
+  border-color: color-mix(in srgb, var(--accent), transparent 50%);
+}
+.panel.pinned::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  box-shadow: inset 0 0 0 1px var(--accent-soft);
+  pointer-events: none;
+}
+.panel::after {
+  content: "";
+  position: absolute;
+  width: 18px;
+  height: 18px;
+  left: 58px;
+  bottom: -8px;
+  transform: rotate(45deg);
+  background: var(--window-solid);
+  border-right: .5px solid var(--separator);
+  border-bottom: .5px solid var(--separator);
+  border-radius: 3px;
+}
+.panel-top {
+  height: 28px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+.panel-top .actions { margin-left: auto; display: flex; gap: 2px; }
+.source-block {
+  padding: 11px 12px;
+  border-radius: var(--radius-card);
+  background: var(--content-2);
+  border: .5px solid var(--hairline);
+}
+.source-block .source-text {
+  font-size: 13px;
+  line-height: 18px;
+  color: var(--label);
+}
+.source-meta {
+  margin-top: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  color: var(--label-3);
+  font-size: 11px;
+}
+.primary-result {
+  margin-top: 8px;
+  padding: 12px;
+  border-radius: var(--radius-card);
+  background: var(--content);
+  border: .5px solid var(--hairline);
+}
+.engine-head {
+  height: 22px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.engine-head .latency {
+  margin-left: auto;
+  color: var(--label-3);
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+}
+.result-copy {
+  margin: 7px 0 0;
+  font-size: 17px;
+  line-height: 24px;
+  letter-spacing: 0;
+}
+.result-actions {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-top: 10px;
+  padding-top: 10px;
+  border-top: .5px solid var(--separator);
+}
+.compare-toggle {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  border: 0;
+  background: transparent;
+  color: var(--accent);
+  padding: 0;
+  cursor: pointer;
+  font-size: 12px;
+}
+.compare-toggle .chev { transition: transform .2s var(--ease); }
+.panel.expanded .compare-toggle .chev { transform: rotate(90deg); }
+.compare-list {
+  display: none;
+  margin-top: 8px;
+  gap: 8px;
+}
+.panel.expanded .compare-list { display: grid; animation: fold-in .18s var(--ease); }
+@keyframes fold-in {
+  from { opacity: 0; transform: translateY(-4px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+.engine-card {
+  border-radius: var(--radius-card);
+  background: var(--content);
+  border: .5px solid var(--hairline);
+  padding: 11px 12px;
+}
+.engine-card p {
+  margin: 6px 0 0;
+  font-size: 14px;
+  line-height: 20px;
+}
+.engine-card.error {
+  border-color: color-mix(in srgb, var(--danger), transparent 40%);
+  color: var(--danger);
+}
+.engine-card.error .tag { color: var(--danger); background: color-mix(in srgb, var(--danger), transparent 88%); }
+.skeleton-line {
+  height: 13px;
+  border-radius: 5px;
+  background: linear-gradient(90deg, var(--content-2), rgb(140 140 150 / 16%), var(--content-2));
+  background-size: 220% 100%;
+  animation: shimmer 1.15s linear infinite;
+}
+.skeleton-line + .skeleton-line { margin-top: 7px; }
+@keyframes shimmer {
+  from { background-position: 220% 0; }
+  to { background-position: -220% 0; }
+}
+.permission-card {
+  display: none;
+  margin-top: 8px;
+  padding: 12px;
+  border-radius: var(--radius-card);
+  background: color-mix(in srgb, var(--warning), transparent 88%);
+  border: .5px solid color-mix(in srgb, var(--warning), transparent 52%);
+}
+.permission-card h3 {
+  margin: 0 0 6px;
+  font-size: 13px;
+  line-height: 18px;
+}
+.permission-card p {
+  margin: 0 0 10px;
+  font-size: 12px;
+  line-height: 17px;
+  color: var(--label-2);
+}
 
-.ecard{background:var(--bg-content);border-radius:var(--radius-card);padding:12px;margin-top:8px;
-  position:relative;border:.5px solid transparent}
-.ecard.primary{border-left:2px solid var(--accent)}
-.ecard .head{display:flex;align-items:center;gap:6px;margin-bottom:6px}
-.ecard .latency{font-size:11px;color:var(--label-3);margin-left:auto}
-.ecard .cardactions{display:flex;gap:0;opacity:0;transition:opacity .1s}
-.ecard:hover .cardactions{opacity:1}
-.ecard .result{font-size:15px;line-height:1.45;color:var(--label)}
-.ecard .phon{font-size:12px;color:var(--label-2);margin-top:5px}
-.ecard .def{font-size:12px;color:var(--label-2);margin-top:3px;line-height:1.5}
-.ecard.error{border:.5px solid var(--danger)}
-.ecard.error .result{color:var(--danger);font-size:13px;display:flex;align-items:center;gap:6px}
-.arrow{position:absolute;bottom:-9px;left:46px;width:18px;height:9px;overflow:hidden}
-.arrow::after{content:"";position:absolute;width:14px;height:14px;background:var(--bg-window);
-  transform:rotate(45deg);left:2px;top:-7px;box-shadow:var(--shadow-panel)}
+/* Input */
+.inputbar {
+  width: min(620px, calc(100vw - 48px));
+  border-radius: 16px;
+  overflow: hidden;
+}
+.input-main {
+  display: grid;
+  grid-template-columns: 26px 1fr auto;
+  align-items: center;
+  gap: 10px;
+  min-height: 60px;
+  padding: 0 16px;
+}
+.input-main .search-glyph {
+  width: 26px;
+  height: 26px;
+  display: grid;
+  place-items: center;
+  color: var(--label-3);
+  font-size: 16px;
+}
+.input-main input {
+  border: 0;
+  outline: 0;
+  background: transparent;
+  color: var(--label);
+  font-size: 17px;
+  line-height: 24px;
+}
+.input-main input::placeholder { color: var(--label-3); }
+.input-footer {
+  min-height: 42px;
+  padding: 7px 12px 8px 16px;
+  border-top: .5px solid var(--separator);
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.kbd {
+  min-width: 24px;
+  height: 22px;
+  display: inline-grid;
+  place-items: center;
+  padding: 0 7px;
+  border-radius: 6px;
+  background: var(--control);
+  border: .5px solid var(--separator);
+  box-shadow: inset 0 -1px 0 rgb(0 0 0 / 10%);
+  color: var(--label-2);
+  font-size: 11px;
+  font-weight: 600;
+}
+.hint-text {
+  color: var(--label-3);
+  font-size: 12px;
+}
+.input-footer .button { margin-left: auto; }
+.suggestions {
+  display: grid;
+  gap: 6px;
+  padding: 0 12px 12px 52px;
+}
+.suggestion {
+  display: flex;
+  align-items: center;
+  min-height: 30px;
+  padding: 0 10px;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--label-2);
+  font-size: 13px;
+}
+.suggestion.active { background: var(--accent-soft); color: var(--label); }
 
-/* ---- 2. Input Bar ---- */
-.inputbar{width:520px;background:var(--bg-window);border-radius:var(--radius-window);
-  box-shadow:var(--shadow-panel);padding:0 16px;backdrop-filter:blur(30px);
-  -webkit-backdrop-filter:blur(30px);outline:.5px solid var(--separator)}
-.inputbar:focus-within{outline:1.5px solid var(--accent)}
-.inputbar .row{display:flex;align-items:center;gap:12px;height:56px}
-.inputbar .ic{color:var(--label-3);font-size:18px}
-.inputbar input{flex:1;border:0;background:transparent;font-family:var(--font);font-size:15px;
-  color:var(--label);outline:none}
-.inputbar input::placeholder{color:var(--label-3)}
-.inputbar .foot{display:flex;align-items:center;height:38px;border-top:.5px solid var(--separator);
-  font-size:11px;color:var(--label-3);gap:10px}
-.inputbar .foot .hint kbd{font-family:var(--font);background:var(--bg-content-2);
-  padding:1px 5px;border-radius:4px;border:.5px solid var(--separator);font-size:10px;color:var(--label-2)}
-.btn-accent{margin-left:auto;background:var(--accent);color:#fff;border:0;font-family:var(--font);
-  font-size:12px;font-weight:500;padding:5px 14px;border-radius:6px;cursor:pointer}
+/* Popover */
+.popover {
+  width: 286px;
+  border-radius: 14px;
+  padding: 7px;
+  position: relative;
+}
+.popover::before {
+  content: "";
+  position: absolute;
+  top: -8px;
+  right: 44px;
+  width: 16px;
+  height: 16px;
+  transform: rotate(45deg);
+  background: var(--window-solid);
+  border-left: .5px solid var(--separator);
+  border-top: .5px solid var(--separator);
+  border-radius: 3px;
+}
+.menu-row {
+  min-height: 32px;
+  display: grid;
+  grid-template-columns: 22px 1fr auto;
+  align-items: center;
+  gap: 8px;
+  padding: 0 9px;
+  border-radius: 8px;
+  cursor: pointer;
+  color: var(--label);
+  font-size: 13px;
+}
+.menu-row:hover { background: var(--accent-soft); }
+.menu-row .glyph { color: var(--label-2); }
+.menu-row .shortcut { color: var(--label-3); font-size: 11px; }
+.menu-sep {
+  height: .5px;
+  background: var(--separator);
+  margin: 6px 5px;
+}
+.menu-label {
+  padding: 2px 9px 4px;
+  color: var(--label-3);
+  font-size: 11px;
+  font-weight: 600;
+}
+.recent-row {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 8px;
+  padding: 6px 9px;
+  border-radius: 8px;
+  cursor: pointer;
+}
+.recent-row:hover { background: var(--accent-soft); }
+.recent-row strong {
+  display: block;
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  font-size: 12px;
+  line-height: 16px;
+}
+.recent-row span {
+  display: block;
+  color: var(--label-3);
+  font-size: 11px;
+  line-height: 15px;
+}
+.switch-row {
+  min-height: 32px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0 9px;
+  font-size: 13px;
+}
+.switch {
+  width: 36px;
+  height: 22px;
+  margin-left: auto;
+  padding: 2px;
+  border: 0;
+  border-radius: 999px;
+  background: var(--separator);
+  cursor: pointer;
+  transition: background .16s var(--ease);
+}
+.switch::after {
+  content: "";
+  display: block;
+  width: 18px;
+  height: 18px;
+  border-radius: 999px;
+  background: #fff;
+  box-shadow: 0 1px 3px rgb(0 0 0 / 24%);
+  transition: transform .16s var(--ease);
+}
+.switch.on { background: var(--success); }
+.switch.on::after { transform: translateX(14px); }
 
-/* ---- 3. Menu bar Popover ---- */
-.popover{width:260px;background:var(--bg-sidebar);border-radius:var(--radius-window);
-  box-shadow:var(--shadow-panel);backdrop-filter:blur(40px);-webkit-backdrop-filter:blur(40px);
-  padding:6px;position:relative}
-.popover .arrow-top{position:absolute;top:-9px;right:38px;width:18px;height:9px;overflow:hidden}
-.popover .arrow-top::after{content:"";position:absolute;width:14px;height:14px;background:var(--bg-window);
-  transform:rotate(45deg);left:2px;top:5px;box-shadow:var(--shadow-panel)}
-.mrow{display:flex;align-items:center;gap:10px;padding:7px 9px;border-radius:7px;cursor:pointer;
-  font-size:13px;color:var(--label);transition:background .08s}
-.mrow:hover{background:var(--accent-soft)}
-.mrow .mi{width:16px;color:var(--label-2);display:flex;justify-content:center}
-.mrow .kbd{margin-left:auto;font-size:11px;color:var(--label-3)}
-.psep{height:.5px;background:var(--separator);margin:6px 4px}
-.plabel{font-size:11px;color:var(--label-3);padding:4px 9px 2px;font-weight:500}
-.precent{display:flex;flex-direction:column;gap:1px}
-.precent .r{display:flex;gap:8px;align-items:center;padding:5px 9px;border-radius:6px;cursor:pointer;font-size:12px}
-.precent .r:hover{background:var(--accent-soft)}
-.precent .lp{font-size:9px;font-weight:600;color:var(--accent);background:var(--accent-soft);
-  padding:1px 5px;border-radius:4px;flex-shrink:0}
-.precent .t{color:var(--label);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.precent .tm{color:var(--label-3);margin-left:auto;font-size:11px;flex-shrink:0}
-.toggle{position:relative;width:34px;height:20px;border-radius:999px;background:var(--separator);
-  margin-left:auto;cursor:pointer;transition:background .15s;flex-shrink:0}
-.toggle.on{background:var(--success)}
-.toggle::after{content:"";position:absolute;top:2px;left:2px;width:16px;height:16px;border-radius:50%;
-  background:#fff;box-shadow:0 1px 3px rgba(0,0,0,.3);transition:transform .15s}
-.toggle.on::after{transform:translateX(14px)}
-.eng-row{display:flex;align-items:center;gap:8px;padding:6px 9px;font-size:13px;color:var(--label)}
-.link{font-size:12px;color:var(--accent);padding:6px 9px;cursor:pointer;display:block}
-.mfoot{display:flex;gap:4px;padding:2px 4px}
-.mfoot button{flex:1;background:transparent;border:0;font-family:var(--font);font-size:12px;
-  color:var(--label-2);padding:6px;border-radius:6px;cursor:pointer;text-align:left}
-.mfoot button:hover{background:var(--accent-soft);color:var(--label)}
-.mfoot button .kbd{float:right;color:var(--label-3)}
+/* Settings */
+.settings-window {
+  width: min(780px, calc(100vw - 48px));
+  height: 520px;
+}
+.settings-body {
+  height: calc(100% - 40px);
+  display: grid;
+  grid-template-columns: 196px 1fr;
+}
+.sidebar {
+  padding: 10px 8px;
+  background: var(--sidebar);
+  border-right: .5px solid var(--separator);
+  -webkit-backdrop-filter: blur(26px) saturate(160%);
+  backdrop-filter: blur(26px) saturate(160%);
+}
+.side-row {
+  min-height: 32px;
+  display: grid;
+  grid-template-columns: 22px 1fr;
+  align-items: center;
+  gap: 8px;
+  padding: 0 10px;
+  border-radius: 8px;
+  color: var(--label);
+  cursor: pointer;
+  font-size: 13px;
+}
+.side-row:hover { background: var(--accent-soft); }
+.side-row.active { background: var(--accent); color: #fff; }
+.side-row .glyph { color: currentColor; opacity: .82; }
+.settings-content {
+  overflow: auto;
+  padding: 22px 26px 28px;
+  background: var(--content-solid);
+}
+.settings-pane { display: none; }
+.settings-pane.active {
+  display: block;
+  animation: pane-in .18s var(--ease);
+}
+@keyframes pane-in {
+  from { opacity: 0; transform: translateX(8px); }
+  to { opacity: 1; transform: translateX(0); }
+}
+.pane-title {
+  margin: 0 0 18px;
+  font-size: 22px;
+  line-height: 28px;
+  font-weight: 700;
+}
+.group {
+  border-radius: 12px;
+  background: var(--content-2);
+  border: .5px solid var(--hairline);
+  overflow: hidden;
+  margin-bottom: 16px;
+}
+.setting-row {
+  min-height: 42px;
+  display: grid;
+  grid-template-columns: 1fr auto;
+  align-items: center;
+  gap: 12px;
+  padding: 7px 12px;
+  border-bottom: .5px solid var(--separator);
+  font-size: 13px;
+}
+.setting-row:last-child { border-bottom: 0; }
+.setting-row small {
+  display: block;
+  margin-top: 2px;
+  color: var(--label-3);
+  font-size: 11px;
+  line-height: 14px;
+}
+.select, .field {
+  min-height: 28px;
+  border: .5px solid var(--separator);
+  background: var(--control);
+  color: var(--label);
+  border-radius: 7px;
+  padding: 0 9px;
+  outline: 0;
+}
+.field { width: 240px; }
+.keycap {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 34px;
+  height: 25px;
+  padding: 0 8px;
+  border-radius: 7px;
+  background: var(--control);
+  border: .5px solid var(--separator);
+  color: var(--label);
+  font-size: 12px;
+  font-weight: 650;
+  box-shadow: inset 0 -1px 0 rgb(0 0 0 / 12%);
+}
+.inline-note {
+  margin: 8px 0 0;
+  color: var(--label-2);
+  font-size: 12px;
+  line-height: 17px;
+}
 
-/* ---- 4. Settings ---- */
-.settings{width:640px;height:460px;display:flex;flex-direction:column}
-.settings .body{flex:1;display:flex;min-height:0}
-.settings .side{width:180px;background:var(--bg-sidebar);backdrop-filter:blur(30px);
-  -webkit-backdrop-filter:blur(30px);padding:8px;border-right:.5px solid var(--separator)}
-.srow{display:flex;align-items:center;gap:9px;padding:7px 10px;border-radius:7px;cursor:pointer;
-  font-size:13px;color:var(--label);transition:background .08s}
-.srow:hover{background:var(--accent-soft)}
-.srow.sel{background:var(--accent);color:#fff}
-.srow .si{width:16px;display:flex;justify-content:center;opacity:.9}
-.settings .content{flex:1;background:var(--bg-content);padding:20px 24px;overflow:auto}
-.sec-title{font-size:15px;font-weight:600;color:var(--label);margin:0 0 12px}
-.sec-title.mt{margin-top:24px}
-.setrow{display:flex;align-items:center;min-height:30px;padding:5px 0;font-size:13px;color:var(--label);
-  border-bottom:.5px solid var(--separator)}
-.setrow:last-child{border-bottom:0}
-.setrow .lbl{color:var(--label)}
-.setrow .ctl{margin-left:auto;display:flex;align-items:center;gap:8px}
-.sel-box,.txt-box{font-family:var(--font);font-size:13px;color:var(--label);background:var(--bg-content-2);
-  border:.5px solid var(--separator);border-radius:6px;padding:4px 9px;outline:none}
-.txt-box{width:230px}
-.callout{font-size:12px;color:var(--label-2);background:var(--bg-content-2);border-radius:8px;
-  padding:10px 12px;margin-top:12px;line-height:1.5}
-.kbdcap{font-family:var(--font);font-size:12px;color:var(--label);background:var(--bg-content-2);
-  border:.5px solid var(--separator);border-bottom-width:1.5px;border-radius:6px;padding:3px 9px;font-weight:500}
-.handle{color:var(--label-3);cursor:grab;font-size:14px}
+/* History */
+.history-window {
+  width: min(820px, calc(100vw - 48px));
+  height: 520px;
+}
+.history-body {
+  height: calc(100% - 40px);
+  display: grid;
+  grid-template-columns: 300px 1fr;
+}
+.history-list {
+  background: var(--sidebar);
+  border-right: .5px solid var(--separator);
+  display: flex;
+  flex-direction: column;
+}
+.search {
+  margin: 10px;
+  min-height: 30px;
+  display: grid;
+  grid-template-columns: 18px 1fr;
+  align-items: center;
+  gap: 7px;
+  padding: 0 9px;
+  border-radius: 8px;
+  background: var(--control);
+  color: var(--label-3);
+  font-size: 13px;
+}
+.segmented {
+  display: flex;
+  margin: 0 10px 8px;
+  padding: 2px;
+  border-radius: 8px;
+  background: var(--control);
+  border: .5px solid var(--hairline);
+}
+.segmented button {
+  flex: 1;
+  min-height: 24px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--label-2);
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 600;
+}
+.segmented button.active {
+  background: var(--content-solid);
+  color: var(--label);
+  box-shadow: 0 1px 2px rgb(0 0 0 / 14%);
+}
+.history-rows { overflow: auto; padding: 2px 8px 8px; }
+.history-row {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 8px;
+  padding: 9px 10px;
+  min-height: 54px;
+  border-radius: 9px;
+  cursor: pointer;
+}
+.history-row:hover { background: var(--accent-soft); }
+.history-row.active {
+  background: var(--accent);
+  color: #fff;
+}
+.history-row strong {
+  display: block;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  font-size: 13px;
+  line-height: 18px;
+}
+.history-row span {
+  display: block;
+  color: var(--label-3);
+  font-size: 11px;
+  line-height: 15px;
+}
+.history-row.active span { color: rgb(255 255 255 / 78%); }
+.history-row .star { color: var(--star); }
+.history-row.active .star { color: #fff; }
+.history-detail {
+  background: var(--content-solid);
+  padding: 18px;
+  overflow: auto;
+}
+.detail-toolbar {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  margin-bottom: 12px;
+}
+.detail-toolbar .spacer { margin-left: auto; }
+.detail-card {
+  border-radius: 12px;
+  background: var(--content-2);
+  border: .5px solid var(--hairline);
+  padding: 14px;
+  margin-bottom: 10px;
+}
+.detail-card h3 {
+  margin: 0 0 8px;
+  font-size: 12px;
+  line-height: 16px;
+  color: var(--label-2);
+  font-weight: 600;
+}
+.detail-card p {
+  margin: 0;
+  font-size: 15px;
+  line-height: 22px;
+}
 
-/* ---- 5. History ---- */
-.history{width:720px;height:480px;display:flex;flex-direction:column}
-.history .body{flex:1;display:flex;min-height:0}
-.history .list{width:280px;border-right:.5px solid var(--separator);background:var(--bg-content);
-  display:flex;flex-direction:column}
-.searchbox{margin:10px;display:flex;align-items:center;gap:7px;background:var(--bg-content-2);
-  border-radius:7px;padding:6px 9px;font-size:13px;color:var(--label-3)}
-.seg{display:flex;margin:0 10px 8px;background:var(--bg-content-2);border-radius:7px;padding:2px}
-.seg button{flex:1;font-family:var(--font);font-size:12px;font-weight:500;color:var(--label-2);
-  background:transparent;border:0;padding:4px;border-radius:5px;cursor:pointer}
-.seg button.on{background:var(--bg-content);color:var(--label);box-shadow:0 1px 2px rgba(0,0,0,.12)}
-.hrows{flex:1;overflow:auto}
-.hrow{display:flex;align-items:center;gap:8px;padding:9px 12px;cursor:pointer;
-  border-bottom:.5px solid var(--separator);transition:background .08s}
-.hrow:hover{background:var(--accent-soft)}
-.hrow.sel{background:var(--accent-soft)}
-.hrow .lp{font-size:9px;font-weight:600;color:var(--accent);background:var(--accent-soft);
-  padding:1px 5px;border-radius:4px;flex-shrink:0}
-.hrow .mid{flex:1;min-width:0}
-.hrow .o{font-size:13px;color:var(--label);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.hrow .tm{font-size:11px;color:var(--label-3);margin-top:2px}
-.hrow .star{color:var(--star);font-size:13px}
-.history .detail{flex:1;background:var(--bg-content-2);padding:18px;overflow:auto}
+/* OCR */
+.ocr-panel {
+  width: min(700px, calc(100vw - 48px));
+  height: 460px;
+  border-radius: var(--radius-window);
+  overflow: hidden;
+  position: relative;
+  background:
+    linear-gradient(90deg, rgb(255 255 255 / 62%), rgb(255 255 255 / 42%)),
+    repeating-linear-gradient(0deg, rgb(0 0 0 / 5%) 0 1px, transparent 1px 34px),
+    repeating-linear-gradient(90deg, rgb(0 0 0 / 4%) 0 1px, transparent 1px 42px),
+    var(--content-solid);
+}
+:root[data-theme="dark"] .ocr-panel {
+  background:
+    linear-gradient(90deg, rgb(0 0 0 / 18%), rgb(0 0 0 / 28%)),
+    repeating-linear-gradient(0deg, rgb(255 255 255 / 5%) 0 1px, transparent 1px 34px),
+    repeating-linear-gradient(90deg, rgb(255 255 255 / 4%) 0 1px, transparent 1px 42px),
+    var(--content-solid);
+}
+.ocr-doc {
+  position: absolute;
+  inset: 38px 160px 64px 54px;
+  border-radius: 12px;
+  background: var(--content-solid);
+  box-shadow: 0 6px 24px rgb(0 0 0 / 16%);
+  padding: 28px;
+}
+.ocr-doc h2 {
+  margin: 0 0 18px;
+  font-size: 22px;
+  line-height: 26px;
+}
+.ocr-doc .line {
+  height: 12px;
+  border-radius: 4px;
+  background: var(--separator);
+  margin: 10px 0;
+}
+.ocr-dim {
+  position: absolute;
+  inset: 0;
+  background: rgb(0 0 0 / 38%);
+}
+.ocr-selection {
+  position: absolute;
+  left: 84px;
+  top: 126px;
+  width: 342px;
+  height: 130px;
+  border: 1px solid var(--accent);
+  box-shadow: 0 0 0 9999px rgb(0 0 0 / 42%);
+  background: rgb(0 122 255 / 7%);
+}
+.handle {
+  width: 8px;
+  height: 8px;
+  border-radius: 2px;
+  background: #fff;
+  border: 1px solid var(--accent);
+  position: absolute;
+}
+.handle.tl { left: -4px; top: -4px; }
+.handle.tr { right: -4px; top: -4px; }
+.handle.bl { left: -4px; bottom: -4px; }
+.handle.br { right: -4px; bottom: -4px; }
+.ocr-size {
+  position: absolute;
+  left: 84px;
+  top: 100px;
+  min-height: 22px;
+  display: inline-flex;
+  align-items: center;
+  padding: 0 8px;
+  border-radius: 6px;
+  background: rgb(0 0 0 / 64%);
+  color: #fff;
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+}
+.ocr-card {
+  position: absolute;
+  right: 42px;
+  top: 72px;
+  width: 310px;
+  border-radius: 13px;
+  background: var(--window);
+  border: .5px solid var(--separator);
+  box-shadow: var(--shadow-panel);
+  -webkit-backdrop-filter: blur(34px) saturate(180%);
+  backdrop-filter: blur(34px) saturate(180%);
+  overflow: hidden;
+}
+.ocr-card header {
+  height: 42px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0 12px;
+  border-bottom: .5px solid var(--separator);
+}
+.ocr-card header strong { font-size: 13px; }
+.ocr-card header button {
+  margin-left: auto;
+  border: 0;
+  background: transparent;
+  color: var(--accent);
+  cursor: pointer;
+}
+.ocr-lines {
+  padding: 8px;
+  display: grid;
+  gap: 3px;
+}
+.ocr-line {
+  display: grid;
+  grid-template-columns: 22px 1fr;
+  gap: 7px;
+  align-items: start;
+  padding: 8px;
+  border-radius: 8px;
+  cursor: pointer;
+}
+.ocr-line:hover { background: var(--accent-soft); }
+.ocr-line.on { background: var(--accent-soft); }
+.check {
+  width: 18px;
+  height: 18px;
+  border-radius: 999px;
+  border: 1.5px solid var(--label-3);
+  display: grid;
+  place-items: center;
+  color: #fff;
+  font-size: 10px;
+}
+.ocr-line.on .check {
+  border-color: var(--accent);
+  background: var(--accent);
+}
+.ocr-line span:last-child {
+  font-size: 12px;
+  line-height: 17px;
+}
+.ocr-actions {
+  border-top: .5px solid var(--separator);
+  min-height: 46px;
+  padding: 8px 10px;
+  display: flex;
+  gap: 8px;
+  justify-content: flex-end;
+}
 
-/* ---- 6. OCR overlay ---- */
-.ocr{width:560px;height:360px;border-radius:var(--radius-window);overflow:hidden;position:relative;
-  box-shadow:var(--shadow-panel);background:#3a4a5a url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="40" height="40"><rect width="40" height="40" fill="%23435366"/><text x="6" y="24" font-family="serif" font-size="13" fill="%23b8c4d0">Aあ文</text></svg>')}
-.ocr .mask{position:absolute;inset:0;background:rgba(0,0,0,.4)}
-.ocr .sel{position:absolute;left:90px;top:80px;width:300px;height:140px;border:1px solid var(--accent);
-  box-shadow:0 0 0 9999px rgba(0,0,0,.4);background:rgba(0,122,255,.04)}
-.ocr .sel .h{position:absolute;width:7px;height:7px;background:#fff;border:1px solid var(--accent);border-radius:1px}
-.ocr .sel .h.tl{left:-4px;top:-4px}.ocr .sel .h.tr{right:-4px;top:-4px}
-.ocr .sel .h.bl{left:-4px;bottom:-4px}.ocr .sel .h.br{right:-4px;bottom:-4px}
-.ocr .size{position:absolute;left:90px;top:62px;font-size:11px;color:#fff;background:rgba(0,0,0,.6);
-  padding:2px 7px;border-radius:4px}
-.ocr .card{position:absolute;left:90px;top:232px;width:300px;background:var(--bg-window);
-  border-radius:10px;box-shadow:var(--shadow-panel);padding:10px;font-size:12px}
-.ocr .card .line{display:flex;gap:7px;align-items:center;padding:4px 6px;border-radius:5px;cursor:pointer;color:var(--label)}
-.ocr .card .line:hover{background:var(--accent-soft)}
-.ocr .card .ck{width:14px;height:14px;border-radius:4px;border:1.5px solid var(--accent);flex-shrink:0;
-  display:flex;align-items:center;justify-content:center;color:#fff;font-size:9px}
-.ocr .card .ck.on{background:var(--accent)}
-.ocr .card .bar{display:flex;margin-top:6px;padding-top:6px;border-top:.5px solid var(--separator)}
+.empty {
+  height: 100%;
+  display: grid;
+  place-items: center;
+  text-align: center;
+  color: var(--label-2);
+  padding: 24px;
+}
+.empty strong {
+  display: block;
+  color: var(--label);
+  margin-bottom: 4px;
+  font-size: 15px;
+}
+.empty span { font-size: 12px; line-height: 17px; }
 
-small.note{display:block;color:var(--label-3);font-size:11px;margin-top:6px}
+@media (max-width: 860px) {
+  .surface.active { flex-direction: column; }
+  .review-card { width: min(620px, 100%); min-height: auto; }
+  .settings-body, .history-body { grid-template-columns: 1fr; }
+  .sidebar, .history-list { display: none; }
+  .settings-window, .history-window { height: min(520px, calc(100dvh - 150px)); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: .001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: .001ms !important;
+    scroll-behavior: auto !important;
+  }
+}
 </style>
 </head>
 <body>
-<div class="stage">
-  <!-- macOS menu bar -->
-  <div class="menubar">
-    <span class="parrot" id="menuParrot">🦜 <span class="brand">Parrot</span></span>
-    <span style="opacity:.85">文件</span><span style="opacity:.85">编辑</span><span style="opacity:.85">帮助</span>
-    <span class="right"><span>🔆</span><span>📶</span><span>🔋</span><span id="clock">星期一 14:08</span></span>
+<svg class="icon-sprite" aria-hidden="true" focusable="false">
+  <symbol id="icon-star" viewBox="0 0 24 24">
+    <path d="M12 3.2l2.65 5.35 5.9.86-4.27 4.16 1.01 5.88L12 16.67l-5.29 2.78 1.01-5.88L3.45 9.41l5.9-.86L12 3.2z"></path>
+  </symbol>
+  <symbol id="icon-copy" viewBox="0 0 24 24">
+    <rect x="8.5" y="8.5" width="10.5" height="10.5" rx="2.2"></rect>
+    <path d="M5 15.5V6.8A1.8 1.8 0 016.8 5h8.7"></path>
+  </symbol>
+  <symbol id="icon-speaker" viewBox="0 0 24 24">
+    <path d="M11 5.5L6.8 9H4v6h2.8L11 18.5v-13z"></path>
+    <path d="M15.1 8.7a4.8 4.8 0 010 6.6"></path>
+    <path d="M17.8 6.1a8.3 8.3 0 010 11.8"></path>
+  </symbol>
+  <symbol id="icon-pin" viewBox="0 0 24 24">
+    <path d="M9.5 4.5h5l-.7 5.3 3.2 3.2v2H7v-2l3.2-3.2-.7-5.3z"></path>
+    <path d="M12 15v5"></path>
+  </symbol>
+  <symbol id="icon-search" viewBox="0 0 24 24">
+    <circle cx="10.7" cy="10.7" r="5.7"></circle>
+    <path d="M15 15l4.5 4.5"></path>
+  </symbol>
+  <symbol id="icon-crosshair" viewBox="0 0 24 24">
+    <circle cx="12" cy="12" r="5.2"></circle>
+    <path d="M12 3v3.2M12 17.8V21M3 12h3.2M17.8 12H21"></path>
+  </symbol>
+  <symbol id="icon-text" viewBox="0 0 24 24">
+    <path d="M4.5 7.2V5h15v2.2"></path>
+    <path d="M12 5v14"></path>
+    <path d="M8.2 19h7.6"></path>
+  </symbol>
+  <symbol id="icon-crop" viewBox="0 0 24 24">
+    <path d="M7 3v14h14"></path>
+    <path d="M3 7h14v14"></path>
+  </symbol>
+  <symbol id="icon-keyboard" viewBox="0 0 24 24">
+    <rect x="3.5" y="6.5" width="17" height="11" rx="2.2"></rect>
+    <path d="M7 10h.01M10 10h.01M13 10h.01M16 10h.01M7 13.5h.01M10 13.5h4M17 13.5h.01"></path>
+  </symbol>
+  <symbol id="icon-gear" viewBox="0 0 24 24">
+    <circle cx="12" cy="12" r="3.2"></circle>
+    <path d="M12 3.5v2M12 18.5v2M5.99 5.99l1.42 1.42M16.59 16.59l1.42 1.42M3.5 12h2M18.5 12h2M5.99 18.01l1.42-1.42M16.59 7.41l1.42-1.42"></path>
+  </symbol>
+  <symbol id="icon-power" viewBox="0 0 24 24">
+    <path d="M12 3.5v8"></path>
+    <path d="M7.2 6.8a7 7 0 109.6 0"></path>
+  </symbol>
+  <symbol id="icon-key" viewBox="0 0 24 24">
+    <circle cx="8.2" cy="12" r="3.7"></circle>
+    <path d="M11.9 12h8.1M16 12v3M19 12v2"></path>
+  </symbol>
+  <symbol id="icon-shortcut" viewBox="0 0 24 24">
+    <path d="M8 8h8v8H8z"></path>
+    <path d="M4.8 8a3.2 3.2 0 113.2-3.2V8H4.8zM16 4.8A3.2 3.2 0 1119.2 8H16V4.8zM19.2 16A3.2 3.2 0 1116 19.2V16h3.2zM8 19.2A3.2 3.2 0 114.8 16H8v3.2z"></path>
+  </symbol>
+  <symbol id="icon-plugin" viewBox="0 0 24 24">
+    <path d="M8 3.5h8v5h4.5v7H16v5H8v-5H3.5v-7H8v-5z"></path>
+  </symbol>
+  <symbol id="icon-trash" viewBox="0 0 24 24">
+    <path d="M5 7h14"></path>
+    <path d="M9 7V5h6v2"></path>
+    <path d="M7 7l1 13h8l1-13"></path>
+    <path d="M10.5 11v5M13.5 11v5"></path>
+  </symbol>
+  <symbol id="icon-chevron" viewBox="0 0 24 24">
+    <path d="M9 5l7 7-7 7"></path>
+  </symbol>
+  <symbol id="icon-check" viewBox="0 0 24 24">
+    <path d="M5 12.5l4.2 4.2L19 7"></path>
+  </symbol>
+</svg>
+<div class="desktop">
+  <div class="menubar" aria-hidden="true">
+    <b>Parrot</b>
+    <span>File</span>
+    <span>Edit</span>
+    <span>View</span>
+    <span>Window</span>
+    <span>Help</span>
+    <div class="right">
+      <span>Wi-Fi</span>
+      <span>100%</span>
+      <span>Tue 2:08 PM</span>
+    </div>
   </div>
 
-  <!-- viewer controls -->
-  <div class="controls">
-    <button data-s="panel" class="on">悬浮结果面板</button>
-    <button data-s="input">输入翻译</button>
-    <button data-s="popover">菜单栏 Popover</button>
-    <button data-s="settings">设置</button>
-    <button data-s="history">历史 / 收藏</button>
-    <button data-s="ocr">截图 OCR</button>
-    <span class="sep"></span>
-    <button data-state="loading">加载态</button>
-    <button data-state="error">错误态</button>
-    <span class="sep"></span>
-    <span class="theme-toggle">☀︎ <span class="toggle" id="themeTog" onclick="toggleTheme()"></span> ☾</span>
-  </div>
+  <nav class="viewer" aria-label="Prototype controls">
+    <button class="active" data-surface-target="result">结果面板</button>
+    <button data-surface-target="input">输入翻译</button>
+    <button data-surface-target="menu">菜单栏</button>
+    <button data-surface-target="settings">设置</button>
+    <button data-surface-target="history">历史</button>
+    <button data-surface-target="ocr">OCR</button>
+    <span class="divider" aria-hidden="true"></span>
+    <button data-result-state="normal">正常</button>
+    <button data-result-state="loading">加载</button>
+    <button data-result-state="error">错误</button>
+    <button data-result-state="permission">授权</button>
+    <span class="divider" aria-hidden="true"></span>
+    <button id="themeButton" aria-label="Toggle theme">深色</button>
+  </nav>
 
-  <div class="canvas">
-
-    <!-- ============ 1. Result Panel ============ -->
-    <div class="surface show" data-surface="panel">
-      <div class="panel">
-        <div class="topbar">
-          <span class="langpill">EN <span class="swap">⇄</span> 中</span>
+  <main class="stage">
+    <section class="surface active" data-surface="result">
+      <article class="panel expanded" id="resultPanel" aria-label="Translation result panel">
+        <div class="panel-top">
+          <span class="lang-pill">EN <button aria-label="Swap languages">⇄</button> 中</span>
+          <span class="status-chip"><span class="dot ok"></span><span id="panelMode">失焦隐藏</span></span>
           <span class="actions">
-            <button class="iconbtn filled" title="收藏" style="color:var(--star)"><svg viewBox="0 0 24 24"><path d="M12 2l3 6.5 7 .9-5 4.8 1.3 7-6.3-3.4L5.7 21l1.3-7-5-4.8 7-.9z"/></svg></button>
-            <button class="iconbtn" title="复制原文"><svg viewBox="0 0 24 24"><rect x="9" y="9" width="11" height="11" rx="2"/><path d="M5 15V5a2 2 0 012-2h8"/></svg></button>
-            <button class="iconbtn" title="朗读原文"><svg viewBox="0 0 24 24"><path d="M11 5L6 9H3v6h3l5 4V5z"/><path d="M15.5 8.5a5 5 0 010 7"/></svg></button>
+            <button class="icon-button" id="pinPanelButton" aria-label="Pin panel" aria-pressed="false"><svg class="icon"><use href="#icon-pin"></use></svg></button>
+            <button class="icon-button star-on" aria-label="Favorite"><svg class="icon fill"><use href="#icon-star"></use></svg></button>
+            <button class="icon-button" aria-label="Copy source"><svg class="icon"><use href="#icon-copy"></use></svg></button>
+            <button class="icon-button" aria-label="Speak source"><svg class="icon"><use href="#icon-speaker"></use></svg></button>
           </span>
         </div>
 
-        <div class="srcblock">
-          <span class="txt" id="srcText">The quick brown fox jumps over the lazy dog while the engineer reviews the design spec.</span>
-          <span class="spinner" id="srcSpin" style="display:none"></span>
-        </div>
-
-        <div id="cards">
-          <div class="ecard primary">
-            <div class="head"><span class="tag">Google</span>
-              <span class="cardactions">
-                <button class="iconbtn" title="复制译文"><svg viewBox="0 0 24 24"><rect x="9" y="9" width="11" height="11" rx="2"/><path d="M5 15V5a2 2 0 012-2h8"/></svg></button>
-                <button class="iconbtn" title="朗读译文"><svg viewBox="0 0 24 24"><path d="M11 5L6 9H3v6h3l5 4V5z"/><path d="M15.5 8.5a5 5 0 010 7"/></svg></button>
-              </span>
-              <span class="latency">128ms</span></div>
-            <div class="result">敏捷的棕色狐狸跳过那只懒狗，与此同时工程师正在评审设计规格。</div>
-          </div>
-
-          <div class="ecard">
-            <div class="head"><span class="tag">DeepL</span>
-              <span class="cardactions">
-                <button class="iconbtn" title="复制译文"><svg viewBox="0 0 24 24"><rect x="9" y="9" width="11" height="11" rx="2"/><path d="M5 15V5a2 2 0 012-2h8"/></svg></button>
-                <button class="iconbtn" title="朗读译文"><svg viewBox="0 0 24 24"><path d="M11 5L6 9H3v6h3l5 4V5z"/><path d="M15.5 8.5a5 5 0 010 7"/></svg></button>
-              </span>
-              <span class="latency">204ms</span></div>
-            <div class="result">敏捷的棕色狐狸跃过懒狗，而工程师则在审阅设计规范。</div>
-          </div>
-
-          <div class="ecard">
-            <div class="head"><span class="tag">OpenAI</span>
-              <span class="cardactions">
-                <button class="iconbtn" title="复制译文"><svg viewBox="0 0 24 24"><rect x="9" y="9" width="11" height="11" rx="2"/><path d="M5 15V5a2 2 0 012-2h8"/></svg></button>
-                <button class="iconbtn" title="朗读译文"><svg viewBox="0 0 24 24"><path d="M11 5L6 9H3v6h3l5 4V5z"/><path d="M15.5 8.5a5 5 0 010 7"/></svg></button>
-              </span>
-              <span class="latency">612ms</span></div>
-            <div class="result">那只敏捷的棕狐跳过了懒狗，与此同时，工程师正在审阅设计文档。</div>
+        <div class="source-block">
+          <div class="source-text" id="sourceText">The revised interaction should show one confident translation first, then let the user compare engines only when needed.</div>
+          <div class="source-meta">
+            <span>自动检测英文</span>
+            <span id="sourceState">76 个字符</span>
           </div>
         </div>
-        <div class="arrow"></div>
-      </div>
-      <div class="cap"><b>悬浮结果面板（核心）</b> · 即用即走，靠近光标弹出，失焦自动消失。原文区（灰）/ 多引擎对比（白卡）建立主次，主引擎左侧蓝条标识，hover 卡片显复制/朗读。试试右上「加载态 / 错误态」。</div>
-    </div>
 
-    <!-- ============ 2. Input Bar ============ -->
-    <div class="surface" data-surface="input">
-      <div class="inputbar">
-        <div class="row">
-          <span class="ic">💬</span>
-          <input value="how should we approach the redesign" autofocus>
-          <span class="langpill">自动 <span class="swap">⇄</span> 中</span>
-        </div>
-        <div class="foot">
-          <span class="hint"><kbd>↩</kbd> 翻译　<kbd>⎋</kbd> 关闭</span>
-          <button class="btn-accent">翻译</button>
-        </div>
-      </div>
-      <div class="cap"><b>输入翻译</b> · Spotlight 式命令条，⌥A 唤起。支持语言方向切换（⇄ 互换）、回车翻译、Esc 关闭，结果走悬浮面板。</div>
-    </div>
-
-    <!-- ============ 3. Popover ============ -->
-    <div class="surface" data-surface="popover">
-      <div class="popover">
-        <div class="arrow-top"></div>
-        <div class="mrow"><span class="mi">✦</span>划词翻译<span class="kbd">⌥D</span></div>
-        <div class="mrow"><span class="mi">📖</span>查词<span class="kbd">⌥E</span></div>
-        <div class="mrow"><span class="mi">⛶</span>截图翻译<span class="kbd">⌥S</span></div>
-        <div class="mrow"><span class="mi">⌨</span>输入翻译<span class="kbd">⌥A</span></div>
-        <div class="psep"></div>
-        <div class="plabel">最近</div>
-        <div class="precent">
-          <div class="r"><span class="lp">EN→中</span><span class="t">design spec review</span><span class="tm">2 分钟前</span></div>
-          <div class="r"><span class="lp">JA→中</span><span class="t">設計仕様の確認</span><span class="tm">1 小时前</span></div>
-          <div class="r"><span class="lp">EN→中</span><span class="t">use-and-dismiss</span><span class="tm">昨天</span></div>
-        </div>
-        <span class="link">查看全部历史 →</span>
-        <div class="psep"></div>
-        <div class="plabel">引擎</div>
-        <div class="eng-row">Google<span class="toggle on"></span></div>
-        <div class="eng-row">DeepL<span class="toggle on"></span></div>
-        <div class="eng-row">OpenAI<span class="toggle"></span></div>
-        <div class="psep"></div>
-        <div class="mfoot">
-          <button>设置…<span class="kbd">⌘,</span></button>
-          <button>退出<span class="kbd">⌘Q</span></button>
-        </div>
-      </div>
-      <div class="cap"><b>菜单栏 Popover</b> · 替换裸 NSMenu。四大动作 + 最近 3 条历史（点击再翻译）+ 引擎快捷开关，与设置实时同步。</div>
-    </div>
-
-    <!-- ============ 4. Settings ============ -->
-    <div class="surface" data-surface="settings">
-      <div class="win settings">
-        <div class="win-titlebar"><div class="lights"><i class="r"></i><i class="y"></i><i class="g"></i></div>
-          <span class="win-title">Parrot 设置</span></div>
-        <div class="body">
-          <div class="side">
-            <div class="srow sel"><span class="si">⚙</span>通用</div>
-            <div class="srow"><span class="si">🌐</span>引擎</div>
-            <div class="srow"><span class="si">🔑</span>密钥</div>
-            <div class="srow"><span class="si">⌘</span>快捷键</div>
-            <div class="srow"><span class="si">🧩</span>插件</div>
-            <div class="srow"><span class="si">ⓘ</span>关于</div>
+        <div class="primary-result" id="primaryResult">
+          <div class="engine-head">
+            <span class="tag">Apple 系统翻译</span>
+            <span class="latency">本地</span>
           </div>
-          <div class="content">
-            <h3 class="sec-title">通用</h3>
-            <div class="setrow"><span class="lbl">默认目标语言</span><span class="ctl">
-              <select class="sel-box"><option>中文</option><option>English</option><option>日本語</option></select></span></div>
-            <div class="setrow"><span class="lbl">开机时启动</span><span class="ctl"><span class="toggle on"></span></span></div>
-            <div class="setrow"><span class="lbl">悬浮窗失焦后自动隐藏</span><span class="ctl"><span class="toggle on"></span></span></div>
-            <div class="setrow"><span class="lbl">在菜单栏显示图标</span><span class="ctl"><span class="toggle on"></span></span></div>
-
-            <h3 class="sec-title mt">引擎优先级（拖拽排序）</h3>
-            <div class="setrow"><span class="lbl"><span class="handle">⠿</span> &nbsp;Google 翻译<small class="note" style="display:inline;margin-left:8px">免费 · 无需 Key</small></span><span class="ctl"><span class="dot ok"></span><span class="toggle on"></span></span></div>
-            <div class="setrow"><span class="lbl"><span class="handle">⠿</span> &nbsp;DeepL</span><span class="ctl"><span class="dot ok"></span><span class="toggle on"></span></span></div>
-            <div class="setrow"><span class="lbl"><span class="handle">⠿</span> &nbsp;OpenAI</span><span class="ctl"><span class="dot warn"></span><span class="toggle"></span></span></div>
-            <div class="callout">🔒 API Key 存储于 macOS 钥匙串，绝不写入 UserDefaults、历史库或日志。</div>
+          <p class="result-copy">修订后的交互应先展示一个可靠的译文，再让用户在需要时比较不同引擎。</p>
+          <div class="result-actions">
+            <button class="compare-toggle" id="compareToggle" aria-expanded="true">
+              <span class="chev">›</span><span>比较 3 个引擎</span>
+            </button>
+            <span>
+              <button class="icon-button" aria-label="Copy translation"><svg class="icon"><use href="#icon-copy"></use></svg></button>
+              <button class="icon-button" aria-label="Speak translation"><svg class="icon"><use href="#icon-speaker"></use></svg></button>
+            </span>
           </div>
         </div>
-      </div>
-      <div class="cap"><b>设置</b> · 从单一 grouped Form 升级为「侧栏分区 + 内容面板」。引擎支持拖拽定优先级，状态点指示密钥校验结果。</div>
-    </div>
 
-    <!-- ============ 5. History ============ -->
-    <div class="surface" data-surface="history">
-      <div class="win history">
-        <div class="win-titlebar"><div class="lights"><i class="r"></i><i class="y"></i><i class="g"></i></div>
-          <span class="win-title">历史与收藏</span></div>
-        <div class="body">
-          <div class="list">
-            <div class="searchbox">🔍 搜索原文或译文…</div>
-            <div class="seg"><button class="on">全部</button><button>收藏 ★</button></div>
-            <div class="hrows">
-              <div class="hrow sel"><span class="lp">EN→中</span><div class="mid"><div class="o">design spec review</div><div class="tm">2 分钟前 · Google</div></div><span class="star">★</span></div>
-              <div class="hrow"><span class="lp">JA→中</span><div class="mid"><div class="o">設計仕様の確認をお願いします</div><div class="tm">1 小时前 · DeepL</div></div></div>
-              <div class="hrow"><span class="lp">EN→中</span><div class="mid"><div class="o">use-and-dismiss interaction</div><div class="tm">昨天 · OpenAI</div></div><span class="star">★</span></div>
-              <div class="hrow"><span class="lp">FR→中</span><div class="mid"><div class="o">revue de la maquette</div><div class="tm">昨天 · Google</div></div></div>
-              <div class="hrow"><span class="lp">DE→中</span><div class="mid"><div class="o">Entwurfsspezifikation</div><div class="tm">3 天前 · DeepL</div></div></div>
+        <div class="permission-card" id="permissionCard">
+          <h3>需要辅助功能权限</h3>
+          <p>Parrot 需要读取当前选择的文本。打开系统设置后，允许 Parrot 控制此 Mac。</p>
+          <button class="button primary">打开系统设置</button>
+        </div>
+
+        <div class="compare-list" id="compareList">
+          <div class="engine-card">
+            <div class="engine-head"><span class="tag">Google</span><span class="latency">128ms</span></div>
+            <p>修订后的交互应先显示一个自信的译文，然后只在需要时让用户比较各引擎。</p>
+          </div>
+          <div class="engine-card">
+            <div class="engine-head"><span class="tag">DeepL</span><span class="latency">214ms</span></div>
+            <p>改版后的交互应优先呈现一条可靠译文，只有在需要时才展开多引擎对比。</p>
+          </div>
+          <div class="engine-card">
+            <div class="engine-head"><span class="tag">OpenAI</span><span class="latency">618ms</span></div>
+            <p>新版交互先给出默认答案，减少扫读压力，再把引擎差异收进可展开区域。</p>
+          </div>
+        </div>
+      </article>
+
+      <aside class="review-card">
+        <h2>UX 评审结论</h2>
+        <p>默认仍是失焦隐藏的临时浮层。用户点 Pin 后才进入常驻模式，面板留在原位并继续接收后续翻译结果。</p>
+        <ul class="review-list">
+          <li><span class="mark">1</span><span>主译文大一档展示，来源文本收敛在上方，符合“即用即走”。</span></li>
+          <li><span class="mark">2</span><span>多引擎结果默认折叠，保持上下文，不把罕用判断强加给用户。</span></li>
+          <li><span class="mark">3</span><span>Pin 是明确选择，不改变默认隐藏逻辑，也不把临时面板伪装成窗口。</span></li>
+        </ul>
+      </aside>
+    </section>
+
+    <section class="surface" data-surface="input">
+      <article class="inputbar" aria-label="Input translation bar">
+        <div class="input-main">
+          <span class="search-glyph"><svg class="icon"><use href="#icon-search"></use></svg></span>
+          <input value="summarize this paragraph in Chinese" aria-label="Input text">
+          <span class="lang-pill">自动 <button aria-label="Swap languages">⇄</button> 中</span>
+        </div>
+        <div class="suggestions">
+          <div class="suggestion active">翻译为中文并保留技术术语</div>
+          <div class="suggestion">仅解释短语含义</div>
+        </div>
+        <div class="input-footer">
+          <span class="kbd">↩</span><span class="hint-text">翻译</span>
+          <span class="kbd">Esc</span><span class="hint-text">关闭</span>
+          <button class="button primary">翻译</button>
+        </div>
+      </article>
+
+      <aside class="review-card">
+        <h2>输入面板优化</h2>
+        <p>参考 Spotlight 的单焦点模型：输入即主操作，语言方向和建议不抢焦点。底栏只保留提交和关闭两个高频键。</p>
+        <ul class="review-list">
+          <li><span class="mark">A</span><span>起始高度稳定，输入多行时向下增长。</span></li>
+          <li><span class="mark">B</span><span>建议项是渐进披露，不把设置项塞进输入框。</span></li>
+          <li><span class="mark">C</span><span>按钮文案不重复：全局只用“翻译”。</span></li>
+        </ul>
+      </aside>
+    </section>
+
+    <section class="surface" data-surface="menu">
+      <article class="popover" aria-label="Menu bar popover">
+        <div class="menu-row"><svg class="icon"><use href="#icon-crosshair"></use></svg><span>划词翻译</span><span class="shortcut">⌥D</span></div>
+        <div class="menu-row"><svg class="icon"><use href="#icon-text"></use></svg><span>查词</span><span class="shortcut">⌥E</span></div>
+        <div class="menu-row"><svg class="icon"><use href="#icon-crop"></use></svg><span>截图翻译</span><span class="shortcut">⌥S</span></div>
+        <div class="menu-row"><svg class="icon"><use href="#icon-keyboard"></use></svg><span>输入翻译</span><span class="shortcut">⌥A</span></div>
+        <div class="menu-sep"></div>
+        <div class="menu-label">最近</div>
+        <div class="recent-row"><div><strong>interaction should show one confident translation</strong><span>EN → 中, 2 分钟前</span></div><svg class="icon"><use href="#icon-chevron"></use></svg></div>
+        <div class="recent-row"><div><strong>設計仕様を確認してください</strong><span>JA → 中, 1 小时前</span></div><svg class="icon"><use href="#icon-chevron"></use></svg></div>
+        <div class="recent-row"><div><strong>use-and-dismiss workflow</strong><span>EN → 中, 昨天</span></div><svg class="icon"><use href="#icon-chevron"></use></svg></div>
+        <div class="menu-sep"></div>
+        <div class="menu-label">引擎</div>
+        <div class="switch-row"><span class="dot ok"></span><span>系统翻译</span><button class="switch on" aria-label="Toggle system translation"></button></div>
+        <div class="switch-row"><span class="dot ok"></span><span>Google</span><button class="switch on" aria-label="Toggle Google"></button></div>
+        <div class="switch-row"><span class="dot warn"></span><span>OpenAI</span><button class="switch" aria-label="Toggle OpenAI"></button></div>
+        <div class="menu-sep"></div>
+        <div class="menu-row"><svg class="icon"><use href="#icon-gear"></use></svg><span>设置</span><span class="shortcut">⌘,</span></div>
+        <div class="menu-row"><svg class="icon"><use href="#icon-power"></use></svg><span>退出 Parrot</span><span class="shortcut">⌘Q</span></div>
+      </article>
+
+      <aside class="review-card">
+        <h2>菜单栏优化</h2>
+        <p>从裸菜单改为小型控制中心：动作、最近记录、引擎状态各自成组。每行命中区稳定，避免误点。</p>
+        <ul class="review-list">
+          <li><span class="mark">1</span><span>四个主入口固定在顶部，肌肉记忆不受历史数量影响。</span></li>
+          <li><span class="mark">2</span><span>引擎状态用真实语义点，未配置只在相关行提示。</span></li>
+          <li><span class="mark">3</span><span>最近记录可以直接再翻译，减少进入历史窗口的频率。</span></li>
+        </ul>
+      </aside>
+    </section>
+
+    <section class="surface" data-surface="settings">
+      <article class="window settings-window" aria-label="Settings window">
+        <div class="titlebar">
+          <div class="traffic"><i></i><i></i><i></i></div>
+          <strong>Parrot 设置</strong>
+          <div class="toolbar"><button class="icon-button" aria-label="Search settings"><svg class="icon"><use href="#icon-search"></use></svg></button></div>
+        </div>
+        <div class="settings-body">
+          <nav class="sidebar" aria-label="Settings sections">
+            <div class="side-row active" data-pane-target="general"><svg class="icon"><use href="#icon-gear"></use></svg><span>通用</span></div>
+            <div class="side-row" data-pane-target="translate"><svg class="icon"><use href="#icon-text"></use></svg><span>翻译</span></div>
+            <div class="side-row" data-pane-target="keys"><svg class="icon"><use href="#icon-key"></use></svg><span>密钥</span></div>
+            <div class="side-row" data-pane-target="shortcuts"><svg class="icon"><use href="#icon-shortcut"></use></svg><span>快捷键</span></div>
+            <div class="side-row" data-pane-target="plugins"><svg class="icon"><use href="#icon-plugin"></use></svg><span>插件</span></div>
+          </nav>
+          <div class="settings-content">
+            <div class="settings-pane active" data-pane="general">
+              <h1 class="pane-title">通用</h1>
+              <div class="group">
+                <div class="setting-row"><span>默认目标语言</span><select class="select"><option>中文</option><option>English</option><option>日本語</option></select></div>
+                <div class="setting-row"><span>失焦后隐藏结果面板<small>默认 6 秒，移动鼠标到面板上时暂停。</small></span><button class="switch on" aria-label="Toggle auto hide"></button></div>
+                <div class="setting-row"><span>在菜单栏显示 Parrot</span><button class="switch on" aria-label="Toggle menu bar icon"></button></div>
+              </div>
+              <p class="inline-note">界面使用系统语义色与系统强调色，跟随 macOS 明暗模式和辅助功能设置。</p>
+            </div>
+            <div class="settings-pane" data-pane="translate">
+              <h1 class="pane-title">翻译</h1>
+              <div class="group">
+                <div class="setting-row"><span>系统翻译<small>离线优先，适合作为主结果。</small></span><span><span class="dot ok"></span> <button class="switch on" aria-label="Toggle system"></button></span></div>
+                <div class="setting-row"><span>Google<small>快速在线机翻，用于对比。</small></span><span><span class="dot ok"></span> <button class="switch on" aria-label="Toggle google"></button></span></div>
+                <div class="setting-row"><span>OpenAI<small>未配置密钥。</small></span><span><span class="dot warn"></span> <button class="switch" aria-label="Toggle openai"></button></span></div>
+              </div>
+            </div>
+            <div class="settings-pane" data-pane="keys">
+              <h1 class="pane-title">密钥</h1>
+              <div class="group">
+                <div class="setting-row"><span>DeepL API Key</span><input class="field" type="password" placeholder="输入新值以替换"></div>
+                <div class="setting-row"><span>OpenAI API Key</span><input class="field" type="password" placeholder="sk-..."></div>
+                <div class="setting-row"><span>Ollama Endpoint</span><input class="field" value="http://127.0.0.1:11434"></div>
+              </div>
+              <button class="button primary">保存到本地</button>
+            </div>
+            <div class="settings-pane" data-pane="shortcuts">
+              <h1 class="pane-title">快捷键</h1>
+              <div class="group">
+                <div class="setting-row"><span>划词翻译</span><span class="keycap">⌥D</span></div>
+                <div class="setting-row"><span>查词</span><span class="keycap">⌥E</span></div>
+                <div class="setting-row"><span>截图翻译</span><span class="keycap">⌥S</span></div>
+                <div class="setting-row"><span>输入翻译</span><span class="keycap">⌥A</span></div>
+              </div>
+            </div>
+            <div class="settings-pane" data-pane="plugins">
+              <h1 class="pane-title">插件</h1>
+              <div class="group">
+                <div class="setting-row"><span>OpenAI Compat<small>自定义兼容接口。</small></span><button class="switch on" aria-label="Toggle plugin"></button></div>
+                <div class="setting-row"><span>Echo Plugin<small>开发测试插件。</small></span><button class="switch" aria-label="Toggle echo plugin"></button></div>
+              </div>
+              <button class="button">打开插件目录</button>
             </div>
           </div>
-          <div class="detail">
-            <div class="srcblock" style="margin-bottom:8px"><span class="txt">design spec review</span></div>
-            <div class="ecard primary"><div class="head"><span class="tag">Google</span><span class="latency">128ms</span></div><div class="result">设计规格评审</div></div>
-            <div class="ecard"><div class="head"><span class="tag">DeepL</span><span class="latency">204ms</span></div><div class="result">设计规范审查</div></div>
-            <div style="display:flex;gap:8px;margin-top:12px">
-              <button class="btn-accent" style="margin:0">再翻译</button>
-              <button class="iconbtn" style="width:auto;padding:0 10px;background:var(--bg-content-2)">复制</button>
-              <button class="iconbtn" style="width:auto;padding:0 10px;background:var(--bg-content-2)">朗读</button>
-              <button class="iconbtn" style="width:auto;padding:0 10px;background:var(--bg-content-2);color:var(--danger)">删除</button>
+        </div>
+      </article>
+
+      <aside class="review-card">
+        <h2>设置窗口优化</h2>
+        <p>布局参考系统设置的侧栏加详情页。复杂引擎配置按“翻译、密钥、快捷键”拆开，让用户一次只处理一类决策。</p>
+        <ul class="review-list">
+          <li><span class="mark">1</span><span>高密度内容用分组表，不用多层卡片堆叠。</span></li>
+          <li><span class="mark">2</span><span>状态点表达真实配置状态，不作为装饰。</span></li>
+          <li><span class="mark">3</span><span>保存类按钮只在需要的页出现，减少全局噪声。</span></li>
+        </ul>
+      </aside>
+    </section>
+
+    <section class="surface" data-surface="history">
+      <article class="window history-window" aria-label="History window">
+        <div class="titlebar">
+          <div class="traffic"><i></i><i></i><i></i></div>
+          <strong>历史与收藏</strong>
+          <div class="toolbar"><button class="icon-button" aria-label="Delete"><svg class="icon"><use href="#icon-trash"></use></svg></button></div>
+        </div>
+        <div class="history-body">
+          <aside class="history-list">
+            <div class="search"><svg class="icon"><use href="#icon-search"></use></svg><span>搜索原文或译文</span></div>
+            <div class="segmented"><button class="active">全部</button><button>收藏</button></div>
+            <div class="history-rows">
+              <div class="history-row active" data-history="0"><div><strong>interaction should show one confident translation</strong><span>EN → 中, 系统翻译, 2 分钟前</span></div><span class="star">★</span></div>
+              <div class="history-row" data-history="1"><div><strong>設計仕様を確認してください</strong><span>JA → 中, DeepL, 1 小时前</span></div></div>
+              <div class="history-row" data-history="2"><div><strong>use-and-dismiss workflow</strong><span>EN → 中, Google, 昨天</span></div><span class="star">★</span></div>
+              <div class="history-row" data-history="3"><div><strong>revue de la maquette</strong><span>FR → 中, Google, 3 天前</span></div></div>
             </div>
+          </aside>
+          <section class="history-detail">
+            <div class="detail-toolbar">
+              <span class="lang-pill" id="historyLang">EN <button>⇄</button> 中</span>
+              <span class="spacer"></span>
+              <button class="icon-button star-on" aria-label="Favorite"><svg class="icon fill"><use href="#icon-star"></use></svg></button>
+              <button class="icon-button" aria-label="Copy"><svg class="icon"><use href="#icon-copy"></use></svg></button>
+              <button class="icon-button" aria-label="Speak"><svg class="icon"><use href="#icon-speaker"></use></svg></button>
+            </div>
+            <div class="detail-card">
+              <h3>原文</h3>
+              <p id="historySource">interaction should show one confident translation</p>
+            </div>
+            <div class="detail-card">
+              <h3 id="historyEngine">系统翻译</h3>
+              <p id="historyTranslation">交互应先展示一个可靠的译文。</p>
+            </div>
+            <button class="button primary">重新翻译</button>
+          </section>
+        </div>
+      </article>
+
+      <aside class="review-card">
+        <h2>历史窗口优化</h2>
+        <p>参考 Notes 和 Finder 的双栏信息架构。左侧负责检索，右侧负责阅读和二次操作，结果面板组件可复用。</p>
+        <ul class="review-list">
+          <li><span class="mark">1</span><span>列表行只显示识别所需信息，详情页才展示完整内容。</span></li>
+          <li><span class="mark">2</span><span>收藏、复制、朗读位置与结果面板一致，降低重新学习成本。</span></li>
+          <li><span class="mark">3</span><span>空态需要给出明确下一步：使用划词翻译后会自动出现在这里。</span></li>
+        </ul>
+      </aside>
+    </section>
+
+    <section class="surface" data-surface="ocr">
+      <article class="ocr-panel" aria-label="OCR line picker">
+        <div class="ocr-doc" aria-hidden="true">
+          <h2>Design review notes</h2>
+          <div class="line" style="width: 84%"></div>
+          <div class="line" style="width: 72%"></div>
+          <div class="line" style="width: 91%"></div>
+          <div class="line" style="width: 64%"></div>
+          <div class="line" style="width: 80%"></div>
+        </div>
+        <div class="ocr-dim"></div>
+        <div class="ocr-selection">
+          <span class="handle tl"></span><span class="handle tr"></span><span class="handle bl"></span><span class="handle br"></span>
+        </div>
+        <div class="ocr-size">342 × 130</div>
+        <div class="ocr-card">
+          <header>
+            <svg class="icon"><use href="#icon-crop"></use></svg>
+            <strong>识别到 4 行</strong>
+            <button id="selectAllOcr">取消全选</button>
+          </header>
+          <div class="ocr-lines">
+            <div class="ocr-line on"><span class="check">✓</span><span>The revised interaction should show one confident translation first.</span></div>
+            <div class="ocr-line on"><span class="check">✓</span><span>Compare engines only when the user asks for more detail.</span></div>
+            <div class="ocr-line on"><span class="check">✓</span><span>Keep authorization guidance in the same surface.</span></div>
+            <div class="ocr-line"><span class="check"></span><span>Internal draft, page 3.</span></div>
+          </div>
+          <div class="ocr-actions">
+            <button class="button">复制选中</button>
+            <button class="button primary">翻译选中</button>
           </div>
         </div>
-      </div>
-      <div class="cap"><b>历史 / 收藏（新增）</b> · 列表 + 详情双栏。搜索、全部/收藏分段、语言对标签；详情复用结果面板组件，支持再翻译/复制/朗读/删除。</div>
-    </div>
+      </article>
 
-    <!-- ============ 6. OCR ============ -->
-    <div class="surface" data-surface="ocr">
-      <div class="ocr">
-        <div class="sel">
-          <span class="h tl"></span><span class="h tr"></span><span class="h bl"></span><span class="h br"></span>
-        </div>
-        <div class="size">300 × 140</div>
-        <div class="card">
-          <div class="line"><span class="ck on">✓</span><span>Design Specification v2</span></div>
-          <div class="line"><span class="ck on">✓</span><span>Reviewed by the engineering team</span></div>
-          <div class="line"><span class="ck">　</span><span>Page 3 of 12 — Confidential</span></div>
-          <div class="bar"><button class="btn-accent" style="margin:0;width:100%">翻译选中（2 行）</button></div>
-        </div>
-      </div>
-      <div class="cap"><b>截图 OCR 取词（新增）</b> · ⌥S 框选 → 遮罩高亮 + 四角把手 + 实时尺寸 → Vision 识别后逐行可勾选 → 翻译选中走结果面板。</div>
-    </div>
-
-  </div>
+      <aside class="review-card">
+        <h2>OCR 优化</h2>
+        <p>框选本身交给系统截图交互，Parrot 只设计增量价值：识别结果选择器。多行 OCR 默认全选，用户可在翻译前剔除页码和页眉。</p>
+        <ul class="review-list">
+          <li><span class="mark">1</span><span>识别完成后不直接翻译全部，给用户一次轻量确认。</span></li>
+          <li><span class="mark">2</span><span>卡片跟随选区出现，保留空间归属感。</span></li>
+          <li><span class="mark">3</span><span>复制与翻译并列，满足 OCR 文本提取场景。</span></li>
+        </ul>
+      </aside>
+    </section>
+  </main>
 </div>
 
 <script>
-function toggleTheme(){
-  const r=document.documentElement;
-  const dark=r.getAttribute('data-theme')==='dark';
-  r.setAttribute('data-theme',dark?'light':'dark');
-  document.getElementById('themeTog').classList.toggle('on',!dark);
-}
-// surface switching
-document.querySelectorAll('.controls button[data-s]').forEach(b=>{
-  b.onclick=()=>{
-    document.querySelectorAll('.controls button[data-s]').forEach(x=>x.classList.remove('on'));
-    b.classList.add('on');
-    document.querySelectorAll('.surface').forEach(s=>s.classList.remove('show'));
-    document.querySelector(`.surface[data-surface="${b.dataset.s}"]`).classList.add('show');
-    resetState();
-  };
+const root = document.documentElement;
+const resultPanel = document.getElementById("resultPanel");
+const compareToggle = document.getElementById("compareToggle");
+const primaryResult = document.getElementById("primaryResult");
+const compareList = document.getElementById("compareList");
+const permissionCard = document.getElementById("permissionCard");
+const sourceState = document.getElementById("sourceState");
+const pinPanelButton = document.getElementById("pinPanelButton");
+const panelMode = document.getElementById("panelMode");
+
+document.querySelectorAll("[data-surface-target]").forEach((button) => {
+  button.addEventListener("click", () => {
+    document.querySelectorAll("[data-surface-target]").forEach((b) => b.classList.remove("active"));
+    button.classList.add("active");
+    document.querySelectorAll("[data-surface]").forEach((surface) => surface.classList.remove("active"));
+    document.querySelector(`[data-surface="${button.dataset.surfaceTarget}"]`).classList.add("active");
+  });
 });
-// menu bar parrot toggles popover
-document.getElementById('menuParrot').onclick=()=>{
-  document.querySelector('.controls button[data-s="popover"]').click();
-  document.getElementById('menuParrot').classList.add('active');
-};
-// state demos (loading / error) — applied to result panel
-function resetState(){
-  document.getElementById('srcSpin').style.display='none';
-  rebuildCards();
+
+compareToggle.addEventListener("click", () => {
+  const expanded = resultPanel.classList.toggle("expanded");
+  compareToggle.setAttribute("aria-expanded", String(expanded));
+});
+
+pinPanelButton.addEventListener("click", () => {
+  const pinned = resultPanel.classList.toggle("pinned");
+  pinPanelButton.classList.toggle("is-active", pinned);
+  pinPanelButton.setAttribute("aria-pressed", String(pinned));
+  pinPanelButton.setAttribute("aria-label", pinned ? "Unpin panel" : "Pin panel");
+  panelMode.textContent = pinned ? "常驻" : "失焦隐藏";
+});
+
+function setResultState(state) {
+  document.querySelector('[data-surface-target="result"]').click();
+  resultPanel.classList.add("expanded");
+  primaryResult.style.display = "";
+  compareList.style.display = "";
+  permissionCard.style.display = "none";
+  sourceState.textContent = "76 个字符";
+  sourceState.style.color = "";
+  compareList.innerHTML = `
+    <div class="engine-card">
+      <div class="engine-head"><span class="tag">Google</span><span class="latency">128ms</span></div>
+      <p>修订后的交互应先显示一个自信的译文，然后只在需要时让用户比较各引擎。</p>
+    </div>
+    <div class="engine-card">
+      <div class="engine-head"><span class="tag">DeepL</span><span class="latency">214ms</span></div>
+      <p>改版后的交互应优先呈现一条可靠译文，只有在需要时才展开多引擎对比。</p>
+    </div>
+    <div class="engine-card">
+      <div class="engine-head"><span class="tag">OpenAI</span><span class="latency">618ms</span></div>
+      <p>新版交互先给出默认答案，减少扫读压力，再把引擎差异收进可展开区域。</p>
+    </div>`;
+
+  if (state === "loading") {
+    sourceState.textContent = "正在翻译";
+    compareList.innerHTML = `
+      <div class="engine-card">
+        <div class="engine-head"><span class="tag">系统翻译</span><span class="latency">...</span></div>
+        <div class="skeleton-line" style="width: 94%"></div>
+        <div class="skeleton-line" style="width: 68%"></div>
+      </div>
+      <div class="engine-card">
+        <div class="engine-head"><span class="tag">Google</span><span class="latency">...</span></div>
+        <div class="skeleton-line" style="width: 86%"></div>
+        <div class="skeleton-line" style="width: 72%"></div>
+      </div>`;
+  }
+
+  if (state === "error") {
+    sourceState.textContent = "部分失败";
+    sourceState.style.color = "var(--warning)";
+    compareList.innerHTML = `
+      <div class="engine-card">
+        <div class="engine-head"><span class="tag">系统翻译</span><span class="latency">本地</span></div>
+        <p>修订后的交互应先展示一个可靠的译文，再按需比较引擎。</p>
+      </div>
+      <div class="engine-card error">
+        <div class="engine-head"><span class="tag">OpenAI</span><span class="latency">失败</span></div>
+        <p>鉴权失败。请检查 API Key。</p>
+      </div>
+      <div class="engine-card error">
+        <div class="engine-head"><span class="tag">DeepL</span><span class="latency">超时</span></div>
+        <p>请求超时。可先使用已返回的翻译结果。</p>
+      </div>`;
+  }
+
+  if (state === "permission") {
+    sourceState.textContent = "等待授权";
+    sourceState.style.color = "var(--warning)";
+    primaryResult.style.display = "none";
+    compareList.style.display = "none";
+    permissionCard.style.display = "block";
+  }
 }
-const STATE={
-  loading:`<div class="ecard"><div class="head"><span class="tag">Google</span><span class="latency">…</span></div>
-      <div class="sk" style="width:90%"></div><div class="sk" style="width:70%;margin-top:7px"></div></div>
-    <div class="ecard"><div class="head"><span class="tag">DeepL</span><span class="latency">…</span></div>
-      <div class="sk" style="width:80%"></div><div class="sk" style="width:60%;margin-top:7px"></div></div>`,
-  error:`<div class="ecard primary"><div class="head"><span class="tag">Google</span><span class="latency">128ms</span></div>
-      <div class="result">敏捷的棕色狐狸跳过那只懒狗。</div></div>
-    <div class="ecard error"><div class="head"><span class="tag">DeepL</span><span class="latency">超时</span></div>
-      <div class="result">⚠︎ 请求超时，请稍后重试</div></div>
-    <div class="ecard error"><div class="head"><span class="tag">OpenAI</span></div>
-      <div class="result">⚠︎ 鉴权失败，请检查 API Key</div></div>`
-};
-let normalCards='';
-function rebuildCards(){ if(normalCards) document.getElementById('cards').innerHTML=normalCards; }
-window.addEventListener('DOMContentLoaded',()=>{ normalCards=document.getElementById('cards').innerHTML; });
-document.querySelectorAll('.controls button[data-state]').forEach(b=>{
-  b.onclick=()=>{
-    document.querySelector('.controls button[data-s="panel"]').click();
-    const st=b.dataset.state;
-    document.getElementById('srcSpin').style.display = st==='loading'?'block':'none';
-    document.getElementById('cards').innerHTML=STATE[st];
-  };
+
+document.querySelectorAll("[data-result-state]").forEach((button) => {
+  button.addEventListener("click", () => setResultState(button.dataset.resultState));
+});
+
+document.getElementById("themeButton").addEventListener("click", (event) => {
+  const current = root.getAttribute("data-theme");
+  const next = current === "dark" ? "system" : "dark";
+  root.setAttribute("data-theme", next);
+  event.currentTarget.textContent = next === "dark" ? "系统" : "深色";
+});
+
+document.querySelectorAll(".switch").forEach((button) => {
+  button.addEventListener("click", () => button.classList.toggle("on"));
+});
+
+document.querySelectorAll("[data-pane-target]").forEach((row) => {
+  row.addEventListener("click", () => {
+    document.querySelectorAll("[data-pane-target]").forEach((r) => r.classList.remove("active"));
+    row.classList.add("active");
+    document.querySelectorAll("[data-pane]").forEach((pane) => pane.classList.remove("active"));
+    document.querySelector(`[data-pane="${row.dataset.paneTarget}"]`).classList.add("active");
+  });
+});
+
+const historyData = [
+  ["EN ⇄ 中", "interaction should show one confident translation", "系统翻译", "交互应先展示一个可靠的译文。"],
+  ["JA ⇄ 中", "設計仕様を確認してください", "DeepL", "请确认设计规格。"],
+  ["EN ⇄ 中", "use-and-dismiss workflow", "Google", "即用即走的工作流。"],
+  ["FR ⇄ 中", "revue de la maquette", "Google", "视觉稿评审。"]
+];
+
+document.querySelectorAll("[data-history]").forEach((row) => {
+  row.addEventListener("click", () => {
+    document.querySelectorAll("[data-history]").forEach((r) => r.classList.remove("active"));
+    row.classList.add("active");
+    const data = historyData[Number(row.dataset.history)];
+    document.getElementById("historyLang").firstChild.nodeValue = data[0].split(" ⇄ ")[0] + " ";
+    document.getElementById("historySource").textContent = data[1];
+    document.getElementById("historyEngine").textContent = data[2];
+    document.getElementById("historyTranslation").textContent = data[3];
+  });
+});
+
+document.querySelectorAll(".ocr-line").forEach((line) => {
+  line.addEventListener("click", () => {
+    line.classList.toggle("on");
+    const check = line.querySelector(".check");
+    check.textContent = line.classList.contains("on") ? "✓" : "";
+  });
+});
+
+document.getElementById("selectAllOcr").addEventListener("click", (event) => {
+  const lines = [...document.querySelectorAll(".ocr-line")];
+  const allOn = lines.every((line) => line.classList.contains("on"));
+  lines.forEach((line) => {
+    line.classList.toggle("on", !allOn);
+    line.querySelector(".check").textContent = !allOn ? "✓" : "";
+  });
+  event.currentTarget.textContent = allOn ? "全选" : "取消全选";
 });
 </script>
 </body>

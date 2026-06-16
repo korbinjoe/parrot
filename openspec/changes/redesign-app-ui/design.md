@@ -100,7 +100,7 @@ Tokens（颜色/字体/间距/圆角）
 宽 **380**，高自适应（上限 ~460 后内滚）。`.regularMaterial` 底 + `shadow-panel` + `radius-window`。无标题栏、无红绿灯（即用即走）。底部尖角箭头指向触发光标（CSS 三角形演示；SwiftUI 用自定义 Shape 或省略）。
 
 结构（从上到下）：
-1. **顶部细栏**（高 28）：左 `LangPill`（检测语言 → 目标，如 `EN ⇄ 中`），右侧 IconButton 组（收藏★ / 复制原文 / 朗读原文）。
+1. **顶部细栏**（高 28）：左 `LangPill`（检测语言 → 目标，如 `EN ⇄ 中`），右侧 IconButton 组（Pin 常驻 / 收藏★ / 复制原文 / 朗读原文）。
 2. **SourceBlock**：`--bg-content-2` 底，原文 body 字阶、`--label`；翻译中右上角小号 ProgressView。
 3. **分隔**：8px 间距，无可见线（靠背景差）。
 4. **EngineCard 区**：多引擎纵向堆叠，每卡：
@@ -113,6 +113,7 @@ Tokens（颜色/字体/间距/圆角）
 交互态：
 - 入场：opacity 0→1 + translateY 8px→0，**180ms ease-out**。
 - 退场（失焦自动隐藏）：opacity 1→0 + translateY 0→4px，**120ms ease-in**。
+- 常驻：默认关闭。点击 Pin 后，面板不再因失焦隐藏，并保持当前位置；再次点击 Pin 后恢复默认失焦隐藏。
 - 异步引擎返回：新卡片 fade-in 120ms；面板高度变化由 SwiftUI 自适应（不手动补间高度，避免抖动）。
 - IconButton hover：圆底 `--bg-content-2` 80ms。
 
@@ -175,7 +176,8 @@ Tokens（颜色/字体/间距/圆角）
 | 触发 | 动效 | 时长 / 缓动 |
 |------|------|------|
 | 浮窗出现 | opacity 0→1 + Y 8→0 | 180ms / ease-out |
-| 浮窗失焦隐藏 | opacity 1→0 + Y 0→4 | 120ms / ease-in |
+| 浮窗失焦隐藏 | 未 Pin 时 opacity 1→0 + Y 0→4 | 120ms / ease-in |
+| Pin 常驻切换 | pin 图标填充/取消填充 + 状态文案切换 | 120ms / ease |
 | 引擎结果到达 | 卡片 fade-in | 120ms / ease-out |
 | IconButton hover | 圆底淡入 | 80ms / ease |
 | 行 hover（菜单/历史） | 背景 `--accent-soft` | 80ms |

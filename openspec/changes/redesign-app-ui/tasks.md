@@ -21,6 +21,7 @@
 - [x] [实现] 错误卡：danger 描边 + 文案映射 `ProviderError`（重试按钮待引擎单发能力，暂留延迟位「失败」标识）
 - [x] [实现] 加载态骨架屏（`Skeleton` shimmer），翻译中原文区右上小 ProgressView
 - [x] [实现] FloatingPanel 改 `.regularMaterial` 底；入场 0.18s 淡入（按 Decision 4 只做 opacity，不补间高度）
+- [x] [实现] Pin 常驻按钮：默认失焦隐藏；Pin 后跳过失焦自动隐藏并保持当前位置
 - [ ] [实现] 面板底部指向光标的箭头 Shape（可选；不影响验收）
 - [ ] [评审] 对照 `mockups` 截图做像素/交互验收（明暗双模式，需 GUI 会话目检）
 
