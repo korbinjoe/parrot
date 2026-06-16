@@ -43,8 +43,9 @@ struct MenuBarPopoverView: View {
 
             sectionLabel("引擎")
             engineToggle("Google", isOn: $settings.googleEnabled, hasKey: true)
-            engineToggle("DeepL", isOn: $settings.deepLEnabled, hasKey: settings.hasDeepLKey)
-            engineToggle("OpenAI", isOn: $settings.openAIEnabled, hasKey: settings.hasOpenAIKey)
+            engineToggle("DeepL", isOn: $settings.deepLEnabled, hasKey: settings.hasDeepLKey, onConfigure: onSettings)
+            engineToggle("OpenAI", isOn: $settings.openAIEnabled, hasKey: settings.hasOpenAIKey, onConfigure: onSettings)
+            plainRow("管理引擎与密钥", icon: "slider.horizontal.3", action: onSettings)
 
             sectionDivider
 
@@ -90,13 +91,16 @@ struct MenuBarPopoverView: View {
         }
     }
 
-    private func engineToggle(_ name: String, isOn: Binding<Bool>, hasKey: Bool) -> some View {
+    private func engineToggle(_ name: String, isOn: Binding<Bool>, hasKey: Bool, onConfigure: (() -> Void)? = nil) -> some View {
         HStack(spacing: Theme.Spacing.s8) {
             Text(name).font(Theme.Font.body).foregroundStyle(Theme.Palette.label)
-            if !hasKey {
-                Text("未配置 Key").font(Theme.Font.caption).foregroundStyle(Theme.Palette.label3)
-            }
             Spacer(minLength: 0)
+            if !hasKey, let onConfigure {
+                Button("配置") { onConfigure() }
+                    .font(Theme.Font.caption)
+                    .buttonStyle(.borderless)
+                    .foregroundStyle(Theme.Palette.accent)
+            }
             Toggle("", isOn: isOn).labelsHidden().toggleStyle(.switch).controlSize(.mini)
                 .disabled(!hasKey)
                 .onChange(of: isOn.wrappedValue) { _ in state.applySettings() }

@@ -89,6 +89,13 @@ struct SettingsView: View {
     @State private var validateNote: String = ""
     @State private var savedNote: String = ""
     @State private var engineOrderDraft: [String] = []
+    @State private var showMachineEngines = false
+    @State private var showLLMEngines = false
+    @State private var showMoreEngines = false
+    @State private var showEngineOrder = false
+    @State private var showMachineKeys = false
+    @State private var showLLMKeys = false
+    @State private var showAdvancedKeys = false
 
     private let languages: [(String, String)] = [
         ("zh", "中文"), ("en", "English"), ("ja", "日本語"), ("ko", "한국어"),
@@ -191,9 +198,7 @@ struct SettingsView: View {
     private var enginesPane: some View {
         VStack(alignment: .leading, spacing: 0) {
             sectionTitle("翻译引擎")
-            Text("完整对照见 docs/bob-service-matrix.md")
-                .font(Theme.Font.caption).foregroundStyle(Theme.Palette.label3)
-                .padding(.bottom, Theme.Spacing.s8)
+            subsectionTitle("常用")
             engineRow("Google 翻译", note: "免费 · 无需 Key",
                       status: settings.googleEnabled ? .ok : .off,
                       isOn: $settings.googleEnabled)
@@ -203,67 +208,75 @@ struct SettingsView: View {
             engineRow("OpenAI", note: settings.hasOpenAIKey ? nil : "未配置 Key",
                       status: status(enabled: settings.openAIEnabled, hasKey: settings.hasOpenAIKey),
                       isOn: $settings.openAIEnabled)
-            engineRow("腾讯翻译君", note: settings.hasTencentCredentials ? nil : "SecretId:SecretKey",
-                      status: status(enabled: settings.tencentEnabled, hasKey: settings.hasTencentCredentials),
-                      isOn: $settings.tencentEnabled)
-            engineRow("百度翻译", note: settings.hasBaiduCredentials ? nil : "AppId:Secret",
-                      status: status(enabled: settings.baiduEnabled, hasKey: settings.hasBaiduCredentials),
-                      isOn: $settings.baiduEnabled)
-            engineRow("有道翻译", note: settings.hasYoudaoCredentials ? nil : "AppKey:Secret",
-                      status: status(enabled: settings.youdaoEnabled, hasKey: settings.hasYoudaoCredentials),
-                      isOn: $settings.youdaoEnabled)
-            engineRow("彩云小译", note: settings.hasCaiyunToken ? nil : "Token",
-                      status: status(enabled: settings.caiyunEnabled, hasKey: settings.hasCaiyunToken),
-                      isOn: $settings.caiyunEnabled)
-            engineRow("Microsoft 翻译", note: settings.hasMicrosoftKey ? nil : "订阅 Key",
-                      status: status(enabled: settings.microsoftEnabled, hasKey: settings.hasMicrosoftKey),
-                      isOn: $settings.microsoftEnabled)
             if AppleTranslationEngine.isSupported {
                 engineRow("系统翻译", note: "macOS 15+ · 离线",
                           status: settings.appleEnabled ? .ok : .off,
                           isOn: $settings.appleEnabled)
             }
-            sectionTitle("LLM 引擎").padding(.top, Theme.Spacing.s12)
-            llmEngineRow("OpenCode Go", hasKey: settings.hasOpenCodeKey, isOn: $settings.openCodeEnabled)
-            llmEngineRow("DeepSeek", hasKey: settings.hasDeepSeekKey, isOn: $settings.deepSeekEnabled)
-            llmEngineRow("Gemini", hasKey: settings.hasGeminiKey, isOn: $settings.geminiEnabled)
-            llmEngineRow("Groq", hasKey: settings.hasGroqKey, isOn: $settings.groqEnabled)
-            llmEngineRow("Ollama", hasKey: true, isOn: $settings.ollamaEnabled)
-            llmEngineRow("通义千问", hasKey: settings.hasQwenKey, isOn: $settings.qwenEnabled)
-            llmEngineRow("豆包", hasKey: settings.hasDoubaoKey, isOn: $settings.doubaoEnabled)
-            llmEngineRow("Kimi", hasKey: settings.hasKimiKey, isOn: $settings.kimiEnabled)
-            llmEngineRow("智谱 GLM", hasKey: settings.hasZhipuKey, isOn: $settings.zhipuEnabled)
-            llmEngineRow("硅基流动", hasKey: settings.hasSiliconFlowKey, isOn: $settings.siliconFlowEnabled)
-            sectionTitle("P2 引擎").padding(.top, Theme.Spacing.s12)
-            llmEngineRow("文心一言", hasKey: settings.ernieKey()?.isEmpty == false, isOn: $settings.ernieEnabled)
-            llmEngineRow("混元", hasKey: settings.hunyuanKey()?.isEmpty == false, isOn: $settings.hunyuanEnabled)
-            llmEngineRow("零一万物", hasKey: settings.yiKey()?.isEmpty == false, isOn: $settings.yiEnabled)
-            llmEngineRow("Azure OpenAI", hasKey: settings.azureOpenAIKey()?.isEmpty == false, isOn: $settings.azureOpenAIEnabled)
-            sectionTitle("P3 引擎").padding(.top, Theme.Spacing.s12)
-            engineRow("火山翻译", note: nil, status: settings.volcengineEnabled ? .ok : .off, isOn: $settings.volcengineEnabled)
-            engineRow("阿里翻译", note: nil, status: settings.aliyunEnabled ? .ok : .off, isOn: $settings.aliyunEnabled)
-            engineRow("小牛翻译", note: nil, status: settings.niutransEnabled ? .ok : .off, isOn: $settings.niutransEnabled)
-            engineRow("Amazon 翻译", note: nil, status: settings.amazonEnabled ? .ok : .off, isOn: $settings.amazonEnabled)
-            sectionTitle("引擎排序").padding(.top, Theme.Spacing.s12)
-            Text("拖拽调整翻译结果面板中的引擎顺序（仅影响已注册引擎）")
-                .font(Theme.Font.caption).foregroundStyle(Theme.Palette.label3)
-                .padding(.bottom, Theme.Spacing.s8)
-            VStack(alignment: .leading, spacing: 4) {
-                ForEach(Array(engineOrderDraft.enumerated()), id: \.element) { index, id in
-                    HStack(spacing: Theme.Spacing.s8) {
-                        Text(engineDisplayName(id))
-                            .font(Theme.Font.body)
-                        Spacer()
-                        Button("↑") { moveEngine(from: index, to: index - 1) }
-                            .disabled(index == 0)
-                        Button("↓") { moveEngine(from: index, to: index + 1) }
-                            .disabled(index == engineOrderDraft.count - 1)
-                    }
-                    .frame(minHeight: 24)
-                    Divider()
-                }
+
+            disclosureSection("国内与云厂商", isExpanded: $showMachineEngines) {
+                engineRow("腾讯翻译君", note: settings.hasTencentCredentials ? nil : "SecretId:SecretKey",
+                          status: status(enabled: settings.tencentEnabled, hasKey: settings.hasTencentCredentials),
+                          isOn: $settings.tencentEnabled)
+                engineRow("百度翻译", note: settings.hasBaiduCredentials ? nil : "AppId:Secret",
+                          status: status(enabled: settings.baiduEnabled, hasKey: settings.hasBaiduCredentials),
+                          isOn: $settings.baiduEnabled)
+                engineRow("有道翻译", note: settings.hasYoudaoCredentials ? nil : "AppKey:Secret",
+                          status: status(enabled: settings.youdaoEnabled, hasKey: settings.hasYoudaoCredentials),
+                          isOn: $settings.youdaoEnabled)
+                engineRow("彩云小译", note: settings.hasCaiyunToken ? nil : "Token",
+                          status: status(enabled: settings.caiyunEnabled, hasKey: settings.hasCaiyunToken),
+                          isOn: $settings.caiyunEnabled)
+                engineRow("Microsoft 翻译", note: settings.hasMicrosoftKey ? nil : "订阅 Key",
+                          status: status(enabled: settings.microsoftEnabled, hasKey: settings.hasMicrosoftKey),
+                          isOn: $settings.microsoftEnabled)
             }
-            .frame(maxHeight: 200)
+
+            disclosureSection("LLM 服务", isExpanded: $showLLMEngines) {
+                llmEngineRow("OpenCode Go", hasKey: settings.hasOpenCodeKey, isOn: $settings.openCodeEnabled)
+                llmEngineRow("DeepSeek", hasKey: settings.hasDeepSeekKey, isOn: $settings.deepSeekEnabled)
+                llmEngineRow("Gemini", hasKey: settings.hasGeminiKey, isOn: $settings.geminiEnabled)
+                llmEngineRow("Groq", hasKey: settings.hasGroqKey, isOn: $settings.groqEnabled)
+                llmEngineRow("Ollama", hasKey: true, isOn: $settings.ollamaEnabled)
+                llmEngineRow("通义千问", hasKey: settings.hasQwenKey, isOn: $settings.qwenEnabled)
+                llmEngineRow("豆包", hasKey: settings.hasDoubaoKey, isOn: $settings.doubaoEnabled)
+                llmEngineRow("Kimi", hasKey: settings.hasKimiKey, isOn: $settings.kimiEnabled)
+                llmEngineRow("智谱 GLM", hasKey: settings.hasZhipuKey, isOn: $settings.zhipuEnabled)
+                llmEngineRow("硅基流动", hasKey: settings.hasSiliconFlowKey, isOn: $settings.siliconFlowEnabled)
+            }
+
+            disclosureSection("更多服务", isExpanded: $showMoreEngines) {
+                llmEngineRow("文心一言", hasKey: settings.ernieKey()?.isEmpty == false, isOn: $settings.ernieEnabled)
+                llmEngineRow("混元", hasKey: settings.hunyuanKey()?.isEmpty == false, isOn: $settings.hunyuanEnabled)
+                llmEngineRow("零一万物", hasKey: settings.yiKey()?.isEmpty == false, isOn: $settings.yiEnabled)
+                llmEngineRow("Azure OpenAI", hasKey: settings.azureOpenAIKey()?.isEmpty == false, isOn: $settings.azureOpenAIEnabled)
+                engineRow("火山翻译", note: nil, status: settings.volcengineEnabled ? .ok : .off, isOn: $settings.volcengineEnabled)
+                engineRow("阿里翻译", note: nil, status: settings.aliyunEnabled ? .ok : .off, isOn: $settings.aliyunEnabled)
+                engineRow("小牛翻译", note: nil, status: settings.niutransEnabled ? .ok : .off, isOn: $settings.niutransEnabled)
+                engineRow("Amazon 翻译", note: nil, status: settings.amazonEnabled ? .ok : .off, isOn: $settings.amazonEnabled)
+            }
+
+            disclosureSection("结果顺序", isExpanded: $showEngineOrder) {
+                Text("用箭头调整翻译结果面板中的引擎顺序（仅影响已注册引擎）")
+                    .font(Theme.Font.caption).foregroundStyle(Theme.Palette.label3)
+                    .padding(.bottom, Theme.Spacing.s8)
+                VStack(alignment: .leading, spacing: 4) {
+                    ForEach(Array(engineOrderDraft.enumerated()), id: \.element) { index, id in
+                        HStack(spacing: Theme.Spacing.s8) {
+                            Text(engineDisplayName(id))
+                                .font(Theme.Font.body)
+                            Spacer()
+                            Button("↑") { moveEngine(from: index, to: index - 1) }
+                                .disabled(index == 0)
+                            Button("↓") { moveEngine(from: index, to: index + 1) }
+                                .disabled(index == engineOrderDraft.count - 1)
+                        }
+                        .frame(minHeight: 24)
+                        Divider()
+                    }
+                }
+                .frame(maxHeight: 200)
+            }
         }
     }
 
@@ -352,29 +365,39 @@ struct SettingsView: View {
             Text("复合密钥格式：腾讯/百度/有道为 `Id:Secret`")
                 .font(Theme.Font.caption).foregroundStyle(Theme.Palette.label3)
                 .padding(.bottom, Theme.Spacing.s8)
+            subsectionTitle("常用")
             secretRow("DeepL", $deepLKey, placeholder: "免费版以 :fx 结尾", account: AppSettings.deepLAccount, env: "DEEPL_API_KEY")
             secretRow("OpenAI", $openAIKey, placeholder: "sk-...", account: AppSettings.openAIAccount, env: "OPENAI_API_KEY")
             secretRow("OpenCode Go", $openCodeKey, placeholder: "Go API Key", account: AppSettings.openCodeAccount, env: "OPENCODE_API_KEY")
-            secretRow("腾讯翻译君", $tencentCreds, placeholder: "SecretId:SecretKey", account: AppSettings.tencentAccount, env: "TENCENT_CREDENTIALS")
-            secretRow("百度翻译", $baiduCreds, placeholder: "AppId:Secret", account: AppSettings.baiduAccount, env: "BAIDU_CREDENTIALS")
-            secretRow("有道翻译", $youdaoCreds, placeholder: "AppKey:AppSecret", account: AppSettings.youdaoAccount, env: "YOUDAO_CREDENTIALS")
-            secretRow("彩云小译", $caiyunToken, placeholder: "Token", account: AppSettings.caiyunAccount, env: "CAIYUN_TOKEN")
-            secretRow("Microsoft", $microsoftKey, placeholder: "订阅 Key", account: AppSettings.microsoftAccount, env: "MICROSOFT_TRANSLATOR_KEY")
-            secretRow("DeepSeek", $deepSeekKey, placeholder: "API Key", account: AppSettings.deepSeekAccount, env: "DEEPSEEK_API_KEY")
-            secretRow("Gemini", $geminiKey, placeholder: "API Key", account: AppSettings.geminiAccount, env: "GEMINI_API_KEY")
-            secretRow("Groq", $groqKey, placeholder: "API Key", account: AppSettings.groqAccount, env: "GROQ_API_KEY")
-            secretRow("通义千问", $qwenKey, placeholder: "DashScope Key", account: AppSettings.qwenAccount, env: "DASHSCOPE_API_KEY")
-            secretRow("豆包", $doubaoKey, placeholder: "方舟 API Key", account: AppSettings.doubaoAccount, env: "DOUBAO_API_KEY")
-            secretRow("Kimi", $kimiKey, placeholder: "Moonshot Key", account: AppSettings.kimiAccount, env: "MOONSHOT_API_KEY")
-            secretRow("智谱 GLM", $zhipuKey, placeholder: "API Key", account: AppSettings.zhipuAccount, env: "ZHIPU_API_KEY")
-            secretRow("硅基流动", $siliconFlowKey, placeholder: "API Key", account: AppSettings.siliconFlowAccount, env: "SILICONFLOW_API_KEY")
-            sectionTitle("LLM 高级").padding(.top, Theme.Spacing.s12)
-            settingRow("OpenAI Model") { TextField("gpt-4o-mini", text: $openAIModelField).frame(width: 230) }
-            settingRow("OpenAI Endpoint") { TextField("可选", text: $openAIEndpointField).frame(width: 230) }
-            settingRow("OpenCode Go Model") { TextField("glm-5.1", text: $openCodeModelField).frame(width: 230) }
-            settingRow("Ollama Model") { TextField("llama3.2", text: $ollamaModelField).frame(width: 230) }
-            settingRow("Ollama Endpoint") { TextField("http://127.0.0.1:11434/v1/chat/completions", text: $ollamaEndpointField).frame(width: 230) }
-            settingRow("Azure Endpoint") { TextField("Azure deployment URL", text: $azureEndpointField).frame(width: 230) }
+
+            disclosureSection("国内与云厂商", isExpanded: $showMachineKeys) {
+                secretRow("腾讯翻译君", $tencentCreds, placeholder: "SecretId:SecretKey", account: AppSettings.tencentAccount, env: "TENCENT_CREDENTIALS")
+                secretRow("百度翻译", $baiduCreds, placeholder: "AppId:Secret", account: AppSettings.baiduAccount, env: "BAIDU_CREDENTIALS")
+                secretRow("有道翻译", $youdaoCreds, placeholder: "AppKey:AppSecret", account: AppSettings.youdaoAccount, env: "YOUDAO_CREDENTIALS")
+                secretRow("彩云小译", $caiyunToken, placeholder: "Token", account: AppSettings.caiyunAccount, env: "CAIYUN_TOKEN")
+                secretRow("Microsoft", $microsoftKey, placeholder: "订阅 Key", account: AppSettings.microsoftAccount, env: "MICROSOFT_TRANSLATOR_KEY")
+            }
+
+            disclosureSection("LLM Keys", isExpanded: $showLLMKeys) {
+                secretRow("DeepSeek", $deepSeekKey, placeholder: "API Key", account: AppSettings.deepSeekAccount, env: "DEEPSEEK_API_KEY")
+                secretRow("Gemini", $geminiKey, placeholder: "API Key", account: AppSettings.geminiAccount, env: "GEMINI_API_KEY")
+                secretRow("Groq", $groqKey, placeholder: "API Key", account: AppSettings.groqAccount, env: "GROQ_API_KEY")
+                secretRow("通义千问", $qwenKey, placeholder: "DashScope Key", account: AppSettings.qwenAccount, env: "DASHSCOPE_API_KEY")
+                secretRow("豆包", $doubaoKey, placeholder: "方舟 API Key", account: AppSettings.doubaoAccount, env: "DOUBAO_API_KEY")
+                secretRow("Kimi", $kimiKey, placeholder: "Moonshot Key", account: AppSettings.kimiAccount, env: "MOONSHOT_API_KEY")
+                secretRow("智谱 GLM", $zhipuKey, placeholder: "API Key", account: AppSettings.zhipuAccount, env: "ZHIPU_API_KEY")
+                secretRow("硅基流动", $siliconFlowKey, placeholder: "API Key", account: AppSettings.siliconFlowAccount, env: "SILICONFLOW_API_KEY")
+            }
+
+            disclosureSection("高级模型与端点", isExpanded: $showAdvancedKeys) {
+                settingRow("OpenAI Model") { TextField("gpt-4o-mini", text: $openAIModelField).frame(width: 230) }
+                settingRow("OpenAI Endpoint") { TextField("可选", text: $openAIEndpointField).frame(width: 230) }
+                settingRow("OpenCode Go Model") { TextField("glm-5.1", text: $openCodeModelField).frame(width: 230) }
+                settingRow("Ollama Model") { TextField("llama3.2", text: $ollamaModelField).frame(width: 230) }
+                settingRow("Ollama Endpoint") { TextField("http://127.0.0.1:11434/v1/chat/completions", text: $ollamaEndpointField).frame(width: 230) }
+                settingRow("Azure Endpoint") { TextField("Azure deployment URL", text: $azureEndpointField).frame(width: 230) }
+            }
+
             VStack(alignment: .leading, spacing: Theme.Spacing.s8) {
                 HStack(spacing: Theme.Spacing.s12) {
                     Button("保存到本地") { saveKeys() }
@@ -403,21 +426,26 @@ struct SettingsView: View {
         let status = settings.secretStatus(account: account, env: env)
         let fromEnv = status.hasPrefix("环境变量")
         let configured = status != "未配置"
-        return settingRow(label) {
+        return VStack(alignment: .leading, spacing: Theme.Spacing.s8) {
             HStack(spacing: Theme.Spacing.s8) {
+                Text(label).font(Theme.Font.body).foregroundStyle(Theme.Palette.label)
+                Spacer(minLength: 0)
                 Text(status)
                     .font(Theme.Font.caption)
                     .foregroundStyle(configured ? Theme.Palette.label2 : Theme.Palette.label3)
                     .lineLimit(1)
-                    .frame(width: 98, alignment: .trailing)
+            }
+            HStack(spacing: Theme.Spacing.s8) {
                 SecureField(fromEnv ? "环境变量优先" : (configured ? "输入新值以替换" : placeholder), text: text)
-                    .frame(width: 180)
+                    .frame(maxWidth: .infinity)
                     .disabled(fromEnv)
                 Button("清除") { clearSecret(account, text) }
                     .controlSize(.small)
                     .disabled(!settings.hasStoredSecret(account: account))
             }
         }
+        .padding(.vertical, 7)
+        .overlay(Divider(), alignment: .bottom)
     }
 
     private var shortcutsPane: some View {
@@ -469,6 +497,31 @@ struct SettingsView: View {
         Text(t).font(.system(size: 15, weight: .semibold))
             .foregroundStyle(Theme.Palette.label)
             .padding(.bottom, Theme.Spacing.s12)
+    }
+
+    private func subsectionTitle(_ t: String) -> some View {
+        Text(t)
+            .font(.system(size: 12, weight: .semibold))
+            .foregroundStyle(Theme.Palette.label2)
+            .padding(.bottom, Theme.Spacing.s4)
+    }
+
+    private func disclosureSection<Content: View>(
+        _ title: String,
+        isExpanded: Binding<Bool>,
+        @ViewBuilder content: @escaping () -> Content
+    ) -> some View {
+        DisclosureGroup(isExpanded: isExpanded) {
+            VStack(alignment: .leading, spacing: 0) {
+                content()
+            }
+            .padding(.top, Theme.Spacing.s8)
+        } label: {
+            Text(title)
+                .font(.system(size: 13, weight: .semibold))
+                .foregroundStyle(Theme.Palette.label)
+        }
+        .padding(.top, Theme.Spacing.s12)
     }
 
     private func settingRow<Control: View>(_ label: String, @ViewBuilder control: () -> Control) -> some View {

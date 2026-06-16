@@ -6,8 +6,14 @@ import ParrotCore
 /// per engine. Wrapped in a height-capped ScrollView so long text / many engines stay readable.
 struct ResultView: View {
     @ObservedObject var state: AppState
+    let onConfigureProvider: () -> Void
 
     @State private var contentHeight: CGFloat = 160
+
+    init(state: AppState, onConfigureProvider: @escaping () -> Void = {}) {
+        self.state = state
+        self.onConfigureProvider = onConfigureProvider
+    }
 
     var body: some View {
         VStack(spacing: 0) {
@@ -31,7 +37,8 @@ struct ResultView: View {
                             EngineCard(outcome: outcome,
                                        isPrimary: index == 0 && outcome.isSuccess,
                                        onSpeak: { state.speakTranslation($0) },
-                                       onCopy: { copy($0) })
+                                       onCopy: { copy($0) },
+                                       onConfigure: onConfigureProvider)
                         }
                     }
                 }
@@ -110,8 +117,7 @@ private struct EngineCard: View {
     let isPrimary: Bool
     let onSpeak: (String) -> Void
     let onCopy: (String) -> Void
-
-    @State private var hovering = false
+    let onConfigure: () -> Void
 
     var body: some View {
         HStack(spacing: 0) {
@@ -133,7 +139,6 @@ private struct EngineCard: View {
             RoundedRectangle(cornerRadius: Theme.Radius.card)
                 .strokeBorder(outcome.error != nil ? Theme.Palette.danger : Color.clear, lineWidth: 0.5)
         )
-        .onHover { hovering = $0 }
     }
 
     private var head: some View {
@@ -150,8 +155,6 @@ private struct EngineCard: View {
                     IconButton("doc.on.doc", help: "复制译文", size: 11) { onCopy(result.translated) }
                     IconButton("speaker.wave.2", help: "朗读译文", size: 11) { onSpeak(result.translated) }
                 }
-                .opacity(hovering ? 1 : 0)
-                .animation(.easeOut(duration: 0.1), value: hovering)
             }
             Spacer(minLength: 0)
             Text(outcome.error != nil ? "失败" : "\(outcome.latencyMs)ms")
@@ -183,12 +186,21 @@ private struct EngineCard: View {
                 }
             }
         } else if let error = outcome.error {
-            HStack(spacing: Theme.Spacing.s4 + 2) {
-                Image(systemName: "exclamationmark.triangle")
-                Text(errorText(error))
+            VStack(alignment: .leading, spacing: Theme.Spacing.s8) {
+                HStack(spacing: Theme.Spacing.s4 + 2) {
+                    Image(systemName: "exclamationmark.triangle")
+                    Text(errorText(error))
+                }
+                .font(Theme.Font.body)
+                .foregroundStyle(Theme.Palette.danger)
+
+                if needsConfiguration(error) {
+                    Button { onConfigure() } label: {
+                        Label("配置密钥", systemImage: "gearshape")
+                    }
+                    .controlSize(.small)
+                }
             }
-            .font(Theme.Font.body)
-            .foregroundStyle(Theme.Palette.danger)
         }
     }
 
@@ -202,6 +214,13 @@ private struct EngineCard: View {
         case .notConfigured: return "未配置"
         case .service(let m): return "服务错误：\(m)"
         case .plugin(let m): return "插件错误：\(m)"
+        }
+    }
+
+    private func needsConfiguration(_ e: ProviderError) -> Bool {
+        switch e {
+        case .auth, .notConfigured: return true
+        default: return false
         }
     }
 }

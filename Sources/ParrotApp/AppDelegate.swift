@@ -9,7 +9,9 @@ import ParrotCore
 final class AppDelegate: NSObject, NSApplicationDelegate {
     private let state = AppState()
     private var statusItem: NSStatusItem?
-    private lazy var floating = FloatingPanel(state: state)
+    private lazy var floating = FloatingPanel(state: state) { [weak self] in
+        self?.showSettings()
+    }
     private lazy var inputPanel = InputPanel(state: state) { [weak self] text in
         self?.runTranslation(text)
     }

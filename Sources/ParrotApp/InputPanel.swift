@@ -9,6 +9,7 @@ final class InputPanel {
     private var window: NSWindow?
     private let state: AppState
     private let onSubmit: (String) -> Void
+    private let baseSize = NSSize(width: 520, height: 56)
 
     init(state: AppState, onSubmit: @escaping (String) -> Void) {
         self.state = state
@@ -37,9 +38,13 @@ final class InputPanel {
                 self?.window?.orderOut(nil)
                 self?.onSubmit(text)
             },
-            onCancel: { [weak self] in self?.window?.orderOut(nil) }
+            onCancel: { [weak self] in self?.window?.orderOut(nil) },
+            onHeightChange: { [weak self] height in
+                self?.resize(toContentHeight: height)
+            }
         )
         let hosting = NSHostingController(rootView: view)
+        hosting.sizingOptions = [.preferredContentSize]
         let w = NSWindow(contentViewController: hosting)
         w.styleMask = [.titled, .closable, .fullSizeContentView]
         w.titleVisibility = .hidden
@@ -52,8 +57,22 @@ final class InputPanel {
         w.standardWindowButton(.closeButton)?.isHidden = true
         w.standardWindowButton(.miniaturizeButton)?.isHidden = true
         w.standardWindowButton(.zoomButton)?.isHidden = true
-        w.setContentSize(NSSize(width: 520, height: 56))
+        w.setContentSize(baseSize)
         self.window = w
+    }
+
+    private func resize(toContentHeight height: CGFloat) {
+        guard let window else { return }
+        let target = NSSize(width: baseSize.width, height: min(max(ceil(height), baseSize.height), 168))
+        let current = window.contentLayoutRect.size
+        guard abs(current.height - target.height) > 1 || abs(current.width - target.width) > 1 else { return }
+
+        let center = NSPoint(x: window.frame.midX, y: window.frame.midY)
+        window.setContentSize(target)
+        var frame = window.frame
+        frame.origin.x = center.x - frame.width / 2
+        frame.origin.y = center.y - frame.height / 2
+        window.setFrame(frame, display: true, animate: window.isVisible)
     }
 }
 
@@ -61,6 +80,7 @@ private struct InputView: View {
     let target: Language
     let onSubmit: (String) -> Void
     let onCancel: () -> Void
+    let onHeightChange: (CGFloat) -> Void
 
     @State private var text: String = ""
     @FocusState private var focused: Bool
@@ -106,6 +126,12 @@ private struct InputView: View {
                 .strokeBorder(focused ? Theme.Palette.accent : Theme.Palette.separator,
                               lineWidth: focused ? 1.5 : 0.5)
         )
+        .background(
+            GeometryReader { geo in
+                Color.clear.preference(key: InputHeightKey.self, value: geo.size.height)
+            }
+        )
+        .onPreferenceChange(InputHeightKey.self) { onHeightChange($0) }
         .onAppear { focused = true }
         .onExitCommand { onCancel() }
     }
@@ -126,5 +152,12 @@ private struct InputView: View {
         guard !t.isEmpty else { return }
         onSubmit(t)
         text = ""
+    }
+}
+
+private struct InputHeightKey: PreferenceKey {
+    static let defaultValue: CGFloat = 56
+    static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) {
+        value = max(value, nextValue())
     }
 }

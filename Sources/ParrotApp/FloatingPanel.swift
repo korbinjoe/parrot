@@ -8,16 +8,22 @@ final class FloatingPanel {
     private var panel: NSPanel?
     private var hosting: NSHostingController<ResultView>?
     private let state: AppState
+    private let onConfigureProvider: () -> Void
+    private var anchorPoint: NSPoint?
+    private var resizeObserver: NSObjectProtocol?
+    private var screenObserver: NSObjectProtocol?
 
-    init(state: AppState) {
+    init(state: AppState, onConfigureProvider: @escaping () -> Void = {}) {
         self.state = state
+        self.onConfigureProvider = onConfigureProvider
     }
 
     func show() {
         if panel == nil { build() }
+        anchorPoint = NSEvent.mouseLocation
         // Force a layout pass so the window adopts the current content size before positioning.
         panel?.layoutIfNeeded()
-        positionNearCursor()
+        positionNearAnchor()
         // Use-and-dismiss entrance: fade in. Height is driven by SwiftUI's preferredContentSize,
         // so we animate opacity only (no height补间) to avoid NSPanel jitter — see design.md Decision 4.
         panel?.alphaValue = 0
@@ -34,7 +40,7 @@ final class FloatingPanel {
     }
 
     private func build() {
-        let hosting = NSHostingController(rootView: ResultView(state: state))
+        let hosting = NSHostingController(rootView: ResultView(state: state, onConfigureProvider: onConfigureProvider))
         // Let the window track the SwiftUI content's ideal size automatically — including when
         // translations arrive asynchronously and the content grows/shrinks.
         hosting.sizingOptions = [.preferredContentSize]
@@ -60,6 +66,18 @@ final class FloatingPanel {
 
         self.panel = p
 
+        resizeObserver = NotificationCenter.default.addObserver(
+            forName: NSWindow.didResizeNotification, object: p, queue: .main
+        ) { [weak self] _ in
+            Task { @MainActor in self?.positionNearAnchor() }
+        }
+
+        screenObserver = NotificationCenter.default.addObserver(
+            forName: NSWindow.didChangeScreenNotification, object: p, queue: .main
+        ) { [weak self] _ in
+            Task { @MainActor in self?.positionNearAnchor() }
+        }
+
         // Auto-hide when the panel resigns key.
         NotificationCenter.default.addObserver(
             forName: NSWindow.didResignKeyNotification, object: p, queue: .main
@@ -70,16 +88,26 @@ final class FloatingPanel {
         }
     }
 
-    private func positionNearCursor() {
+    private func positionNearAnchor() {
         guard let panel else { return }
-        let mouse = NSEvent.mouseLocation
+        let mouse = anchorPoint ?? NSEvent.mouseLocation
         let size = panel.frame.size
         var origin = NSPoint(x: mouse.x + 12, y: mouse.y - size.height - 12)
         if let screen = NSScreen.screens.first(where: { $0.frame.contains(mouse) }) ?? NSScreen.main {
-            let visible = screen.visibleFrame
-            origin.x = min(max(origin.x, visible.minX), visible.maxX - size.width)
-            origin.y = min(max(origin.y, visible.minY), visible.maxY - size.height)
+            let visible = screen.visibleFrame.insetBy(dx: 8, dy: 8)
+            origin.x = Self.clamp(origin.x, min: visible.minX, max: visible.maxX - size.width)
+            origin.y = Self.clamp(origin.y, min: visible.minY, max: visible.maxY - size.height)
         }
         panel.setFrameOrigin(origin)
+    }
+
+    private static func clamp(_ value: CGFloat, min minValue: CGFloat, max maxValue: CGFloat) -> CGFloat {
+        guard maxValue >= minValue else { return minValue }
+        return Swift.min(Swift.max(value, minValue), maxValue)
+    }
+
+    deinit {
+        if let resizeObserver { NotificationCenter.default.removeObserver(resizeObserver) }
+        if let screenObserver { NotificationCenter.default.removeObserver(screenObserver) }
     }
 }
