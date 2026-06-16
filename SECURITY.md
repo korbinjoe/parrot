@@ -2,9 +2,9 @@
 
 ## 凭据存储
 
-- **API Key**：仅存储于 macOS 钥匙串（`KeychainStore`，`kSecClassGenericPassword`，`kSecAttrAccessibleAfterFirstUnlock`）。绝不写入 UserDefaults、历史库（`history.json`）或日志。
-- **插件密钥**：通过 `$option` 在运行时注入插件 JSContext，不做持久化。
-- **环境变量回退**：`DEEPL_API_KEY` / `OPENAI_API_KEY` 仅作开发期回退，生产使用建议走设置面板录入钥匙串。
+- **API Key**：默认存储于 `~/Library/Application Support/Parrot/secrets.json`（`SecretStore`，文件权限 `0600`）。绝不写入 UserDefaults、历史库（`history.json`）或日志。
+- **插件密钥**：通过 `$option` 在运行时注入插件 JSContext，不写入历史库或日志。
+- **环境变量优先**：`DEEPL_API_KEY` / `OPENAI_API_KEY` 等环境变量优先于本地配置，适合开发者用 shell/profile 管理密钥。
 
 ## 插件沙箱
 

@@ -26,7 +26,7 @@
 1. **悬浮结果面板**（`ResultView`，380pt，`.regularMaterial`）：顶部 LangPill + 收藏/复制/朗读；原文块 `bgContent2`；每引擎一张 `EngineCard`（主引擎 2px accent 竖条，引擎名 Tag 样式，hover 才显复制/朗读用 opacity 切换）；加载骨架屏；错误卡 danger 描边 + `ProviderError` 文案映射；离线时顶部 `WarningBar`。
 2. **输入面板**（`InputView`，520pt）：Spotlight 式左图标 + 大号输入 + 右 LangPill；仅有文字时出现底部提示行 + accent 主按钮；聚焦 accent 外环；Esc 关闭。
 3. **菜单栏 Popover**（`MenuBarPopoverView`，260pt，`.transient`）：四大动作行（图标+名+快捷键，hover accent-soft）；最近 3 条历史可点再翻译 + 查看全部历史；引擎快捷开关（无 Key 禁用，双向同步 `AppSettings`）；设置/退出。
-4. **设置窗口**（`SettingsView`，640×460）：侧栏 + 内容面板，6 分区（通用/引擎/密钥/快捷键/插件/关于）；分区切换 crossfade；密钥写钥匙串。
+4. **设置窗口**（`SettingsView`，640×460）：侧栏 + 内容面板，6 分区（通用/引擎/密钥/快捷键/插件/关于）；分区切换 crossfade；密钥写入本地 SecretStore，输入框不回填完整密钥。
 5. **历史/收藏窗口**（`HistoryView`，720×480 可缩放）：列表 280（搜索 + 全部/收藏分段 + 语言对筛选）+ 详情双栏（源文块 + 译文卡 + 再翻译/复制/朗读/删除/收藏）；空态占位。
 6. **OCR 取词浮层**（`OCRResultView`，420×360）：选区沿用系统 `screencapture -i`；识别后逐行可勾选卡片（默认全选）；翻译选中 → 结果走悬浮面板；单行直接翻译，多行才弹浮层。
 

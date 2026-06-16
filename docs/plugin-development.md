@@ -31,7 +31,7 @@ my-engine.parrotplugin/
 ```
 
 - `permissions.network`：允许访问的主机白名单（后缀匹配）。不在此列表的请求会被拒绝。
-- `options`：用户可配置项；`secret: true` 的项通过钥匙串/`$option` 注入，不落盘。
+- `options`：用户可配置项；`secret: true` 的项通过本地 SecretStore/`$option` 注入，不写入历史库或日志。
 
 ## main.js（实现）
 

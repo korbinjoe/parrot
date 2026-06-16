@@ -56,14 +56,30 @@ import Foundation
     #expect(result.translated == "你好")
 }
 
-@Test func keychainSecretAbsentFromUserDefaults() {
-    let suiteName = "parrot.test.keychain-audit"
+@Test func localSecretAbsentFromUserDefaultsAndRestrictedOnDisk() throws {
+    let suiteName = "parrot.test.secret-audit"
     let defaults = UserDefaults(suiteName: suiteName)!
     defaults.removePersistentDomain(forName: suiteName)
+
+    let dir = FileManager.default.temporaryDirectory
+        .appendingPathComponent("parrot-secret-store-\(UUID().uuidString)", isDirectory: true)
+    let url = dir.appendingPathComponent("secrets.json")
+    SecretStore.useFileURLForTesting(url)
+    defer {
+        SecretStore.useFileURLForTesting(nil)
+        try? FileManager.default.removeItem(at: dir)
+    }
+
     let secret = "sk-test-secret-12345"
-    KeychainStore.set(secret, account: "engine.openai.apiKey")
+    #expect(SecretStore.set(secret, account: "engine.openai.apiKey"))
+    #expect(SecretStore.get(account: "engine.openai.apiKey") == secret)
+
     let blob = defaults.dictionaryRepresentation().values.compactMap { $0 as? String }.joined()
     #expect(!blob.contains(secret))
+
+    let attrs = try FileManager.default.attributesOfItem(atPath: url.path)
+    let perms = (attrs[.posixPermissions] as? NSNumber)?.intValue ?? 0
+    #expect(perms & 0o777 == 0o600)
 }
 
 @Test func openAICompatValidateConfiguredMock() async {

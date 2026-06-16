@@ -35,7 +35,7 @@ Parrot 与 [Bob 服务矩阵](https://bobtranslate.com/guide/advance/service.htm
 - **LLM 全家桶**：DeepSeek、Gemini、Groq、Ollama、通义、豆包、Kimi、智谱、硅基流动 — Swift 内置。
 - **系统翻译**：macOS 15+（开发中）。
 
-API Key 在「设置 → 密钥」录入，存储于 **macOS 钥匙串**。亦支持环境变量（如 `OPENAI_API_KEY`、`DEEPSEEK_API_KEY`）作为开发回退。
+API Key 在「设置 → 密钥」录入，默认存储于 `~/Library/Application Support/Parrot/secrets.json`（文件权限 `0600`）。亦支持环境变量（如 `OPENAI_API_KEY`、`DEEPSEEK_API_KEY`），且环境变量优先于本地配置。
 
 ## 构建与测试
 
@@ -44,7 +44,7 @@ API Key 在「设置 → 密钥」录入，存储于 **macOS 钥匙串**。亦�
 export DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer
 
 swift build                 # 编译
-swift test                  # 单元测试（Swift Testing，31 passing）
+swift test                  # 单元测试（Swift Testing）
 bash scripts/build-app.sh   # 产出 build/Parrot.app（菜单栏常驻）
 ```
 
@@ -56,10 +56,10 @@ bash scripts/build-app.sh   # 产出 build/Parrot.app（菜单栏常驻）
 Interaction（快捷键/菜单/PopClip/URL）
   → Application/Orchestration（AppState / TranslationCoordinator）
   → Engine Abstraction（TranslationProvider 协议 + Registry）
-  → Platform Services（Vision OCR / AX / Keychain / AVSpeech）
+  → Platform Services（Vision OCR / AX / SecretStore / AVSpeech）
 ```
 
-- `ParrotCore` — 引擎抽象、并发聚合（失败隔离 + 超时）、离线语言检测、历史库（actor + JSON 持久化）、钥匙串封装。
+- `ParrotCore` — 引擎抽象、并发聚合（失败隔离 + 超时）、离线语言检测、历史库（actor + JSON 持久化）、本地密钥存储。
 - `ParrotEngines` — Google / DeepL / OpenAI-compat LLM / 国内机翻 / Mock / Vision OCR。
 - `ParrotPlugins` — JavaScriptCore 沙箱插件运行时（`$http` 主机白名单、`$option`/`$log` 注入）。
 - `ParrotApp` — 菜单栏 App、全局快捷键、悬浮窗、截图 OCR、设置面板、TTS。

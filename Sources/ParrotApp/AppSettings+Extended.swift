@@ -19,23 +19,23 @@ extension AppSettings {
     static let volcengineOCRKeyAccount = "ocr.volcengine.apiKey"
     static let volcengineTTSKeyAccount = "tts.volcengine.apiKey"
 
-    func ernieKey(allowPrompt: Bool = false) -> String? { key(Self.ernieAccount, env: "ERNIE_API_KEY", allowPrompt: allowPrompt) }
-    func hunyuanKey(allowPrompt: Bool = false) -> String? { key(Self.hunyuanAccount, env: "HUNYUAN_API_KEY", allowPrompt: allowPrompt) }
-    func yiKey(allowPrompt: Bool = false) -> String? { key(Self.yiAccount, env: "YI_API_KEY", allowPrompt: allowPrompt) }
-    func azureOpenAIKey(allowPrompt: Bool = false) -> String? { key(Self.azureOpenAIAccount, env: "AZURE_OPENAI_API_KEY", allowPrompt: allowPrompt) }
-    func volcengineKey(allowPrompt: Bool = false) -> String? { key(Self.volcengineAccount, env: "VOLCENGINE_API_KEY", allowPrompt: allowPrompt) }
-    func aliyunCredentials(allowPrompt: Bool = false) -> String? { key(Self.aliyunAccount, env: "ALIYUN_CREDENTIALS", allowPrompt: allowPrompt) }
-    func niutransKey(allowPrompt: Bool = false) -> String? { key(Self.niutransAccount, env: "NIUTRANS_API_KEY", allowPrompt: allowPrompt) }
-    func amazonCredentials(allowPrompt: Bool = false) -> String? { key(Self.amazonAccount, env: "AWS_CREDENTIALS", allowPrompt: allowPrompt) }
+    func ernieKey() -> String? { key(Self.ernieAccount, env: "ERNIE_API_KEY") }
+    func hunyuanKey() -> String? { key(Self.hunyuanAccount, env: "HUNYUAN_API_KEY") }
+    func yiKey() -> String? { key(Self.yiAccount, env: "YI_API_KEY") }
+    func azureOpenAIKey() -> String? { key(Self.azureOpenAIAccount, env: "AZURE_OPENAI_API_KEY") }
+    func volcengineKey() -> String? { key(Self.volcengineAccount, env: "VOLCENGINE_API_KEY") }
+    func aliyunCredentials() -> String? { key(Self.aliyunAccount, env: "ALIYUN_CREDENTIALS") }
+    func niutransKey() -> String? { key(Self.niutransAccount, env: "NIUTRANS_API_KEY") }
+    func amazonCredentials() -> String? { key(Self.amazonAccount, env: "AWS_CREDENTIALS") }
 
-    func baiduOCRCredentials(allowPrompt: Bool = false) -> String? { key(Self.baiduOCRKeyAccount, env: "BAIDU_OCR_CREDENTIALS", allowPrompt: allowPrompt) ?? baiduCredentials(allowPrompt: allowPrompt) }
-    func tencentOCRCredentials(allowPrompt: Bool = false) -> String? { key(Self.tencentOCRKeyAccount, env: "TENCENT_OCR_CREDENTIALS", allowPrompt: allowPrompt) ?? tencentCredentials(allowPrompt: allowPrompt) }
-    func youdaoOCRCredentials(allowPrompt: Bool = false) -> String? { key(Self.youdaoOCRKeyAccount, env: "YOUDAO_OCR_CREDENTIALS", allowPrompt: allowPrompt) ?? youdaoCredentials(allowPrompt: allowPrompt) }
-    func googleOCRKey(allowPrompt: Bool = false) -> String? { key(Self.googleOCRKeyAccount, env: "GOOGLE_OCR_API_KEY", allowPrompt: allowPrompt) }
-    func googleTTSKey(allowPrompt: Bool = false) -> String? { key(Self.googleTTSKeyAccount, env: "GOOGLE_TTS_API_KEY", allowPrompt: allowPrompt) }
-    func microsoftTTSKey(allowPrompt: Bool = false) -> String? { key(Self.microsoftTTSKeyAccount, env: "MICROSOFT_TTS_KEY", allowPrompt: allowPrompt) ?? microsoftKey(allowPrompt: allowPrompt) }
-    func volcengineOCRKey(allowPrompt: Bool = false) -> String? { key(Self.volcengineOCRKeyAccount, env: "VOLCENGINE_OCR_KEY", allowPrompt: allowPrompt) }
-    func volcengineTTSKey(allowPrompt: Bool = false) -> String? { key(Self.volcengineTTSKeyAccount, env: "VOLCENGINE_TTS_KEY", allowPrompt: allowPrompt) }
+    func baiduOCRCredentials() -> String? { key(Self.baiduOCRKeyAccount, env: "BAIDU_OCR_CREDENTIALS") ?? baiduCredentials() }
+    func tencentOCRCredentials() -> String? { key(Self.tencentOCRKeyAccount, env: "TENCENT_OCR_CREDENTIALS") ?? tencentCredentials() }
+    func youdaoOCRCredentials() -> String? { key(Self.youdaoOCRKeyAccount, env: "YOUDAO_OCR_CREDENTIALS") ?? youdaoCredentials() }
+    func googleOCRKey() -> String? { key(Self.googleOCRKeyAccount, env: "GOOGLE_OCR_API_KEY") }
+    func googleTTSKey() -> String? { key(Self.googleTTSKeyAccount, env: "GOOGLE_TTS_API_KEY") }
+    func microsoftTTSKey() -> String? { key(Self.microsoftTTSKeyAccount, env: "MICROSOFT_TTS_KEY") ?? microsoftKey() }
+    func volcengineOCRKey() -> String? { key(Self.volcengineOCRKeyAccount, env: "VOLCENGINE_OCR_KEY") }
+    func volcengineTTSKey() -> String? { key(Self.volcengineTTSKeyAccount, env: "VOLCENGINE_TTS_KEY") }
 
     func setErnieKey(_ v: String) { setKey(v, account: Self.ernieAccount) }
     func setHunyuanKey(_ v: String) { setKey(v, account: Self.hunyuanAccount) }

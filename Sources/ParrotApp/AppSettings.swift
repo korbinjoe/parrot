@@ -1,14 +1,14 @@
 import Foundation
 import ParrotCore
 
-/// User-facing preferences, persisted to UserDefaults (non-secret) and Keychain (API keys).
+/// User-facing preferences, persisted to UserDefaults (non-secret) and SecretStore (API keys).
 @MainActor
 final class AppSettings: ObservableObject {
     private let defaults: UserDefaults
     private var keyCache: [String: String] = [:]
     private var missingKeyCache: Set<String> = []
 
-    // MARK: - Keychain account IDs
+    // MARK: - Secret account IDs
 
     static let deepLAccount = "engine.deepl.apiKey"
     static let openAIAccount = "engine.openai.apiKey"
@@ -152,23 +152,23 @@ final class AppSettings: ObservableObject {
 
     // MARK: - Keys
 
-    func deepLKey(allowPrompt: Bool = false) -> String? { key(Self.deepLAccount, env: "DEEPL_API_KEY", allowPrompt: allowPrompt) }
-    func openAIKey(allowPrompt: Bool = false) -> String? { key(Self.openAIAccount, env: "OPENAI_API_KEY", allowPrompt: allowPrompt) }
-    func tencentCredentials(allowPrompt: Bool = false) -> String? { key(Self.tencentAccount, env: "TENCENT_CREDENTIALS", allowPrompt: allowPrompt) }
-    func baiduCredentials(allowPrompt: Bool = false) -> String? { key(Self.baiduAccount, env: "BAIDU_CREDENTIALS", allowPrompt: allowPrompt) }
-    func youdaoCredentials(allowPrompt: Bool = false) -> String? { key(Self.youdaoAccount, env: "YOUDAO_CREDENTIALS", allowPrompt: allowPrompt) }
-    func caiyunToken(allowPrompt: Bool = false) -> String? { key(Self.caiyunAccount, env: "CAIYUN_TOKEN", allowPrompt: allowPrompt) }
-    func microsoftKey(allowPrompt: Bool = false) -> String? { key(Self.microsoftAccount, env: "MICROSOFT_TRANSLATOR_KEY", allowPrompt: allowPrompt) }
-    func deepSeekKey(allowPrompt: Bool = false) -> String? { key(Self.deepSeekAccount, env: "DEEPSEEK_API_KEY", allowPrompt: allowPrompt) }
-    func geminiKey(allowPrompt: Bool = false) -> String? { key(Self.geminiAccount, env: "GEMINI_API_KEY", allowPrompt: allowPrompt) }
-    func groqKey(allowPrompt: Bool = false) -> String? { key(Self.groqAccount, env: "GROQ_API_KEY", allowPrompt: allowPrompt) }
-    func ollamaKey(allowPrompt: Bool = false) -> String? { key(Self.ollamaAccount, env: "OLLAMA_API_KEY", allowPrompt: allowPrompt) }
-    func qwenKey(allowPrompt: Bool = false) -> String? { key(Self.qwenAccount, env: "DASHSCOPE_API_KEY", allowPrompt: allowPrompt) }
-    func doubaoKey(allowPrompt: Bool = false) -> String? { key(Self.doubaoAccount, env: "DOUBAO_API_KEY", allowPrompt: allowPrompt) }
-    func kimiKey(allowPrompt: Bool = false) -> String? { key(Self.kimiAccount, env: "MOONSHOT_API_KEY", allowPrompt: allowPrompt) }
-    func zhipuKey(allowPrompt: Bool = false) -> String? { key(Self.zhipuAccount, env: "ZHIPU_API_KEY", allowPrompt: allowPrompt) }
-    func siliconFlowKey(allowPrompt: Bool = false) -> String? { key(Self.siliconFlowAccount, env: "SILICONFLOW_API_KEY", allowPrompt: allowPrompt) }
-    func openCodeKey(allowPrompt: Bool = false) -> String? { key(Self.openCodeAccount, env: "OPENCODE_API_KEY", allowPrompt: allowPrompt) }
+    func deepLKey() -> String? { key(Self.deepLAccount, env: "DEEPL_API_KEY") }
+    func openAIKey() -> String? { key(Self.openAIAccount, env: "OPENAI_API_KEY") }
+    func tencentCredentials() -> String? { key(Self.tencentAccount, env: "TENCENT_CREDENTIALS") }
+    func baiduCredentials() -> String? { key(Self.baiduAccount, env: "BAIDU_CREDENTIALS") }
+    func youdaoCredentials() -> String? { key(Self.youdaoAccount, env: "YOUDAO_CREDENTIALS") }
+    func caiyunToken() -> String? { key(Self.caiyunAccount, env: "CAIYUN_TOKEN") }
+    func microsoftKey() -> String? { key(Self.microsoftAccount, env: "MICROSOFT_TRANSLATOR_KEY") }
+    func deepSeekKey() -> String? { key(Self.deepSeekAccount, env: "DEEPSEEK_API_KEY") }
+    func geminiKey() -> String? { key(Self.geminiAccount, env: "GEMINI_API_KEY") }
+    func groqKey() -> String? { key(Self.groqAccount, env: "GROQ_API_KEY") }
+    func ollamaKey() -> String? { key(Self.ollamaAccount, env: "OLLAMA_API_KEY") }
+    func qwenKey() -> String? { key(Self.qwenAccount, env: "DASHSCOPE_API_KEY") }
+    func doubaoKey() -> String? { key(Self.doubaoAccount, env: "DOUBAO_API_KEY") }
+    func kimiKey() -> String? { key(Self.kimiAccount, env: "MOONSHOT_API_KEY") }
+    func zhipuKey() -> String? { key(Self.zhipuAccount, env: "ZHIPU_API_KEY") }
+    func siliconFlowKey() -> String? { key(Self.siliconFlowAccount, env: "SILICONFLOW_API_KEY") }
+    func openCodeKey() -> String? { key(Self.openCodeAccount, env: "OPENCODE_API_KEY") }
 
     func setDeepLKey(_ v: String) { setKey(v, account: Self.deepLAccount) }
     func setOpenAIKey(_ v: String) { setKey(v, account: Self.openAIAccount) }
@@ -188,22 +188,22 @@ final class AppSettings: ObservableObject {
     func setSiliconFlowKey(_ v: String) { setKey(v, account: Self.siliconFlowAccount) }
     func setOpenCodeKey(_ v: String) { setKey(v, account: Self.openCodeAccount) }
 
-    var hasDeepLKey: Bool { nonEmpty(deepLKey()) }
-    var hasOpenAIKey: Bool { nonEmpty(openAIKey()) }
-    var hasTencentCredentials: Bool { nonEmpty(tencentCredentials()) }
-    var hasBaiduCredentials: Bool { nonEmpty(baiduCredentials()) }
-    var hasYoudaoCredentials: Bool { nonEmpty(youdaoCredentials()) }
-    var hasCaiyunToken: Bool { nonEmpty(caiyunToken()) }
-    var hasMicrosoftKey: Bool { nonEmpty(microsoftKey()) }
-    var hasDeepSeekKey: Bool { nonEmpty(deepSeekKey()) }
-    var hasGeminiKey: Bool { nonEmpty(geminiKey()) }
-    var hasGroqKey: Bool { nonEmpty(groqKey()) }
-    var hasQwenKey: Bool { nonEmpty(qwenKey()) }
-    var hasDoubaoKey: Bool { nonEmpty(doubaoKey()) }
-    var hasKimiKey: Bool { nonEmpty(kimiKey()) }
-    var hasZhipuKey: Bool { nonEmpty(zhipuKey()) }
-    var hasSiliconFlowKey: Bool { nonEmpty(siliconFlowKey()) }
-    var hasOpenCodeKey: Bool { nonEmpty(openCodeKey()) }
+    var hasDeepLKey: Bool { hasSecret(Self.deepLAccount, env: "DEEPL_API_KEY") }
+    var hasOpenAIKey: Bool { hasSecret(Self.openAIAccount, env: "OPENAI_API_KEY") }
+    var hasTencentCredentials: Bool { hasSecret(Self.tencentAccount, env: "TENCENT_CREDENTIALS") }
+    var hasBaiduCredentials: Bool { hasSecret(Self.baiduAccount, env: "BAIDU_CREDENTIALS") }
+    var hasYoudaoCredentials: Bool { hasSecret(Self.youdaoAccount, env: "YOUDAO_CREDENTIALS") }
+    var hasCaiyunToken: Bool { hasSecret(Self.caiyunAccount, env: "CAIYUN_TOKEN") }
+    var hasMicrosoftKey: Bool { hasSecret(Self.microsoftAccount, env: "MICROSOFT_TRANSLATOR_KEY") }
+    var hasDeepSeekKey: Bool { hasSecret(Self.deepSeekAccount, env: "DEEPSEEK_API_KEY") }
+    var hasGeminiKey: Bool { hasSecret(Self.geminiAccount, env: "GEMINI_API_KEY") }
+    var hasGroqKey: Bool { hasSecret(Self.groqAccount, env: "GROQ_API_KEY") }
+    var hasQwenKey: Bool { hasSecret(Self.qwenAccount, env: "DASHSCOPE_API_KEY") }
+    var hasDoubaoKey: Bool { hasSecret(Self.doubaoAccount, env: "DOUBAO_API_KEY") }
+    var hasKimiKey: Bool { hasSecret(Self.kimiAccount, env: "MOONSHOT_API_KEY") }
+    var hasZhipuKey: Bool { hasSecret(Self.zhipuAccount, env: "ZHIPU_API_KEY") }
+    var hasSiliconFlowKey: Bool { hasSecret(Self.siliconFlowAccount, env: "SILICONFLOW_API_KEY") }
+    var hasOpenCodeKey: Bool { hasSecret(Self.openCodeAccount, env: "OPENCODE_API_KEY") }
 
     /// Build ProviderConfig extra dict for an LLM engine including optional model/endpoint.
     func llmExtra(apiKey: String?, model: String? = nil, endpoint: String? = nil) -> [String: String] {
@@ -214,22 +214,23 @@ final class AppSettings: ObservableObject {
         return extra
     }
 
-    func key(_ account: String, env: String, allowPrompt: Bool = false) -> String? {
+    func key(_ account: String, env: String) -> String? {
         if let v = envNonEmpty(env) { return v }
         if let cached = keyCache[account] { return cached }
-        if !allowPrompt, missingKeyCache.contains(account) { return nil }
+        if missingKeyCache.contains(account) { return nil }
 
-        guard let value = KeychainStore.get(account: account, allowPrompt: allowPrompt) else {
+        guard let value = SecretStore.get(account: account) else {
             missingKeyCache.insert(account)
             return nil
         }
         keyCache[account] = value
         missingKeyCache.remove(account)
+        updateSecretMetadata(account: account, value: value)
         return value
     }
 
     func setKey(_ value: String, account: String) {
-        if KeychainStore.set(value, account: account) {
+        if SecretStore.set(value, account: account) {
             if value.isEmpty {
                 keyCache.removeValue(forKey: account)
                 missingKeyCache.insert(account)
@@ -237,12 +238,77 @@ final class AppSettings: ObservableObject {
                 keyCache[account] = value
                 missingKeyCache.remove(account)
             }
+            updateSecretMetadata(account: account, value: value)
+            objectWillChange.send()
         }
+    }
+
+    func removeKey(account: String) {
+        setKey("", account: account)
+    }
+
+    func hasSecret(_ account: String, env: String) -> Bool {
+        if envNonEmpty(env) != nil { return true }
+        return hasStoredSecret(account: account)
+    }
+
+    func hasStoredSecret(account: String) -> Bool {
+        if nonEmpty(keyCache[account]) { return true }
+        return SecretStore.has(account: account)
+    }
+
+    func secretStatus(account: String, env: String) -> String {
+        if let envValue = envNonEmpty(env) {
+            return "环境变量 \(Self.maskSecret(envValue))"
+        }
+        if let cached = keyCache[account], !cached.isEmpty {
+            return "已配置 \(Self.maskSecret(cached))"
+        }
+        if hasStoredSecret(account: account),
+           let preview = defaults.string(forKey: secretPreviewKey(account)),
+           !preview.isEmpty {
+            return "已配置 \(preview)"
+        }
+        if let value = SecretStore.get(account: account), !value.isEmpty {
+            return "已配置 \(Self.maskSecret(value))"
+        }
+        return "未配置"
     }
 
     func envNonEmpty(_ name: String) -> String? {
         let v = ProcessInfo.processInfo.environment[name]
         return nonEmpty(v) ? v : nil
+    }
+
+    private func updateSecretMetadata(account: String, value: String) {
+        let configuredKey = secretConfiguredKey(account)
+        let previewKey = secretPreviewKey(account)
+        if value.isEmpty {
+            defaults.set(false, forKey: configuredKey)
+            defaults.removeObject(forKey: previewKey)
+        } else {
+            defaults.set(true, forKey: configuredKey)
+            defaults.set(Self.maskSecret(value), forKey: previewKey)
+        }
+    }
+
+    private func secretConfiguredKey(_ account: String) -> String {
+        "secret.configured.\(account)"
+    }
+
+    private func secretPreviewKey(_ account: String) -> String {
+        "secret.preview.\(account)"
+    }
+
+    private static func maskSecret(_ value: String) -> String {
+        let trimmed = value.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return "" }
+        let suffix = String(trimmed.suffix(min(4, trimmed.count)))
+        if trimmed.hasPrefix("sk-") {
+            return "sk-...\(suffix)"
+        }
+        let prefix = trimmed.count > 8 ? String(trimmed.prefix(3)) : ""
+        return prefix.isEmpty ? "...\(suffix)" : "\(prefix)...\(suffix)"
     }
 
     private func nonEmpty(_ v: String?) -> Bool { v?.isEmpty == false }

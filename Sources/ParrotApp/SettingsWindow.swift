@@ -89,8 +89,6 @@ struct SettingsView: View {
     @State private var validateNote: String = ""
     @State private var savedNote: String = ""
     @State private var engineOrderDraft: [String] = []
-    @State private var keysLoaded = false
-    @State private var loadedSecretAccounts: Set<String> = []
 
     private let languages: [(String, String)] = [
         ("zh", "中文"), ("en", "English"), ("ja", "日本語"), ("ko", "한국어"),
@@ -354,22 +352,22 @@ struct SettingsView: View {
             Text("复合密钥格式：腾讯/百度/有道为 `Id:Secret`")
                 .font(Theme.Font.caption).foregroundStyle(Theme.Palette.label3)
                 .padding(.bottom, Theme.Spacing.s8)
-            keyRow("DeepL", $deepLKey, placeholder: "免费版以 :fx 结尾")
-            keyRow("OpenAI", $openAIKey, placeholder: "sk-…")
-            keyRow("OpenCode Go", $openCodeKey, placeholder: "Go API Key")
-            keyRow("腾讯翻译君", $tencentCreds, placeholder: "SecretId:SecretKey")
-            keyRow("百度翻译", $baiduCreds, placeholder: "AppId:Secret")
-            keyRow("有道翻译", $youdaoCreds, placeholder: "AppKey:AppSecret")
-            keyRow("彩云小译", $caiyunToken, placeholder: "Token")
-            keyRow("Microsoft", $microsoftKey, placeholder: "订阅 Key")
-            keyRow("DeepSeek", $deepSeekKey, placeholder: "API Key")
-            keyRow("Gemini", $geminiKey, placeholder: "API Key")
-            keyRow("Groq", $groqKey, placeholder: "API Key")
-            keyRow("通义千问", $qwenKey, placeholder: "DashScope Key")
-            keyRow("豆包", $doubaoKey, placeholder: "方舟 API Key")
-            keyRow("Kimi", $kimiKey, placeholder: "Moonshot Key")
-            keyRow("智谱 GLM", $zhipuKey, placeholder: "API Key")
-            keyRow("硅基流动", $siliconFlowKey, placeholder: "API Key")
+            secretRow("DeepL", $deepLKey, placeholder: "免费版以 :fx 结尾", account: AppSettings.deepLAccount, env: "DEEPL_API_KEY")
+            secretRow("OpenAI", $openAIKey, placeholder: "sk-...", account: AppSettings.openAIAccount, env: "OPENAI_API_KEY")
+            secretRow("OpenCode Go", $openCodeKey, placeholder: "Go API Key", account: AppSettings.openCodeAccount, env: "OPENCODE_API_KEY")
+            secretRow("腾讯翻译君", $tencentCreds, placeholder: "SecretId:SecretKey", account: AppSettings.tencentAccount, env: "TENCENT_CREDENTIALS")
+            secretRow("百度翻译", $baiduCreds, placeholder: "AppId:Secret", account: AppSettings.baiduAccount, env: "BAIDU_CREDENTIALS")
+            secretRow("有道翻译", $youdaoCreds, placeholder: "AppKey:AppSecret", account: AppSettings.youdaoAccount, env: "YOUDAO_CREDENTIALS")
+            secretRow("彩云小译", $caiyunToken, placeholder: "Token", account: AppSettings.caiyunAccount, env: "CAIYUN_TOKEN")
+            secretRow("Microsoft", $microsoftKey, placeholder: "订阅 Key", account: AppSettings.microsoftAccount, env: "MICROSOFT_TRANSLATOR_KEY")
+            secretRow("DeepSeek", $deepSeekKey, placeholder: "API Key", account: AppSettings.deepSeekAccount, env: "DEEPSEEK_API_KEY")
+            secretRow("Gemini", $geminiKey, placeholder: "API Key", account: AppSettings.geminiAccount, env: "GEMINI_API_KEY")
+            secretRow("Groq", $groqKey, placeholder: "API Key", account: AppSettings.groqAccount, env: "GROQ_API_KEY")
+            secretRow("通义千问", $qwenKey, placeholder: "DashScope Key", account: AppSettings.qwenAccount, env: "DASHSCOPE_API_KEY")
+            secretRow("豆包", $doubaoKey, placeholder: "方舟 API Key", account: AppSettings.doubaoAccount, env: "DOUBAO_API_KEY")
+            secretRow("Kimi", $kimiKey, placeholder: "Moonshot Key", account: AppSettings.kimiAccount, env: "MOONSHOT_API_KEY")
+            secretRow("智谱 GLM", $zhipuKey, placeholder: "API Key", account: AppSettings.zhipuAccount, env: "ZHIPU_API_KEY")
+            secretRow("硅基流动", $siliconFlowKey, placeholder: "API Key", account: AppSettings.siliconFlowAccount, env: "SILICONFLOW_API_KEY")
             sectionTitle("LLM 高级").padding(.top, Theme.Spacing.s12)
             settingRow("OpenAI Model") { TextField("gpt-4o-mini", text: $openAIModelField).frame(width: 230) }
             settingRow("OpenAI Endpoint") { TextField("可选", text: $openAIEndpointField).frame(width: 230) }
@@ -379,7 +377,7 @@ struct SettingsView: View {
             settingRow("Azure Endpoint") { TextField("Azure deployment URL", text: $azureEndpointField).frame(width: 230) }
             VStack(alignment: .leading, spacing: Theme.Spacing.s8) {
                 HStack(spacing: Theme.Spacing.s12) {
-                    Button("保存到钥匙串") { saveKeys() }
+                    Button("保存到本地") { saveKeys() }
                     if !savedNote.isEmpty {
                         Text(savedNote).font(Theme.Font.callout).foregroundStyle(Theme.Palette.success)
                     }
@@ -397,14 +395,28 @@ struct SettingsView: View {
                 }
             }
             .padding(.top, Theme.Spacing.s12)
-            callout("🔒 API Key 存储于 macOS 钥匙串。申请教程见 docs/bob-service-matrix.md")
+            callout("API Key 存储于 ~/Library/Application Support/Parrot/secrets.json，文件权限限制为当前用户可读写。环境变量优先于本地配置。")
         }
-        .onAppear { loadKeysIfNeeded() }
     }
 
-    private func keyRow(_ label: String, _ text: Binding<String>, placeholder: String) -> some View {
-        settingRow(label) {
-            SecureField(placeholder, text: text).frame(width: 230)
+    private func secretRow(_ label: String, _ text: Binding<String>, placeholder: String, account: String, env: String) -> some View {
+        let status = settings.secretStatus(account: account, env: env)
+        let fromEnv = status.hasPrefix("环境变量")
+        let configured = status != "未配置"
+        return settingRow(label) {
+            HStack(spacing: Theme.Spacing.s8) {
+                Text(status)
+                    .font(Theme.Font.caption)
+                    .foregroundStyle(configured ? Theme.Palette.label2 : Theme.Palette.label3)
+                    .lineLimit(1)
+                    .frame(width: 98, alignment: .trailing)
+                SecureField(fromEnv ? "环境变量优先" : (configured ? "输入新值以替换" : placeholder), text: text)
+                    .frame(width: 180)
+                    .disabled(fromEnv)
+                Button("清除") { clearSecret(account, text) }
+                    .controlSize(.small)
+                    .disabled(!settings.hasStoredSecret(account: account))
+            }
         }
     }
 
@@ -546,68 +558,64 @@ struct SettingsView: View {
 
     private func saveKeys() {
         let trim: (String) -> String = { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
-        saveSecret(AppSettings.deepLAccount, value: trim(deepLKey), setter: settings.setDeepLKey)
-        saveSecret(AppSettings.openAIAccount, value: trim(openAIKey), setter: settings.setOpenAIKey)
-        saveSecret(AppSettings.openCodeAccount, value: trim(openCodeKey), setter: settings.setOpenCodeKey)
-        saveSecret(AppSettings.tencentAccount, value: trim(tencentCreds), setter: settings.setTencentCredentials)
-        saveSecret(AppSettings.baiduAccount, value: trim(baiduCreds), setter: settings.setBaiduCredentials)
-        saveSecret(AppSettings.youdaoAccount, value: trim(youdaoCreds), setter: settings.setYoudaoCredentials)
-        saveSecret(AppSettings.caiyunAccount, value: trim(caiyunToken), setter: settings.setCaiyunToken)
-        saveSecret(AppSettings.microsoftAccount, value: trim(microsoftKey), setter: settings.setMicrosoftKey)
-        saveSecret(AppSettings.deepSeekAccount, value: trim(deepSeekKey), setter: settings.setDeepSeekKey)
-        saveSecret(AppSettings.geminiAccount, value: trim(geminiKey), setter: settings.setGeminiKey)
-        saveSecret(AppSettings.groqAccount, value: trim(groqKey), setter: settings.setGroqKey)
-        saveSecret(AppSettings.qwenAccount, value: trim(qwenKey), setter: settings.setQwenKey)
-        saveSecret(AppSettings.doubaoAccount, value: trim(doubaoKey), setter: settings.setDoubaoKey)
-        saveSecret(AppSettings.kimiAccount, value: trim(kimiKey), setter: settings.setKimiKey)
-        saveSecret(AppSettings.zhipuAccount, value: trim(zhipuKey), setter: settings.setZhipuKey)
-        saveSecret(AppSettings.siliconFlowAccount, value: trim(siliconFlowKey), setter: settings.setSiliconFlowKey)
+        saveSecret(trim(deepLKey), setter: settings.setDeepLKey)
+        saveSecret(trim(openAIKey), setter: settings.setOpenAIKey)
+        saveSecret(trim(openCodeKey), setter: settings.setOpenCodeKey)
+        saveSecret(trim(tencentCreds), setter: settings.setTencentCredentials)
+        saveSecret(trim(baiduCreds), setter: settings.setBaiduCredentials)
+        saveSecret(trim(youdaoCreds), setter: settings.setYoudaoCredentials)
+        saveSecret(trim(caiyunToken), setter: settings.setCaiyunToken)
+        saveSecret(trim(microsoftKey), setter: settings.setMicrosoftKey)
+        saveSecret(trim(deepSeekKey), setter: settings.setDeepSeekKey)
+        saveSecret(trim(geminiKey), setter: settings.setGeminiKey)
+        saveSecret(trim(groqKey), setter: settings.setGroqKey)
+        saveSecret(trim(qwenKey), setter: settings.setQwenKey)
+        saveSecret(trim(doubaoKey), setter: settings.setDoubaoKey)
+        saveSecret(trim(kimiKey), setter: settings.setKimiKey)
+        saveSecret(trim(zhipuKey), setter: settings.setZhipuKey)
+        saveSecret(trim(siliconFlowKey), setter: settings.setSiliconFlowKey)
         settings.openAIModel = trim(openAIModelField)
         settings.openAIEndpoint = trim(openAIEndpointField)
         settings.setModel(trim(openCodeModelField), for: "opencode")
         settings.setModel(trim(ollamaModelField), for: "ollama")
         settings.ollamaEndpoint = trim(ollamaEndpointField)
         settings.setEndpoint(trim(azureEndpointField), for: "azure-openai")
+        clearKeyFields()
         state.applySettings()
-        savedNote = "已保存 ✓"
+        savedNote = "已保存到本地 ✓"
         DispatchQueue.main.asyncAfter(deadline: .now() + 2) { savedNote = "" }
     }
 
-    private func loadKeysIfNeeded() {
-        guard !keysLoaded else { return }
-        deepLKey = loadSecret(AppSettings.deepLAccount, settings.deepLKey(allowPrompt: true))
-        openAIKey = loadSecret(AppSettings.openAIAccount, settings.openAIKey(allowPrompt: true))
-        openCodeKey = loadSecret(AppSettings.openCodeAccount, settings.openCodeKey(allowPrompt: true))
-        tencentCreds = loadSecret(AppSettings.tencentAccount, settings.tencentCredentials(allowPrompt: true))
-        baiduCreds = loadSecret(AppSettings.baiduAccount, settings.baiduCredentials(allowPrompt: true))
-        youdaoCreds = loadSecret(AppSettings.youdaoAccount, settings.youdaoCredentials(allowPrompt: true))
-        caiyunToken = loadSecret(AppSettings.caiyunAccount, settings.caiyunToken(allowPrompt: true))
-        microsoftKey = loadSecret(AppSettings.microsoftAccount, settings.microsoftKey(allowPrompt: true))
-        deepSeekKey = loadSecret(AppSettings.deepSeekAccount, settings.deepSeekKey(allowPrompt: true))
-        geminiKey = loadSecret(AppSettings.geminiAccount, settings.geminiKey(allowPrompt: true))
-        groqKey = loadSecret(AppSettings.groqAccount, settings.groqKey(allowPrompt: true))
-        qwenKey = loadSecret(AppSettings.qwenAccount, settings.qwenKey(allowPrompt: true))
-        doubaoKey = loadSecret(AppSettings.doubaoAccount, settings.doubaoKey(allowPrompt: true))
-        kimiKey = loadSecret(AppSettings.kimiAccount, settings.kimiKey(allowPrompt: true))
-        zhipuKey = loadSecret(AppSettings.zhipuAccount, settings.zhipuKey(allowPrompt: true))
-        siliconFlowKey = loadSecret(AppSettings.siliconFlowAccount, settings.siliconFlowKey(allowPrompt: true))
-        keysLoaded = true
-    }
-
-    private func loadSecret(_ account: String, _ value: String?) -> String {
-        guard let value, !value.isEmpty else { return "" }
-        loadedSecretAccounts.insert(account)
-        return value
-    }
-
-    private func saveSecret(_ account: String, value: String, setter: (String) -> Void) {
-        guard !value.isEmpty || loadedSecretAccounts.contains(account) else { return }
+    private func saveSecret(_ value: String, setter: (String) -> Void) {
+        guard !value.isEmpty else { return }
         setter(value)
-        if value.isEmpty {
-            loadedSecretAccounts.remove(account)
-        } else {
-            loadedSecretAccounts.insert(account)
-        }
+    }
+
+    private func clearSecret(_ account: String, _ text: Binding<String>) {
+        settings.removeKey(account: account)
+        text.wrappedValue = ""
+        state.applySettings()
+        savedNote = "已清除 ✓"
+        DispatchQueue.main.asyncAfter(deadline: .now() + 2) { savedNote = "" }
+    }
+
+    private func clearKeyFields() {
+        deepLKey = ""
+        openAIKey = ""
+        openCodeKey = ""
+        tencentCreds = ""
+        baiduCreds = ""
+        youdaoCreds = ""
+        caiyunToken = ""
+        microsoftKey = ""
+        deepSeekKey = ""
+        geminiKey = ""
+        groqKey = ""
+        qwenKey = ""
+        doubaoKey = ""
+        kimiKey = ""
+        zhipuKey = ""
+        siliconFlowKey = ""
     }
 
     private func moveEngine(from: Int, to: Int) {
