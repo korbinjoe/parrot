@@ -80,6 +80,7 @@ struct SettingsView: View {
     @State private var zhipuKey: String = ""
     @State private var siliconFlowKey: String = ""
     @State private var ollamaEndpointField: String = ""
+    @State private var ollamaModelField: String = ""
     @State private var openAIModelField: String = ""
     @State private var openAIEndpointField: String = ""
     @State private var azureEndpointField: String = ""
@@ -130,6 +131,7 @@ struct SettingsView: View {
             zhipuKey = settings.zhipuKey() ?? ""
             siliconFlowKey = settings.siliconFlowKey() ?? ""
             ollamaEndpointField = settings.ollamaEndpoint
+            ollamaModelField = settings.model(for: "ollama") ?? "llama3.2"
             openAIModelField = settings.openAIModel
             openAIEndpointField = settings.openAIEndpoint
             azureEndpointField = settings.endpoint(for: "azure-openai") ?? ""
@@ -378,6 +380,7 @@ struct SettingsView: View {
             sectionTitle("LLM 高级").padding(.top, Theme.Spacing.s12)
             settingRow("OpenAI Model") { TextField("gpt-4o-mini", text: $openAIModelField).frame(width: 230) }
             settingRow("OpenAI Endpoint") { TextField("可选", text: $openAIEndpointField).frame(width: 230) }
+            settingRow("Ollama Model") { TextField("llama3.2", text: $ollamaModelField).frame(width: 230) }
             settingRow("Ollama Endpoint") { TextField("http://127.0.0.1:11434/v1/chat/completions", text: $ollamaEndpointField).frame(width: 230) }
             settingRow("Azure Endpoint") { TextField("Azure deployment URL", text: $azureEndpointField).frame(width: 230) }
             HStack(spacing: Theme.Spacing.s12) {
@@ -559,6 +562,7 @@ struct SettingsView: View {
         settings.setSiliconFlowKey(trim(siliconFlowKey))
         settings.openAIModel = trim(openAIModelField)
         settings.openAIEndpoint = trim(openAIEndpointField)
+        settings.setModel(trim(ollamaModelField), for: "ollama")
         settings.ollamaEndpoint = trim(ollamaEndpointField)
         settings.setEndpoint(trim(azureEndpointField), for: "azure-openai")
         state.applySettings()

@@ -49,6 +49,18 @@ import Foundation
     }
 }
 
+@Test func ollamaDoesNotRequireAPIKey() async {
+    let engine = OllamaEngine()
+    do {
+        _ = try await engine.translate(TranslateRequest(text: "hi", to: .zh))
+    } catch ProviderError.notConfigured {
+        Issue.record("Ollama should not require API key")
+        #expect(Bool(false))
+    } catch {
+        // Network errors are fine when no local Ollama server is running in CI.
+    }
+}
+
 @Test func baiduParsesTranslation() throws {
     let json = """
     {"from":"en","to":"zh","trans_result":[{"src":"hello","dst":"你好"}]}

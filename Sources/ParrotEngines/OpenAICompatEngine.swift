@@ -14,6 +14,7 @@ open class OpenAICompatEngine: TranslationProvider, @unchecked Sendable {
 
     private let defaultEndpoint: URL
     private let defaultModel: String
+    private let requiresAPIKey: Bool
 
     private var apiKey: String?
     private var model: String
@@ -25,6 +26,7 @@ open class OpenAICompatEngine: TranslationProvider, @unchecked Sendable {
         displayName: String,
         defaultEndpoint: URL,
         defaultModel: String,
+        requiresAPIKey: Bool = true,
         supportedLanguages: [Language] = [.auto, .zh, .en, .ja, .ko, .fr, .de, .es, .ru],
         capabilities: ProviderCapabilities = ProviderCapabilities(supportsLookup: true, supportsStream: true, supportsPolish: true),
         session: URLSession = .shared
@@ -33,6 +35,7 @@ open class OpenAICompatEngine: TranslationProvider, @unchecked Sendable {
         self.displayName = displayName
         self.defaultEndpoint = defaultEndpoint
         self.defaultModel = defaultModel
+        self.requiresAPIKey = requiresAPIKey
         self.model = defaultModel
         self.endpoint = defaultEndpoint
         self.supportedLanguages = supportedLanguages
@@ -47,7 +50,9 @@ open class OpenAICompatEngine: TranslationProvider, @unchecked Sendable {
     }
 
     public func translate(_ req: TranslateRequest) async throws -> TranslateResult {
-        guard let apiKey, !apiKey.isEmpty else { throw ProviderError.notConfigured }
+        if requiresAPIKey {
+            guard let apiKey, !apiKey.isEmpty else { throw ProviderError.notConfigured }
+        }
 
         let payload: [String: Any] = [
             "model": model,
@@ -61,7 +66,9 @@ open class OpenAICompatEngine: TranslationProvider, @unchecked Sendable {
         var request = URLRequest(url: endpoint)
         request.httpMethod = "POST"
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        request.setValue("Bearer \(apiKey)", forHTTPHeaderField: "Authorization")
+        if let apiKey, !apiKey.isEmpty {
+            request.setValue("Bearer \(apiKey)", forHTTPHeaderField: "Authorization")
+        }
         request.httpBody = try JSONSerialization.data(withJSONObject: payload)
 
         let (data, response): (Data, URLResponse)
@@ -154,6 +161,7 @@ public final class OllamaEngine: OpenAICompatEngine {
             displayName: "Ollama",
             defaultEndpoint: URL(string: "http://127.0.0.1:11434/v1/chat/completions")!,
             defaultModel: "llama3.2",
+            requiresAPIKey: false,
             session: session
         )
     }
