@@ -27,6 +27,7 @@ final class AppState: ObservableObject {
     @Published var pendingProviders: [PendingProviderViewState] = []
     @Published var slowProviderIDs: Set<String> = []
     @Published var isTranslating: Bool = false
+    @Published var sourceLanguage: Language = .auto
     @Published var targetLanguage: Language = .zh
     @Published var detectedSource: Language = .auto
     @Published var savedRecordId: UUID?
@@ -38,10 +39,12 @@ final class AppState: ObservableObject {
     private var slowHintTasks: [Task<Void, Never>] = []
     private var currentTranslationID = UUID()
     private var didSaveCurrentTranslation = false
+    private var currentMode: TranslateMode = .translate
     private static let slowProviderSoftTimeout: TimeInterval = 8
 
     init() {
         coordinator = TranslationCoordinator(registry: registry)
+        sourceLanguage = settings.sourceLanguage
         targetLanguage = settings.targetLanguage
         Speaker.shared.coordinator = ttsCoordinator
         startNetworkMonitor()
@@ -64,9 +67,22 @@ final class AppState: ObservableObject {
     }
 
     func applySettings() {
+        sourceLanguage = settings.sourceLanguage
         targetLanguage = settings.targetLanguage
         reloadProviders()
         loadPlugins()
+    }
+
+    func setLanguageDirection(sourceCode: String? = nil, targetCode: String? = nil) {
+        if let sourceCode {
+            settings.sourceLanguageCode = sourceCode
+        }
+        if let targetCode {
+            settings.targetLanguageCode = targetCode
+        }
+        applySettings()
+        guard !sourceText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return }
+        translate(sourceText, mode: currentMode)
     }
 
     private func loadPlugins() {
@@ -90,10 +106,12 @@ final class AppState: ObservableObject {
         let runID = UUID()
         currentTranslationID = runID
         didSaveCurrentTranslation = false
+        currentMode = mode
 
         reloadProviders()
         loadPlugins()
         sourceText = trimmed
+        detectedSource = sourceLanguage
         isTranslating = true
         outcomes = []
         let activeProviders = registry.activeProviders()
@@ -110,7 +128,7 @@ final class AppState: ObservableObject {
 
         scheduleSlowProviderHints(runID: runID)
 
-        let req = TranslateRequest(text: trimmed, from: .auto, to: targetLanguage, mode: mode)
+        let req = TranslateRequest(text: trimmed, from: sourceLanguage, to: targetLanguage, mode: mode)
         let coordinator = coordinator
         translationTask = Task { [weak self, coordinator] in
             let stream = await coordinator.translateIncrementally(req)
@@ -157,7 +175,7 @@ final class AppState: ObservableObject {
         }
         pendingProviders.removeAll { $0.id == outcome.providerId }
 
-        if let detected = outcome.result?.detectedFrom {
+        if sourceLanguage == .auto, let detected = outcome.result?.detectedFrom {
             detectedSource = detected
         }
 
@@ -167,7 +185,7 @@ final class AppState: ObservableObject {
             sourceText: trimmed,
             translated: primary.translated,
             providerId: primary.providerId,
-            sourceLang: (detectedSource.code ?? "auto"),
+            sourceLang: ((sourceLanguage == .auto ? detectedSource : sourceLanguage).code ?? "auto"),
             targetLang: (targetLanguage.code ?? "")
         )
         await history.add(record)
@@ -199,7 +217,7 @@ final class AppState: ObservableObject {
     }
 
     func speakSource() {
-        Speaker.shared.speak(sourceText, language: detectedSource)
+        Speaker.shared.speak(sourceText, language: sourceLanguage == .auto ? detectedSource : sourceLanguage)
     }
 
     func speakTranslation(_ text: String) {

@@ -85,7 +85,7 @@ final class FloatingPanel {
         p.hidesOnDeactivate = false
         p.isMovableByWindowBackground = true
         p.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary]
-        // Clear base so the SwiftUI .regularMaterial + rounded corners define the visible shape.
+        // Clear base so the SwiftUI rounded solid panel defines the visible shape.
         p.backgroundColor = .clear
         p.isOpaque = false
         p.hasShadow = true

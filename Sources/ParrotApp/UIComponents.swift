@@ -18,9 +18,9 @@ struct LangPill: View {
         }
         .font(.system(size: 11, weight: .semibold))
         .foregroundStyle(Theme.Palette.label2)
-        .padding(.horizontal, 9)
-        .padding(.vertical, 3)
-        .background(Theme.Palette.bgContent2)
+        .frame(height: 24)
+        .padding(.horizontal, 10)
+        .background(Theme.Palette.bgControl)
         .clipShape(Capsule())
         .overlay(Capsule().strokeBorder(Theme.Palette.separator, lineWidth: 0.5))
     }
@@ -65,12 +65,25 @@ struct IconButton: View {
     let name: String
     let help: String
     let size: CGFloat
+    let foreground: Color?
+    let activeBackground: Bool
     let action: () -> Void
 
-    init(_ name: String, help: String, size: CGFloat = 13, action: @escaping () -> Void) {
+    @State private var hovering = false
+
+    init(
+        _ name: String,
+        help: String,
+        size: CGFloat = 13,
+        foreground: Color? = nil,
+        activeBackground: Bool = false,
+        action: @escaping () -> Void
+    ) {
         self.name = name
         self.help = help
         self.size = size
+        self.foreground = foreground
+        self.activeBackground = activeBackground
         self.action = action
     }
 
@@ -78,10 +91,30 @@ struct IconButton: View {
         Button(action: action) {
             Image(systemName: name)
                 .font(.system(size: size))
-                .foregroundStyle(Theme.Palette.label2)
-                .frame(width: 24, height: 24)
+                .foregroundStyle(foreground ?? Theme.Palette.label2)
+                .frame(width: 26, height: 26)
         }
         .buttonStyle(.borderless)
+        .background(activeBackground ? Theme.Palette.bgSelection : (hovering ? Theme.Palette.bgControl : Color.clear))
+        .clipShape(RoundedRectangle(cornerRadius: Theme.Radius.control))
+        .contentShape(RoundedRectangle(cornerRadius: Theme.Radius.control))
+        .onHover { hovering = $0 }
         .help(help)
+    }
+}
+
+struct PrimaryActionButtonStyle: ButtonStyle {
+    @Environment(\.isEnabled) private var isEnabled
+
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .font(Theme.Font.body)
+            .foregroundStyle(Theme.Palette.accentInk)
+            .padding(.horizontal, 12)
+            .frame(minHeight: 28)
+            .background(isEnabled ? (configuration.isPressed ? Theme.Palette.accent.opacity(0.82) : Theme.Palette.accent) : Theme.Palette.bgControl)
+            .clipShape(RoundedRectangle(cornerRadius: Theme.Radius.control))
+            .scaleEffect(configuration.isPressed ? 0.985 : 1)
+            .opacity(isEnabled ? 1 : 0.55)
     }
 }

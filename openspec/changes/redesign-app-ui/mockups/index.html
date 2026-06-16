@@ -7,31 +7,34 @@
 <style>
 /* Parrot macOS UI prototype.
    Design read: native macOS utility UI, Apple HIG-inspired, not marketing.
-   Web material is an honest approximation of native SwiftUI/AppKit material. */
+   Text-bearing surfaces are solid; blur is reserved for OS chrome only. */
 
 :root {
   color-scheme: light dark;
   --font: -apple-system, BlinkMacSystemFont, "SF Pro Text", "SF Pro Display", "PingFang SC", "Helvetica Neue", Arial, sans-serif;
-  --accent: #007aff;
-  --accent-strong: #0066d6;
-  --accent-soft: rgb(0 122 255 / 10%);
+  --accent: #6d85c9;
+  --accent-strong: #5a70b3;
+  --accent-soft: rgb(109 133 201 / 16%);
+  --accent-ink: #080b1a;
   --success: #34c759;
   --warning: #ff9f0a;
   --danger: #ff3b30;
   --star: #ffcc00;
-  --desktop-1: #e7edf5;
-  --desktop-2: #bac8d8;
-  --desktop-3: #88a6b8;
+  --desktop-1: #f0f2fb;
+  --desktop-2: #d0d7ee;
+  --desktop-3: #a7b4dd;
   --wallpaper-grain: rgb(255 255 255 / 18%);
-  --menu-glass: rgb(255 255 255 / 46%);
-  --window: rgb(239 239 241 / 78%);
-  --window-solid: #ececef;
-  --content: rgb(255 255 255 / 82%);
+  --menu-glass: rgb(255 255 255 / 72%);
+  --canvas: #f4f6fa;
+  --window: #fbfcff;
+  --window-solid: #fbfcff;
+  --content: #ffffff;
   --content-solid: #ffffff;
-  --content-2: rgb(247 247 249 / 78%);
-  --sidebar: rgb(248 248 249 / 70%);
-  --control: rgb(255 255 255 / 86%);
-  --control-hover: rgb(255 255 255 / 96%);
+  --sidebar: #f0f2f6;
+  --control: #ecf0f6;
+  --control-hover: #e3e8f1;
+  --selection: rgb(109 133 201 / 14%);
+  --skeleton: #e6ebf3;
   --separator: rgb(0 0 0 / 12%);
   --hairline: rgb(0 0 0 / 8%);
   --label: #1d1d1f;
@@ -39,7 +42,7 @@
   --label-3: rgb(60 60 67 / 38%);
   --shadow-panel: 0 22px 54px rgb(31 41 55 / 24%), 0 0 0 .5px var(--separator);
   --shadow-pop: 0 18px 42px rgb(31 41 55 / 22%), 0 0 0 .5px var(--separator);
-  --radius-window: 14px;
+  --radius-window: 12px;
   --radius-card: 10px;
   --radius-control: 7px;
   --s4: 4px;
@@ -53,26 +56,29 @@
 
 @media (prefers-color-scheme: dark) {
   :root[data-theme="system"] {
-    --accent: #0a84ff;
-    --accent-strong: #409cff;
-    --accent-soft: rgb(10 132 255 / 18%);
+    --accent: #6d85c9;
+    --accent-strong: #8fa2dc;
+    --accent-soft: rgb(109 133 201 / 22%);
+    --accent-ink: #080b1a;
     --success: #30d158;
     --warning: #ff9f0a;
     --danger: #ff453a;
     --star: #ffd60a;
-    --desktop-1: #171d25;
-    --desktop-2: #202a34;
-    --desktop-3: #35465b;
+    --desktop-1: #141725;
+    --desktop-2: #202642;
+    --desktop-3: #394875;
     --wallpaper-grain: rgb(255 255 255 / 7%);
-    --menu-glass: rgb(30 30 32 / 62%);
-    --window: rgb(42 42 44 / 76%);
-    --window-solid: #262628;
-    --content: rgb(50 50 52 / 82%);
-    --content-solid: #2c2c2e;
-    --content-2: rgb(58 58 60 / 76%);
-    --sidebar: rgb(42 42 44 / 70%);
-    --control: rgb(72 72 74 / 82%);
-    --control-hover: rgb(86 86 88 / 92%);
+    --menu-glass: rgb(30 32 38 / 82%);
+    --canvas: #191b21;
+    --window: #22242b;
+    --window-solid: #22242b;
+    --content: #2b2d35;
+    --content-solid: #2b2d35;
+    --sidebar: #1f222a;
+    --control: #323641;
+    --control-hover: #3a3f4d;
+    --selection: rgb(109 133 201 / 18%);
+    --skeleton: #3a3e48;
     --separator: rgb(255 255 255 / 13%);
     --hairline: rgb(255 255 255 / 8%);
     --label: #f5f5f7;
@@ -85,26 +91,29 @@
 
 :root[data-theme="dark"] {
   color-scheme: dark;
-  --accent: #0a84ff;
-  --accent-strong: #409cff;
-  --accent-soft: rgb(10 132 255 / 18%);
+  --accent: #6d85c9;
+  --accent-strong: #8fa2dc;
+  --accent-soft: rgb(109 133 201 / 22%);
+  --accent-ink: #080b1a;
   --success: #30d158;
   --warning: #ff9f0a;
   --danger: #ff453a;
   --star: #ffd60a;
-  --desktop-1: #171d25;
-  --desktop-2: #202a34;
-  --desktop-3: #35465b;
+  --desktop-1: #141725;
+  --desktop-2: #202642;
+  --desktop-3: #394875;
   --wallpaper-grain: rgb(255 255 255 / 7%);
-  --menu-glass: rgb(30 30 32 / 62%);
-  --window: rgb(42 42 44 / 76%);
-  --window-solid: #262628;
-  --content: rgb(50 50 52 / 82%);
-  --content-solid: #2c2c2e;
-  --content-2: rgb(58 58 60 / 76%);
-  --sidebar: rgb(42 42 44 / 70%);
-  --control: rgb(72 72 74 / 82%);
-  --control-hover: rgb(86 86 88 / 92%);
+  --menu-glass: rgb(30 32 38 / 82%);
+  --canvas: #191b21;
+  --window: #22242b;
+  --window-solid: #22242b;
+  --content: #2b2d35;
+  --content-solid: #2b2d35;
+  --sidebar: #1f222a;
+  --control: #323641;
+  --control-hover: #3a3f4d;
+  --selection: rgb(109 133 201 / 18%);
+  --skeleton: #3a3e48;
   --separator: rgb(255 255 255 / 13%);
   --hairline: rgb(255 255 255 / 8%);
   --label: #f5f5f7;
@@ -194,8 +203,6 @@ button { color: inherit; }
   background: var(--window);
   border: .5px solid var(--separator);
   box-shadow: var(--shadow-pop);
-  -webkit-backdrop-filter: blur(30px) saturate(180%);
-  backdrop-filter: blur(30px) saturate(180%);
 }
 .viewer button {
   border: 0;
@@ -210,7 +217,7 @@ button { color: inherit; }
 }
 .viewer button:hover { background: var(--control); color: var(--label); }
 .viewer button:active { transform: translateY(1px); }
-.viewer button.active { background: var(--accent); color: #fff; }
+.viewer button.active { background: var(--accent); color: var(--accent-ink); }
 .viewer .divider { width: 1px; height: 18px; background: var(--separator); flex: 0 0 auto; }
 
 .stage {
@@ -249,8 +256,6 @@ button { color: inherit; }
   background: var(--window);
   border: .5px solid var(--separator);
   box-shadow: var(--shadow-pop);
-  -webkit-backdrop-filter: blur(30px) saturate(180%);
-  backdrop-filter: blur(30px) saturate(180%);
 }
 .review-card h2 {
   margin: 0;
@@ -295,8 +300,6 @@ button { color: inherit; }
   background: var(--window);
   border: .5px solid var(--separator);
   box-shadow: var(--shadow-panel);
-  -webkit-backdrop-filter: blur(34px) saturate(180%);
-  backdrop-filter: blur(34px) saturate(180%);
 }
 .window {
   overflow: hidden;
@@ -348,7 +351,7 @@ button { color: inherit; }
 .icon-button.star-on { color: var(--star); }
 .icon-button.is-active {
   color: var(--accent);
-  background: var(--accent-soft);
+  background: var(--selection);
 }
 .icon-sprite {
   position: absolute;
@@ -401,7 +404,7 @@ button { color: inherit; }
 .button.primary {
   border-color: rgb(0 0 0 / 0%);
   background: var(--accent);
-  color: #fff;
+  color: var(--accent-ink);
 }
 .button.primary:hover { background: var(--accent-strong); }
 
@@ -435,17 +438,20 @@ button { color: inherit; }
 .lang-pill button {
   border: 0;
   background: transparent;
-  color: var(--accent);
+  color: var(--label-2);
   cursor: pointer;
   padding: 0;
   transition: transform .2s var(--ease);
 }
-.lang-pill button:hover { transform: rotate(180deg); }
+.lang-pill .swap-language {
+  color: var(--accent);
+}
+.lang-pill .swap-language:hover { transform: rotate(180deg); }
 .status-chip {
   gap: 5px;
   height: 20px;
   padding: 0 8px;
-  background: var(--content-2);
+  background: var(--control);
   color: var(--label-2);
   font-size: 11px;
 }
@@ -461,7 +467,7 @@ button { color: inherit; }
 
 /* Result panel */
 .panel {
-  width: 396px;
+  width: 384px;
   border-radius: var(--radius-window);
   padding: 12px;
   position: relative;
@@ -477,19 +483,6 @@ button { color: inherit; }
   box-shadow: inset 0 0 0 1px var(--accent-soft);
   pointer-events: none;
 }
-.panel::after {
-  content: "";
-  position: absolute;
-  width: 18px;
-  height: 18px;
-  left: 58px;
-  bottom: -8px;
-  transform: rotate(45deg);
-  background: var(--window-solid);
-  border-right: .5px solid var(--separator);
-  border-bottom: .5px solid var(--separator);
-  border-radius: 3px;
-}
 .panel-top {
   height: 28px;
   display: flex;
@@ -501,7 +494,7 @@ button { color: inherit; }
 .source-block {
   padding: 11px 12px;
   border-radius: var(--radius-card);
-  background: var(--content-2);
+  background: var(--content);
   border: .5px solid var(--hairline);
 }
 .source-block .source-text {
@@ -524,12 +517,18 @@ button { color: inherit; }
   background: var(--content);
   border: .5px solid var(--hairline);
 }
+.answer-head,
 .engine-head {
   height: 22px;
   display: flex;
   align-items: center;
   gap: 8px;
 }
+.answer-label {
+  color: var(--label-3);
+  font-size: 11px;
+}
+.answer-head .latency,
 .engine-head .latency {
   margin-left: auto;
   color: var(--label-3);
@@ -561,18 +560,87 @@ button { color: inherit; }
   cursor: pointer;
   font-size: 12px;
 }
+.version-count {
+  min-width: 18px;
+  height: 18px;
+  display: inline-grid;
+  place-items: center;
+  padding: 0 5px;
+  border-radius: 999px;
+  background: var(--accent-soft);
+  color: var(--accent);
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+}
 .compare-toggle .chev { transition: transform .2s var(--ease); }
 .panel.expanded .compare-toggle .chev { transform: rotate(90deg); }
 .compare-list {
   display: none;
   margin-top: 8px;
-  gap: 8px;
+  overflow: hidden;
+  border-radius: var(--radius-card);
+  background: var(--content);
+  border: .5px solid var(--hairline);
 }
-.panel.expanded .compare-list { display: grid; animation: fold-in .18s var(--ease); }
+.panel.expanded .compare-list { display: block; animation: fold-in .18s var(--ease); }
 @keyframes fold-in {
   from { opacity: 0; transform: translateY(-4px); }
   to { opacity: 1; transform: translateY(0); }
 }
+.result-list {
+  margin-top: 8px;
+  display: grid;
+  gap: 8px;
+}
+.version-row {
+  width: 100%;
+  display: block;
+  border: 0;
+  border-top: .5px solid var(--separator);
+  background: transparent;
+  color: inherit;
+  text-align: left;
+  padding: 10px 12px;
+  cursor: pointer;
+  transition: background .16s var(--ease), transform .16s var(--ease);
+}
+.version-row:first-child,
+.status-row:first-child { border-top: 0; }
+.version-row:hover { background: var(--selection); }
+.version-row:active { transform: translateY(1px); }
+.version-meta {
+  min-height: 20px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.version-meta .latency {
+  margin-left: auto;
+  color: var(--label-3);
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+}
+.version-kind {
+  color: var(--label-3);
+  font-size: 11px;
+}
+.version-copy {
+  display: block;
+  margin-top: 4px;
+  color: var(--label);
+  font-size: 13px;
+  line-height: 18px;
+}
+.status-row {
+  border-top: .5px solid var(--separator);
+  padding: 10px 12px;
+  color: var(--label-2);
+}
+.status-row .version-copy { color: var(--label-2); }
+.status-row.error .version-copy,
+.status-row.error .tag { color: var(--danger); }
+.status-row.error .tag { background: color-mix(in srgb, var(--danger), transparent 88%); }
+.status-row.pending .version-kind { color: var(--label-3); }
 .engine-card {
   border-radius: var(--radius-card);
   background: var(--content);
@@ -584,15 +652,22 @@ button { color: inherit; }
   font-size: 14px;
   line-height: 20px;
 }
+.card-actions {
+  margin-top: 8px;
+  display: flex;
+  justify-content: flex-end;
+  gap: 2px;
+}
 .engine-card.error {
   border-color: color-mix(in srgb, var(--danger), transparent 40%);
   color: var(--danger);
 }
 .engine-card.error .tag { color: var(--danger); background: color-mix(in srgb, var(--danger), transparent 88%); }
 .skeleton-line {
+  display: block;
   height: 13px;
   border-radius: 5px;
-  background: linear-gradient(90deg, var(--content-2), rgb(140 140 150 / 16%), var(--content-2));
+  background: linear-gradient(90deg, var(--skeleton), rgb(140 150 170 / 18%), var(--skeleton));
   background-size: 220% 100%;
   animation: shimmer 1.15s linear infinite;
 }
@@ -623,8 +698,8 @@ button { color: inherit; }
 
 /* Input */
 .inputbar {
-  width: min(620px, calc(100vw - 48px));
-  border-radius: 16px;
+  width: min(540px, calc(100vw - 48px));
+  border-radius: 14px;
   overflow: hidden;
 }
 .input-main {
@@ -679,28 +754,11 @@ button { color: inherit; }
   font-size: 12px;
 }
 .input-footer .button { margin-left: auto; }
-.suggestions {
-  display: grid;
-  gap: 6px;
-  padding: 0 12px 12px 52px;
-}
-.suggestion {
-  display: flex;
-  align-items: center;
-  min-height: 30px;
-  padding: 0 10px;
-  border-radius: 8px;
-  background: transparent;
-  color: var(--label-2);
-  font-size: 13px;
-}
-.suggestion.active { background: var(--accent-soft); color: var(--label); }
-
 /* Popover */
 .popover {
-  width: 286px;
+  width: 248px;
   border-radius: 14px;
-  padding: 7px;
+  padding: 6px;
   position: relative;
 }
 .popover::before {
@@ -717,7 +775,7 @@ button { color: inherit; }
   border-radius: 3px;
 }
 .menu-row {
-  min-height: 32px;
+  min-height: 28px;
   display: grid;
   grid-template-columns: 22px 1fr auto;
   align-items: center;
@@ -728,7 +786,7 @@ button { color: inherit; }
   color: var(--label);
   font-size: 13px;
 }
-.menu-row:hover { background: var(--accent-soft); }
+.menu-row:hover { background: var(--selection); }
 .menu-row .glyph { color: var(--label-2); }
 .menu-row .shortcut { color: var(--label-3); font-size: 11px; }
 .menu-sep {
@@ -750,7 +808,7 @@ button { color: inherit; }
   border-radius: 8px;
   cursor: pointer;
 }
-.recent-row:hover { background: var(--accent-soft); }
+.recent-row:hover { background: var(--selection); }
 .recent-row strong {
   display: block;
   min-width: 0;
@@ -800,20 +858,18 @@ button { color: inherit; }
 
 /* Settings */
 .settings-window {
-  width: min(780px, calc(100vw - 48px));
-  height: 520px;
+  width: min(720px, calc(100vw - 48px));
+  height: 500px;
 }
 .settings-body {
   height: calc(100% - 40px);
   display: grid;
-  grid-template-columns: 196px 1fr;
+  grid-template-columns: 184px 1fr;
 }
 .sidebar {
   padding: 10px 8px;
   background: var(--sidebar);
   border-right: .5px solid var(--separator);
-  -webkit-backdrop-filter: blur(26px) saturate(160%);
-  backdrop-filter: blur(26px) saturate(160%);
 }
 .side-row {
   min-height: 32px;
@@ -827,13 +883,13 @@ button { color: inherit; }
   cursor: pointer;
   font-size: 13px;
 }
-.side-row:hover { background: var(--accent-soft); }
-.side-row.active { background: var(--accent); color: #fff; }
+.side-row:hover { background: var(--selection); }
+.side-row.active { background: var(--selection); color: var(--label); }
 .side-row .glyph { color: currentColor; opacity: .82; }
 .settings-content {
   overflow: auto;
   padding: 22px 26px 28px;
-  background: var(--content-solid);
+  background: var(--canvas);
 }
 .settings-pane { display: none; }
 .settings-pane.active {
@@ -845,20 +901,20 @@ button { color: inherit; }
   to { opacity: 1; transform: translateX(0); }
 }
 .pane-title {
-  margin: 0 0 18px;
-  font-size: 22px;
-  line-height: 28px;
-  font-weight: 700;
+  margin: 0 0 12px;
+  font-size: 17px;
+  line-height: 22px;
+  font-weight: 650;
 }
 .group {
   border-radius: 12px;
-  background: var(--content-2);
+  background: var(--content);
   border: .5px solid var(--hairline);
   overflow: hidden;
   margin-bottom: 16px;
 }
 .setting-row {
-  min-height: 42px;
+  min-height: 38px;
   display: grid;
   grid-template-columns: 1fr auto;
   align-items: center;
@@ -909,13 +965,13 @@ button { color: inherit; }
 
 /* History */
 .history-window {
-  width: min(820px, calc(100vw - 48px));
-  height: 520px;
+  width: min(760px, calc(100vw - 48px));
+  height: 500px;
 }
 .history-body {
   height: calc(100% - 40px);
   display: grid;
-  grid-template-columns: 300px 1fr;
+  grid-template-columns: 280px 1fr;
 }
 .history-list {
   background: var(--sidebar);
@@ -970,10 +1026,10 @@ button { color: inherit; }
   border-radius: 9px;
   cursor: pointer;
 }
-.history-row:hover { background: var(--accent-soft); }
+.history-row:hover { background: var(--selection); }
 .history-row.active {
-  background: var(--accent);
-  color: #fff;
+  background: var(--selection);
+  color: var(--label);
 }
 .history-row strong {
   display: block;
@@ -989,11 +1045,11 @@ button { color: inherit; }
   font-size: 11px;
   line-height: 15px;
 }
-.history-row.active span { color: rgb(255 255 255 / 78%); }
+.history-row.active span { color: var(--label-2); }
 .history-row .star { color: var(--star); }
-.history-row.active .star { color: #fff; }
+.history-row.active .star { color: var(--star); }
 .history-detail {
-  background: var(--content-solid);
+  background: var(--canvas);
   padding: 18px;
   overflow: auto;
 }
@@ -1006,7 +1062,7 @@ button { color: inherit; }
 .detail-toolbar .spacer { margin-left: auto; }
 .detail-card {
   border-radius: 12px;
-  background: var(--content-2);
+  background: var(--content);
   border: .5px solid var(--hairline);
   padding: 14px;
   margin-bottom: 10px;
@@ -1076,7 +1132,7 @@ button { color: inherit; }
   height: 130px;
   border: 1px solid var(--accent);
   box-shadow: 0 0 0 9999px rgb(0 0 0 / 42%);
-  background: rgb(0 122 255 / 7%);
+  background: var(--accent-soft);
 }
 .handle {
   width: 8px;
@@ -1108,13 +1164,11 @@ button { color: inherit; }
   position: absolute;
   right: 42px;
   top: 72px;
-  width: 310px;
+  width: 360px;
   border-radius: 13px;
   background: var(--window);
   border: .5px solid var(--separator);
   box-shadow: var(--shadow-panel);
-  -webkit-backdrop-filter: blur(34px) saturate(180%);
-  backdrop-filter: blur(34px) saturate(180%);
   overflow: hidden;
 }
 .ocr-card header {
@@ -1147,8 +1201,8 @@ button { color: inherit; }
   border-radius: 8px;
   cursor: pointer;
 }
-.ocr-line:hover { background: var(--accent-soft); }
-.ocr-line.on { background: var(--accent-soft); }
+.ocr-line:hover { background: var(--selection); }
+.ocr-line.on { background: var(--selection); }
 .check {
   width: 18px;
   height: 18px;
@@ -1162,6 +1216,7 @@ button { color: inherit; }
 .ocr-line.on .check {
   border-color: var(--accent);
   background: var(--accent);
+  color: var(--accent-ink);
 }
 .ocr-line span:last-child {
   font-size: 12px;
@@ -1316,8 +1371,11 @@ button { color: inherit; }
     <section class="surface active" data-surface="result">
       <article class="panel expanded" id="resultPanel" aria-label="Translation result panel">
         <div class="panel-top">
-          <span class="lang-pill">EN <button aria-label="Swap languages">⇄</button> 中</span>
-          <span class="status-chip"><span class="dot ok"></span><span id="panelMode">失焦隐藏</span></span>
+          <span class="lang-pill">
+            <button class="lang-select" aria-label="Source language">自动</button>
+            <button class="swap-language" aria-label="Swap languages">⇄</button>
+            <button class="lang-select" aria-label="Target language">中文</button>
+          </span>
           <span class="actions">
             <button class="icon-button" id="pinPanelButton" aria-label="Pin panel" aria-pressed="false"><svg class="icon"><use href="#icon-pin"></use></svg></button>
             <button class="icon-button star-on" aria-label="Favorite"><svg class="icon fill"><use href="#icon-star"></use></svg></button>
@@ -1327,27 +1385,10 @@ button { color: inherit; }
         </div>
 
         <div class="source-block">
-          <div class="source-text" id="sourceText">The revised interaction should show one confident translation first, then let the user compare engines only when needed.</div>
+          <div class="source-text" id="sourceText">The revised interaction should keep engine results in the order configured by the user.</div>
           <div class="source-meta">
             <span>自动检测英文</span>
             <span id="sourceState">76 个字符</span>
-          </div>
-        </div>
-
-        <div class="primary-result" id="primaryResult">
-          <div class="engine-head">
-            <span class="tag">Apple 系统翻译</span>
-            <span class="latency">本地</span>
-          </div>
-          <p class="result-copy">修订后的交互应先展示一个可靠的译文，再让用户在需要时比较不同引擎。</p>
-          <div class="result-actions">
-            <button class="compare-toggle" id="compareToggle" aria-expanded="true">
-              <span class="chev">›</span><span>比较 3 个引擎</span>
-            </button>
-            <span>
-              <button class="icon-button" aria-label="Copy translation"><svg class="icon"><use href="#icon-copy"></use></svg></button>
-              <button class="icon-button" aria-label="Speak translation"><svg class="icon"><use href="#icon-speaker"></use></svg></button>
-            </span>
           </div>
         </div>
 
@@ -1357,18 +1398,30 @@ button { color: inherit; }
           <button class="button primary">打开系统设置</button>
         </div>
 
-        <div class="compare-list" id="compareList">
+        <div class="result-list" id="resultList">
           <div class="engine-card">
             <div class="engine-head"><span class="tag">Google</span><span class="latency">128ms</span></div>
-            <p>修订后的交互应先显示一个自信的译文，然后只在需要时让用户比较各引擎。</p>
+            <p>修订后的交互应按用户设置的引擎顺序展示结果。</p>
+            <div class="card-actions">
+              <button class="icon-button" aria-label="Copy Google translation"><svg class="icon"><use href="#icon-copy"></use></svg></button>
+              <button class="icon-button" aria-label="Speak Google translation"><svg class="icon"><use href="#icon-speaker"></use></svg></button>
+            </div>
           </div>
           <div class="engine-card">
             <div class="engine-head"><span class="tag">DeepL</span><span class="latency">214ms</span></div>
-            <p>改版后的交互应优先呈现一条可靠译文，只有在需要时才展开多引擎对比。</p>
+            <p>结果列表不做主次判断，排序由设置页统一管理。</p>
+            <div class="card-actions">
+              <button class="icon-button" aria-label="Copy DeepL translation"><svg class="icon"><use href="#icon-copy"></use></svg></button>
+              <button class="icon-button" aria-label="Speak DeepL translation"><svg class="icon"><use href="#icon-speaker"></use></svg></button>
+            </div>
           </div>
           <div class="engine-card">
             <div class="engine-head"><span class="tag">OpenAI</span><span class="latency">618ms</span></div>
-            <p>新版交互先给出默认答案，减少扫读压力，再把引擎差异收进可展开区域。</p>
+            <p>慢速引擎返回后填入自己的位置，不打乱前面已经显示的结果。</p>
+            <div class="card-actions">
+              <button class="icon-button" aria-label="Copy OpenAI translation"><svg class="icon"><use href="#icon-copy"></use></svg></button>
+              <button class="icon-button" aria-label="Speak OpenAI translation"><svg class="icon"><use href="#icon-speaker"></use></svg></button>
+            </div>
           </div>
         </div>
       </article>
@@ -1377,9 +1430,9 @@ button { color: inherit; }
         <h2>UX 评审结论</h2>
         <p>默认仍是失焦隐藏的临时浮层。用户点 Pin 后才进入常驻模式，面板留在原位并继续接收后续翻译结果。</p>
         <ul class="review-list">
-          <li><span class="mark">1</span><span>主译文大一档展示，来源文本收敛在上方，符合“即用即走”。</span></li>
-          <li><span class="mark">2</span><span>多引擎结果默认折叠，保持上下文，不把罕用判断强加给用户。</span></li>
-          <li><span class="mark">3</span><span>Pin 是明确选择，不改变默认隐藏逻辑，也不把临时面板伪装成窗口。</span></li>
+          <li><span class="mark">1</span><span>结果按设置页顺序展示，不区分主次。</span></li>
+          <li><span class="mark">2</span><span>异步返回只填充对应槽位，避免列表跳动。</span></li>
+          <li><span class="mark">3</span><span>菜单栏不展示引擎，配置统一收进设置页。</span></li>
         </ul>
       </aside>
     </section>
@@ -1390,10 +1443,6 @@ button { color: inherit; }
           <span class="search-glyph"><svg class="icon"><use href="#icon-search"></use></svg></span>
           <input value="summarize this paragraph in Chinese" aria-label="Input text">
           <span class="lang-pill">自动 <button aria-label="Swap languages">⇄</button> 中</span>
-        </div>
-        <div class="suggestions">
-          <div class="suggestion active">翻译为中文并保留技术术语</div>
-          <div class="suggestion">仅解释短语含义</div>
         </div>
         <div class="input-footer">
           <span class="kbd">↩</span><span class="hint-text">翻译</span>
@@ -1421,14 +1470,9 @@ button { color: inherit; }
         <div class="menu-row"><svg class="icon"><use href="#icon-keyboard"></use></svg><span>输入翻译</span><span class="shortcut">⌥A</span></div>
         <div class="menu-sep"></div>
         <div class="menu-label">最近</div>
-        <div class="recent-row"><div><strong>interaction should show one confident translation</strong><span>EN → 中, 2 分钟前</span></div><svg class="icon"><use href="#icon-chevron"></use></svg></div>
+        <div class="recent-row"><div><strong>keep engine results in user order</strong><span>EN → 中, 2 分钟前</span></div><svg class="icon"><use href="#icon-chevron"></use></svg></div>
         <div class="recent-row"><div><strong>設計仕様を確認してください</strong><span>JA → 中, 1 小时前</span></div><svg class="icon"><use href="#icon-chevron"></use></svg></div>
         <div class="recent-row"><div><strong>use-and-dismiss workflow</strong><span>EN → 中, 昨天</span></div><svg class="icon"><use href="#icon-chevron"></use></svg></div>
-        <div class="menu-sep"></div>
-        <div class="menu-label">引擎</div>
-        <div class="switch-row"><span class="dot ok"></span><span>系统翻译</span><button class="switch on" aria-label="Toggle system translation"></button></div>
-        <div class="switch-row"><span class="dot ok"></span><span>Google</span><button class="switch on" aria-label="Toggle Google"></button></div>
-        <div class="switch-row"><span class="dot warn"></span><span>OpenAI</span><button class="switch" aria-label="Toggle OpenAI"></button></div>
         <div class="menu-sep"></div>
         <div class="menu-row"><svg class="icon"><use href="#icon-gear"></use></svg><span>设置</span><span class="shortcut">⌘,</span></div>
         <div class="menu-row"><svg class="icon"><use href="#icon-power"></use></svg><span>退出 Parrot</span><span class="shortcut">⌘Q</span></div>
@@ -1436,10 +1480,10 @@ button { color: inherit; }
 
       <aside class="review-card">
         <h2>菜单栏优化</h2>
-        <p>从裸菜单改为小型控制中心：动作、最近记录、引擎状态各自成组。每行命中区稳定，避免误点。</p>
+        <p>菜单栏只保留即时动作和最近记录。引擎开关、密钥和排序都进入设置页，避免把控制中心做重。</p>
         <ul class="review-list">
           <li><span class="mark">1</span><span>四个主入口固定在顶部，肌肉记忆不受历史数量影响。</span></li>
-          <li><span class="mark">2</span><span>引擎状态用真实语义点，未配置只在相关行提示。</span></li>
+          <li><span class="mark">2</span><span>菜单页不展示引擎，减少低频配置干扰。</span></li>
           <li><span class="mark">3</span><span>最近记录可以直接再翻译，减少进入历史窗口的频率。</span></li>
         </ul>
       </aside>
@@ -1464,6 +1508,7 @@ button { color: inherit; }
             <div class="settings-pane active" data-pane="general">
               <h1 class="pane-title">通用</h1>
               <div class="group">
+                <div class="setting-row"><span>默认来源语言</span><select class="select"><option>自动检测</option><option>English</option><option>中文</option><option>日本語</option></select></div>
                 <div class="setting-row"><span>默认目标语言</span><select class="select"><option>中文</option><option>English</option><option>日本語</option></select></div>
                 <div class="setting-row"><span>失焦后隐藏结果面板<small>默认 6 秒，移动鼠标到面板上时暂停。</small></span><button class="switch on" aria-label="Toggle auto hide"></button></div>
                 <div class="setting-row"><span>在菜单栏显示 Parrot</span><button class="switch on" aria-label="Toggle menu bar icon"></button></div>
@@ -1473,9 +1518,10 @@ button { color: inherit; }
             <div class="settings-pane" data-pane="translate">
               <h1 class="pane-title">翻译</h1>
               <div class="group">
-                <div class="setting-row"><span>系统翻译<small>离线优先，适合作为主结果。</small></span><span><span class="dot ok"></span> <button class="switch on" aria-label="Toggle system"></button></span></div>
                 <div class="setting-row"><span>Google<small>快速在线机翻，用于对比。</small></span><span><span class="dot ok"></span> <button class="switch on" aria-label="Toggle google"></button></span></div>
+                <div class="setting-row"><span>DeepL<small>适合自然语言与长句。</small></span><span><span class="dot ok"></span> <button class="switch on" aria-label="Toggle deepl"></button></span></div>
                 <div class="setting-row"><span>OpenAI<small>未配置密钥。</small></span><span><span class="dot warn"></span> <button class="switch" aria-label="Toggle openai"></button></span></div>
+                <div class="setting-row"><span>系统翻译<small>macOS 15+ · 本地，适合隐私优先和快速兜底。</small></span><span><span class="dot ok"></span> <button class="switch" aria-label="Toggle system"></button></span></div>
               </div>
             </div>
             <div class="settings-pane" data-pane="keys">
@@ -1531,7 +1577,7 @@ button { color: inherit; }
             <div class="search"><svg class="icon"><use href="#icon-search"></use></svg><span>搜索原文或译文</span></div>
             <div class="segmented"><button class="active">全部</button><button>收藏</button></div>
             <div class="history-rows">
-              <div class="history-row active" data-history="0"><div><strong>interaction should show one confident translation</strong><span>EN → 中, 系统翻译, 2 分钟前</span></div><span class="star">★</span></div>
+              <div class="history-row active" data-history="0"><div><strong>keep engine results in user order</strong><span>EN → 中, Google, 2 分钟前</span></div><span class="star">★</span></div>
               <div class="history-row" data-history="1"><div><strong>設計仕様を確認してください</strong><span>JA → 中, DeepL, 1 小时前</span></div></div>
               <div class="history-row" data-history="2"><div><strong>use-and-dismiss workflow</strong><span>EN → 中, Google, 昨天</span></div><span class="star">★</span></div>
               <div class="history-row" data-history="3"><div><strong>revue de la maquette</strong><span>FR → 中, Google, 3 天前</span></div></div>
@@ -1547,11 +1593,11 @@ button { color: inherit; }
             </div>
             <div class="detail-card">
               <h3>原文</h3>
-              <p id="historySource">interaction should show one confident translation</p>
+              <p id="historySource">keep engine results in user order</p>
             </div>
             <div class="detail-card">
-              <h3 id="historyEngine">系统翻译</h3>
-              <p id="historyTranslation">交互应先展示一个可靠的译文。</p>
+              <h3 id="historyEngine">Google</h3>
+              <p id="historyTranslation">结果应按用户设置的引擎顺序展示。</p>
             </div>
             <button class="button primary">重新翻译</button>
           </section>
@@ -1591,7 +1637,7 @@ button { color: inherit; }
             <button id="selectAllOcr">取消全选</button>
           </header>
           <div class="ocr-lines">
-            <div class="ocr-line on"><span class="check">✓</span><span>The revised interaction should show one confident translation first.</span></div>
+            <div class="ocr-line on"><span class="check">✓</span><span>The revised interaction should keep engine results in user order.</span></div>
             <div class="ocr-line on"><span class="check">✓</span><span>Compare engines only when the user asks for more detail.</span></div>
             <div class="ocr-line on"><span class="check">✓</span><span>Keep authorization guidance in the same surface.</span></div>
             <div class="ocr-line"><span class="check"></span><span>Internal draft, page 3.</span></div>
@@ -1619,13 +1665,16 @@ button { color: inherit; }
 <script>
 const root = document.documentElement;
 const resultPanel = document.getElementById("resultPanel");
-const compareToggle = document.getElementById("compareToggle");
-const primaryResult = document.getElementById("primaryResult");
-const compareList = document.getElementById("compareList");
+const resultList = document.getElementById("resultList");
 const permissionCard = document.getElementById("permissionCard");
 const sourceState = document.getElementById("sourceState");
 const pinPanelButton = document.getElementById("pinPanelButton");
-const panelMode = document.getElementById("panelMode");
+
+const normalResults = [
+  { engine: "Google", latency: "128ms", copy: "修订后的交互应按用户设置的引擎顺序展示结果。" },
+  { engine: "DeepL", latency: "214ms", copy: "结果列表不做主次判断，排序由设置页统一管理。" },
+  { engine: "OpenAI", latency: "618ms", copy: "慢速引擎返回后填入自己的位置，不打乱前面已经显示的结果。" }
+];
 
 document.querySelectorAll("[data-surface-target]").forEach((button) => {
   button.addEventListener("click", () => {
@@ -1636,79 +1685,66 @@ document.querySelectorAll("[data-surface-target]").forEach((button) => {
   });
 });
 
-compareToggle.addEventListener("click", () => {
-  const expanded = resultPanel.classList.toggle("expanded");
-  compareToggle.setAttribute("aria-expanded", String(expanded));
-});
-
 pinPanelButton.addEventListener("click", () => {
   const pinned = resultPanel.classList.toggle("pinned");
   pinPanelButton.classList.toggle("is-active", pinned);
   pinPanelButton.setAttribute("aria-pressed", String(pinned));
   pinPanelButton.setAttribute("aria-label", pinned ? "Unpin panel" : "Pin panel");
-  panelMode.textContent = pinned ? "常驻" : "失焦隐藏";
 });
+
+function resultCard(item) {
+  const body = item.loading
+    ? `<span class="skeleton-line" style="width: 90%"></span><span class="skeleton-line" style="width: 64%"></span>`
+    : `<p>${item.copy}</p>`;
+  const actions = item.loading || item.error ? "" : `
+    <div class="card-actions">
+      <button class="icon-button" aria-label="Copy ${item.engine} translation"><svg class="icon"><use href="#icon-copy"></use></svg></button>
+      <button class="icon-button" aria-label="Speak ${item.engine} translation"><svg class="icon"><use href="#icon-speaker"></use></svg></button>
+    </div>`;
+  return `
+    <div class="engine-card ${item.error ? "error" : ""}">
+      <div class="engine-head"><span class="tag">${item.engine}</span><span class="latency">${item.latency}</span></div>
+      ${body}
+      ${actions}
+    </div>`;
+}
+
+function renderResultList(items) {
+  resultList.innerHTML = items.map(resultCard).join("");
+}
 
 function setResultState(state) {
   document.querySelector('[data-surface-target="result"]').click();
   resultPanel.classList.add("expanded");
-  primaryResult.style.display = "";
-  compareList.style.display = "";
+  resultList.style.display = "";
   permissionCard.style.display = "none";
   sourceState.textContent = "76 个字符";
   sourceState.style.color = "";
-  compareList.innerHTML = `
-    <div class="engine-card">
-      <div class="engine-head"><span class="tag">Google</span><span class="latency">128ms</span></div>
-      <p>修订后的交互应先显示一个自信的译文，然后只在需要时让用户比较各引擎。</p>
-    </div>
-    <div class="engine-card">
-      <div class="engine-head"><span class="tag">DeepL</span><span class="latency">214ms</span></div>
-      <p>改版后的交互应优先呈现一条可靠译文，只有在需要时才展开多引擎对比。</p>
-    </div>
-    <div class="engine-card">
-      <div class="engine-head"><span class="tag">OpenAI</span><span class="latency">618ms</span></div>
-      <p>新版交互先给出默认答案，减少扫读压力，再把引擎差异收进可展开区域。</p>
-    </div>`;
+  renderResultList(normalResults);
 
   if (state === "loading") {
     sourceState.textContent = "正在翻译";
-    compareList.innerHTML = `
-      <div class="engine-card">
-        <div class="engine-head"><span class="tag">系统翻译</span><span class="latency">...</span></div>
-        <div class="skeleton-line" style="width: 94%"></div>
-        <div class="skeleton-line" style="width: 68%"></div>
-      </div>
-      <div class="engine-card">
-        <div class="engine-head"><span class="tag">Google</span><span class="latency">...</span></div>
-        <div class="skeleton-line" style="width: 86%"></div>
-        <div class="skeleton-line" style="width: 72%"></div>
-      </div>`;
+    renderResultList([
+      { engine: "Google", latency: "...", loading: true },
+      { engine: "DeepL", latency: "...", loading: true },
+      { engine: "OpenAI", latency: "...", loading: true }
+    ]);
   }
 
   if (state === "error") {
     sourceState.textContent = "部分失败";
     sourceState.style.color = "var(--warning)";
-    compareList.innerHTML = `
-      <div class="engine-card">
-        <div class="engine-head"><span class="tag">系统翻译</span><span class="latency">本地</span></div>
-        <p>修订后的交互应先展示一个可靠的译文，再按需比较引擎。</p>
-      </div>
-      <div class="engine-card error">
-        <div class="engine-head"><span class="tag">OpenAI</span><span class="latency">失败</span></div>
-        <p>鉴权失败。请检查 API Key。</p>
-      </div>
-      <div class="engine-card error">
-        <div class="engine-head"><span class="tag">DeepL</span><span class="latency">超时</span></div>
-        <p>请求超时。可先使用已返回的翻译结果。</p>
-      </div>`;
+    renderResultList([
+      { engine: "Google", latency: "128ms", copy: "修订后的交互应按用户设置的引擎顺序展示结果。" },
+      { engine: "DeepL", latency: "超时", error: true, copy: "请求超时。其他结果仍保留在原顺序。" },
+      { engine: "OpenAI", latency: "失败", error: true, copy: "鉴权失败。请在设置页检查 API Key。" }
+    ]);
   }
 
   if (state === "permission") {
     sourceState.textContent = "等待授权";
     sourceState.style.color = "var(--warning)";
-    primaryResult.style.display = "none";
-    compareList.style.display = "none";
+    resultList.style.display = "none";
     permissionCard.style.display = "block";
   }
 }
@@ -1738,7 +1774,7 @@ document.querySelectorAll("[data-pane-target]").forEach((row) => {
 });
 
 const historyData = [
-  ["EN ⇄ 中", "interaction should show one confident translation", "系统翻译", "交互应先展示一个可靠的译文。"],
+  ["EN ⇄ 中", "keep engine results in user order", "Google", "结果应按用户设置的引擎顺序展示。"],
   ["JA ⇄ 中", "設計仕様を確認してください", "DeepL", "请确认设计规格。"],
   ["EN ⇄ 中", "use-and-dismiss workflow", "Google", "即用即走的工作流。"],
   ["FR ⇄ 中", "revue de la maquette", "Google", "视觉稿评审。"]

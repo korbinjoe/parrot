@@ -11,7 +11,7 @@
 - [x] hover 显隐用 `opacity` 切换（EngineCard 复制/朗读），未用 `display`/`hidden` 切换，无布局抖动。
 - [x] 状态覆盖：加载（SkeletonCard）、空（"无可用引擎"/"暂无记录"）、错误（danger 卡 + ProviderError 文案）、离线（WarningBar）。
 - [x] 长文本防御：HistoryRow/recentRow `lineLimit(1)`，结果/源文 `fixedSize(vertical)` 自动换行。
-- [x] 无 AI 味：无渐变、无彩色 glow、无装饰动画（仅 opacity/crossfade 状态反馈）；强调色每视图唯一蓝，语义色（星黄/状态红绿橙/warning）不计入预算。
+- [x] 无 AI 味：无渐变、无彩色 glow、无装饰动画（仅 opacity/crossfade 状态反馈）；强调色每视图唯一 `#6D85C9`，语义色（星黄/状态红绿橙/warning）不计入预算。
 
 ### 已落地界面（编译 + 单测验证）
 

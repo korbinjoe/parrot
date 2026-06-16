@@ -1,11 +1,10 @@
 import SwiftUI
 import ParrotCore
 
-/// Menu-bar dropdown content (260pt): four primary actions, recent history, engine quick toggles,
+/// Menu-bar dropdown content: four primary actions, recent history,
 /// then settings/quit. Replaces the bare `NSMenu` so it can share the app's design tokens.
 struct MenuBarPopoverView: View {
     @ObservedObject var state: AppState
-    @ObservedObject var settings: AppSettings
 
     let onSelection: () -> Void
     let onLookup: () -> Void
@@ -41,19 +40,12 @@ struct MenuBarPopoverView: View {
 
             sectionDivider
 
-            sectionLabel("引擎")
-            engineToggle("Google", isOn: $settings.googleEnabled, hasKey: true)
-            engineToggle("DeepL", isOn: $settings.deepLEnabled, hasKey: settings.hasDeepLKey, onConfigure: onSettings)
-            engineToggle("OpenAI", isOn: $settings.openAIEnabled, hasKey: settings.hasOpenAIKey, onConfigure: onSettings)
-            plainRow("管理引擎与密钥", icon: "slider.horizontal.3", action: onSettings)
-
-            sectionDivider
-
             actionRow("gearshape", "设置…", "⌘,", action: onSettings)
             actionRow("power", "退出 Parrot", "⌘Q", action: onQuit)
         }
-        .padding(Theme.Spacing.s8)
-        .frame(width: 260)
+        .padding(6)
+        .frame(width: 248)
+        .background(Theme.Palette.bgContent)
         .onAppear(perform: loadRecents)
     }
 
@@ -82,41 +74,35 @@ struct MenuBarPopoverView: View {
 
     private func recentRow(_ rec: TranslationRecord) -> some View {
         HoverRow(action: { onRetranslate(rec.sourceText) }) {
-            VStack(alignment: .leading, spacing: 1) {
-                Text(rec.sourceText).font(Theme.Font.body)
-                    .foregroundStyle(Theme.Palette.label).lineLimit(1)
-                Text(rec.translated).font(Theme.Font.caption)
-                    .foregroundStyle(Theme.Palette.label2).lineLimit(1)
+            HStack(spacing: Theme.Spacing.s8) {
+                VStack(alignment: .leading, spacing: 1) {
+                    Text(rec.sourceText)
+                        .font(.system(size: 12))
+                        .foregroundStyle(Theme.Palette.label)
+                        .lineLimit(1)
+                    Text(rec.translated)
+                        .font(Theme.Font.caption)
+                        .foregroundStyle(Theme.Palette.label3)
+                        .lineLimit(1)
+                }
+                Spacer(minLength: 0)
+                Image(systemName: "chevron.right")
+                    .font(.system(size: 10, weight: .semibold))
+                    .foregroundStyle(Theme.Palette.label3)
             }
         }
-    }
-
-    private func engineToggle(_ name: String, isOn: Binding<Bool>, hasKey: Bool, onConfigure: (() -> Void)? = nil) -> some View {
-        HStack(spacing: Theme.Spacing.s8) {
-            Text(name).font(Theme.Font.body).foregroundStyle(Theme.Palette.label)
-            Spacer(minLength: 0)
-            if !hasKey, let onConfigure {
-                Button("配置") { onConfigure() }
-                    .font(Theme.Font.caption)
-                    .buttonStyle(.borderless)
-                    .foregroundStyle(Theme.Palette.accent)
-            }
-            Toggle("", isOn: isOn).labelsHidden().toggleStyle(.switch).controlSize(.mini)
-                .disabled(!hasKey)
-                .onChange(of: isOn.wrappedValue) { _ in state.applySettings() }
-        }
-        .padding(.horizontal, 10).padding(.vertical, 4)
     }
 
     // MARK: - Chrome
 
     private func sectionLabel(_ t: String) -> some View {
         Text(t).font(Theme.Font.caption).foregroundStyle(Theme.Palette.label3)
-            .padding(.horizontal, 10).padding(.top, 4).padding(.bottom, 2)
+            .fontWeight(.semibold)
+            .padding(.horizontal, 9).padding(.top, 2).padding(.bottom, 4)
     }
 
     private var sectionDivider: some View {
-        Divider().padding(.vertical, 4)
+        Divider().padding(.horizontal, 5).padding(.vertical, 5)
     }
 
     private func loadRecents() {
@@ -127,7 +113,7 @@ struct MenuBarPopoverView: View {
     }
 }
 
-/// A full-width row that highlights with accent-soft on hover. Used for menu items.
+/// A full-width row that highlights with the shared selection fill on hover.
 private struct HoverRow<Content: View>: View {
     let action: () -> Void
     @ViewBuilder let content: () -> Content
@@ -135,10 +121,11 @@ private struct HoverRow<Content: View>: View {
 
     var body: some View {
         content()
-            .padding(.horizontal, 10).padding(.vertical, 6)
+            .padding(.horizontal, 9)
+            .frame(minHeight: 28)
             .frame(maxWidth: .infinity, alignment: .leading)
-            .background(hovering ? Theme.Palette.accentSoft : Color.clear)
-            .clipShape(RoundedRectangle(cornerRadius: 6))
+            .background(hovering ? Theme.Palette.bgSelection : Color.clear)
+            .clipShape(RoundedRectangle(cornerRadius: 8))
             .contentShape(Rectangle())
             .onHover { hovering = $0 }
             .onTapGesture(perform: action)

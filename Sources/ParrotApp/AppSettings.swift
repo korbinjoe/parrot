@@ -31,6 +31,9 @@ final class AppSettings: ObservableObject {
     @Published var targetLanguageCode: String {
         didSet { defaults.set(targetLanguageCode, forKey: "targetLanguageCode") }
     }
+    @Published var sourceLanguageCode: String {
+        didSet { defaults.set(sourceLanguageCode, forKey: "sourceLanguageCode") }
+    }
 
     // MARK: - Engine toggles
 
@@ -81,6 +84,7 @@ final class AppSettings: ObservableObject {
     init(defaults: UserDefaults = .standard) {
         self.defaults = defaults
         self.targetLanguageCode = defaults.string(forKey: "targetLanguageCode") ?? "zh"
+        self.sourceLanguageCode = defaults.string(forKey: "sourceLanguageCode") ?? "auto"
         self.googleEnabled = defaults.object(forKey: "engine.google.enabled") as? Bool ?? true
         self.deepLEnabled = defaults.object(forKey: "engine.deepl.enabled") as? Bool ?? true
         self.openAIEnabled = defaults.object(forKey: "engine.openai.enabled") as? Bool ?? true
@@ -148,6 +152,9 @@ final class AppSettings: ObservableObject {
         return !blob.contains(sampleSecret)
     }
 
+    var sourceLanguage: Language {
+        sourceLanguageCode == "auto" ? .auto : Language(code: sourceLanguageCode)
+    }
     var targetLanguage: Language { Language(code: targetLanguageCode) }
 
     // MARK: - Keys

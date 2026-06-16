@@ -9,7 +9,7 @@ final class InputPanel {
     private var window: NSWindow?
     private let state: AppState
     private let onSubmit: (String) -> Void
-    private let baseSize = NSSize(width: 520, height: 56)
+    private let baseSize = NSSize(width: 540, height: 60)
 
     init(state: AppState, onSubmit: @escaping (String) -> Void) {
         self.state = state
@@ -89,18 +89,19 @@ private struct InputView: View {
         VStack(spacing: 0) {
             HStack(spacing: Theme.Spacing.s12) {
                 Image(systemName: "character.bubble")
-                    .font(.system(size: 18))
+                    .font(.system(size: 16))
                     .foregroundStyle(Theme.Palette.label3)
+                    .frame(width: 26, height: 26)
                 TextField("输入要翻译的文本…", text: $text, axis: .vertical)
                     .textFieldStyle(.plain)
-                    .font(Theme.Font.result)
+                    .font(.system(size: 17))
                     .lineLimit(1...4)
                     .focused($focused)
                     .onSubmit { submit() }
                 LangPill(from: .auto, to: target)
             }
             .padding(.horizontal, Theme.Spacing.s16)
-            .frame(minHeight: 56)
+            .frame(minHeight: 60)
 
             if !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
                 Divider()
@@ -109,20 +110,19 @@ private struct InputView: View {
                     hint("⎋"); Text("关闭").foregroundStyle(Theme.Palette.label3)
                     Spacer()
                     Button("翻译") { submit() }
-                        .buttonStyle(.borderedProminent)
-                        .controlSize(.small)
+                        .buttonStyle(PrimaryActionButtonStyle())
                         .keyboardShortcut(.return, modifiers: [])
                 }
                 .font(Theme.Font.caption)
                 .padding(.horizontal, Theme.Spacing.s16)
-                .frame(height: 38)
+                .frame(height: 42)
             }
         }
-        .frame(width: 520)
-        .background(.regularMaterial)
-        .clipShape(RoundedRectangle(cornerRadius: Theme.Radius.window))
+        .frame(width: 540)
+        .background(Theme.Palette.bgPanel)
+        .clipShape(RoundedRectangle(cornerRadius: Theme.Radius.input))
         .overlay(
-            RoundedRectangle(cornerRadius: Theme.Radius.window)
+            RoundedRectangle(cornerRadius: Theme.Radius.input)
                 .strokeBorder(focused ? Theme.Palette.accent : Theme.Palette.separator,
                               lineWidth: focused ? 1.5 : 0.5)
         )
@@ -140,11 +140,11 @@ private struct InputView: View {
         Text(key)
             .font(Theme.Font.caption)
             .foregroundStyle(Theme.Palette.label2)
-            .padding(.horizontal, 5)
-            .padding(.vertical, 1)
-            .background(Theme.Palette.bgContent2)
-            .clipShape(RoundedRectangle(cornerRadius: 4))
-            .overlay(RoundedRectangle(cornerRadius: 4).strokeBorder(Theme.Palette.separator, lineWidth: 0.5))
+            .frame(minWidth: 24, minHeight: 22)
+            .padding(.horizontal, 7)
+            .background(Theme.Palette.bgControl)
+            .clipShape(RoundedRectangle(cornerRadius: 6))
+            .overlay(RoundedRectangle(cornerRadius: 6).strokeBorder(Theme.Palette.separator, lineWidth: 0.5))
     }
 
     private func submit() {

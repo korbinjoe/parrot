@@ -20,7 +20,7 @@ final class SettingsWindow {
             win.title = "Parrot 设置"
             win.styleMask = [.titled, .closable, .miniaturizable]
             win.isReleasedWhenClosed = false
-            win.setContentSize(NSSize(width: 640, height: 460))
+            win.setContentSize(NSSize(width: 720, height: 500))
             window = win
         }
         NSApp.activate(ignoringOtherApps: true)
@@ -113,16 +113,16 @@ struct SettingsView: View {
             Divider()
             ScrollView {
                 content
-                    .padding(.horizontal, Theme.Spacing.s20 + 4)
-                    .padding(.vertical, Theme.Spacing.s20)
+                    .padding(.horizontal, 22)
+                    .padding(.vertical, 20)
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .id(selection)
                     .transition(.opacity)
             }
-            .background(Theme.Palette.bgContent)
+            .background(Theme.Palette.bgCanvas)
             .animation(.easeInOut(duration: 0.15), value: selection)
         }
-        .frame(width: 640, height: 460)
+        .frame(width: 720, height: 500)
         .onAppear {
             ollamaEndpointField = settings.ollamaEndpoint
             ollamaModelField = settings.model(for: "ollama") ?? "llama3.2"
@@ -143,9 +143,10 @@ struct SettingsView: View {
             }
             Spacer()
         }
-        .padding(Theme.Spacing.s8)
-        .frame(width: 180)
-        .background(.regularMaterial)
+        .padding(.horizontal, Theme.Spacing.s8)
+        .padding(.vertical, 10)
+        .frame(width: 184)
+        .background(Theme.Palette.bgSidebar)
     }
 
     private func sidebarRow(_ pane: Pane) -> some View {
@@ -156,11 +157,11 @@ struct SettingsView: View {
             Spacer()
         }
         .font(Theme.Font.body)
-        .foregroundStyle(selected ? Color.white : Theme.Palette.label)
+        .foregroundStyle(selected ? Theme.Palette.label : Theme.Palette.label)
         .padding(.horizontal, 10)
-        .padding(.vertical, 7)
-        .background(selected ? Theme.Palette.accent : Color.clear)
-        .clipShape(RoundedRectangle(cornerRadius: 7))
+        .frame(minHeight: 32)
+        .background(selected ? Theme.Palette.bgSelection : Color.clear)
+        .clipShape(RoundedRectangle(cornerRadius: 8))
         .contentShape(Rectangle())
         .onTapGesture { selection = pane }
     }
@@ -184,13 +185,24 @@ struct SettingsView: View {
     private var generalPane: some View {
         VStack(alignment: .leading, spacing: 0) {
             sectionTitle("通用")
-            settingRow("默认目标语言") {
-                Picker("", selection: $settings.targetLanguageCode) {
-                    ForEach(languages, id: \.0) { code, name in Text(name).tag(code) }
+            formGroup {
+                settingRow("默认来源语言") {
+                    Picker("", selection: $settings.sourceLanguageCode) {
+                        Text("自动").tag("auto")
+                        ForEach(languages, id: \.0) { code, name in Text(name).tag(code) }
+                    }
+                    .labelsHidden()
+                    .frame(width: 140)
+                    .onChange(of: settings.sourceLanguageCode) { _ in state.applySettings() }
                 }
-                .labelsHidden()
-                .frame(width: 140)
-                .onChange(of: settings.targetLanguageCode) { _ in state.applySettings() }
+                settingRow("默认目标语言") {
+                    Picker("", selection: $settings.targetLanguageCode) {
+                        ForEach(languages, id: \.0) { code, name in Text(name).tag(code) }
+                    }
+                    .labelsHidden()
+                    .frame(width: 140)
+                    .onChange(of: settings.targetLanguageCode) { _ in state.applySettings() }
+                }
             }
         }
     }
@@ -199,83 +211,101 @@ struct SettingsView: View {
         VStack(alignment: .leading, spacing: 0) {
             sectionTitle("翻译引擎")
             subsectionTitle("常用")
-            engineRow("Google 翻译", note: "免费 · 无需 Key",
-                      status: settings.googleEnabled ? .ok : .off,
-                      isOn: $settings.googleEnabled)
-            engineRow("DeepL", note: settings.hasDeepLKey ? nil : "未配置 Key",
-                      status: status(enabled: settings.deepLEnabled, hasKey: settings.hasDeepLKey),
-                      isOn: $settings.deepLEnabled)
-            engineRow("OpenAI", note: settings.hasOpenAIKey ? nil : "未配置 Key",
-                      status: status(enabled: settings.openAIEnabled, hasKey: settings.hasOpenAIKey),
-                      isOn: $settings.openAIEnabled)
-            if AppleTranslationEngine.isSupported {
-                engineRow("系统翻译", note: "macOS 15+ · 离线",
-                          status: settings.appleEnabled ? .ok : .off,
-                          isOn: $settings.appleEnabled)
+            formGroup {
+                engineRow("Google 翻译", note: "免费 · 无需 Key",
+                          status: settings.googleEnabled ? .ok : .off,
+                          isOn: $settings.googleEnabled)
+                engineRow("DeepL", note: settings.hasDeepLKey ? nil : "未配置 Key",
+                          status: status(enabled: settings.deepLEnabled, hasKey: settings.hasDeepLKey),
+                          isOn: $settings.deepLEnabled)
+                engineRow("OpenAI", note: settings.hasOpenAIKey ? nil : "未配置 Key",
+                          status: status(enabled: settings.openAIEnabled, hasKey: settings.hasOpenAIKey),
+                          isOn: $settings.openAIEnabled)
+                if AppleTranslationEngine.isSupported {
+                    engineRow("系统翻译", note: "macOS 15+ · 需离线语言包",
+                              status: settings.appleEnabled ? .ok : .off,
+                              isOn: $settings.appleEnabled)
+                }
             }
 
             disclosureSection("国内与云厂商", isExpanded: $showMachineEngines) {
-                engineRow("腾讯翻译君", note: settings.hasTencentCredentials ? nil : "SecretId:SecretKey",
-                          status: status(enabled: settings.tencentEnabled, hasKey: settings.hasTencentCredentials),
-                          isOn: $settings.tencentEnabled)
-                engineRow("百度翻译", note: settings.hasBaiduCredentials ? nil : "AppId:Secret",
-                          status: status(enabled: settings.baiduEnabled, hasKey: settings.hasBaiduCredentials),
-                          isOn: $settings.baiduEnabled)
-                engineRow("有道翻译", note: settings.hasYoudaoCredentials ? nil : "AppKey:Secret",
-                          status: status(enabled: settings.youdaoEnabled, hasKey: settings.hasYoudaoCredentials),
-                          isOn: $settings.youdaoEnabled)
-                engineRow("彩云小译", note: settings.hasCaiyunToken ? nil : "Token",
-                          status: status(enabled: settings.caiyunEnabled, hasKey: settings.hasCaiyunToken),
-                          isOn: $settings.caiyunEnabled)
-                engineRow("Microsoft 翻译", note: settings.hasMicrosoftKey ? nil : "订阅 Key",
-                          status: status(enabled: settings.microsoftEnabled, hasKey: settings.hasMicrosoftKey),
-                          isOn: $settings.microsoftEnabled)
+                formGroup {
+                    engineRow("腾讯翻译君", note: settings.hasTencentCredentials ? nil : "SecretId:SecretKey",
+                              status: status(enabled: settings.tencentEnabled, hasKey: settings.hasTencentCredentials),
+                              isOn: $settings.tencentEnabled)
+                    engineRow("百度翻译", note: settings.hasBaiduCredentials ? nil : "AppId:Secret",
+                              status: status(enabled: settings.baiduEnabled, hasKey: settings.hasBaiduCredentials),
+                              isOn: $settings.baiduEnabled)
+                    engineRow("有道翻译", note: settings.hasYoudaoCredentials ? nil : "AppKey:Secret",
+                              status: status(enabled: settings.youdaoEnabled, hasKey: settings.hasYoudaoCredentials),
+                              isOn: $settings.youdaoEnabled)
+                    engineRow("彩云小译", note: settings.hasCaiyunToken ? nil : "Token",
+                              status: status(enabled: settings.caiyunEnabled, hasKey: settings.hasCaiyunToken),
+                              isOn: $settings.caiyunEnabled)
+                    engineRow("Microsoft 翻译", note: settings.hasMicrosoftKey ? nil : "订阅 Key",
+                              status: status(enabled: settings.microsoftEnabled, hasKey: settings.hasMicrosoftKey),
+                              isOn: $settings.microsoftEnabled)
+                }
             }
 
             disclosureSection("LLM 服务", isExpanded: $showLLMEngines) {
-                llmEngineRow("OpenCode Go", hasKey: settings.hasOpenCodeKey, isOn: $settings.openCodeEnabled)
-                llmEngineRow("DeepSeek", hasKey: settings.hasDeepSeekKey, isOn: $settings.deepSeekEnabled)
-                llmEngineRow("Gemini", hasKey: settings.hasGeminiKey, isOn: $settings.geminiEnabled)
-                llmEngineRow("Groq", hasKey: settings.hasGroqKey, isOn: $settings.groqEnabled)
-                llmEngineRow("Ollama", hasKey: true, isOn: $settings.ollamaEnabled)
-                llmEngineRow("通义千问", hasKey: settings.hasQwenKey, isOn: $settings.qwenEnabled)
-                llmEngineRow("豆包", hasKey: settings.hasDoubaoKey, isOn: $settings.doubaoEnabled)
-                llmEngineRow("Kimi", hasKey: settings.hasKimiKey, isOn: $settings.kimiEnabled)
-                llmEngineRow("智谱 GLM", hasKey: settings.hasZhipuKey, isOn: $settings.zhipuEnabled)
-                llmEngineRow("硅基流动", hasKey: settings.hasSiliconFlowKey, isOn: $settings.siliconFlowEnabled)
+                formGroup {
+                    llmEngineRow("OpenCode Go", hasKey: settings.hasOpenCodeKey, isOn: $settings.openCodeEnabled)
+                    llmEngineRow("DeepSeek", hasKey: settings.hasDeepSeekKey, isOn: $settings.deepSeekEnabled)
+                    llmEngineRow("Gemini", hasKey: settings.hasGeminiKey, isOn: $settings.geminiEnabled)
+                    llmEngineRow("Groq", hasKey: settings.hasGroqKey, isOn: $settings.groqEnabled)
+                    llmEngineRow("Ollama", hasKey: true, isOn: $settings.ollamaEnabled)
+                    llmEngineRow("通义千问", hasKey: settings.hasQwenKey, isOn: $settings.qwenEnabled)
+                    llmEngineRow("豆包", hasKey: settings.hasDoubaoKey, isOn: $settings.doubaoEnabled)
+                    llmEngineRow("Kimi", hasKey: settings.hasKimiKey, isOn: $settings.kimiEnabled)
+                    llmEngineRow("智谱 GLM", hasKey: settings.hasZhipuKey, isOn: $settings.zhipuEnabled)
+                    llmEngineRow("硅基流动", hasKey: settings.hasSiliconFlowKey, isOn: $settings.siliconFlowEnabled)
+                }
             }
 
             disclosureSection("更多服务", isExpanded: $showMoreEngines) {
-                llmEngineRow("文心一言", hasKey: settings.ernieKey()?.isEmpty == false, isOn: $settings.ernieEnabled)
-                llmEngineRow("混元", hasKey: settings.hunyuanKey()?.isEmpty == false, isOn: $settings.hunyuanEnabled)
-                llmEngineRow("零一万物", hasKey: settings.yiKey()?.isEmpty == false, isOn: $settings.yiEnabled)
-                llmEngineRow("Azure OpenAI", hasKey: settings.azureOpenAIKey()?.isEmpty == false, isOn: $settings.azureOpenAIEnabled)
-                engineRow("火山翻译", note: nil, status: settings.volcengineEnabled ? .ok : .off, isOn: $settings.volcengineEnabled)
-                engineRow("阿里翻译", note: nil, status: settings.aliyunEnabled ? .ok : .off, isOn: $settings.aliyunEnabled)
-                engineRow("小牛翻译", note: nil, status: settings.niutransEnabled ? .ok : .off, isOn: $settings.niutransEnabled)
-                engineRow("Amazon 翻译", note: nil, status: settings.amazonEnabled ? .ok : .off, isOn: $settings.amazonEnabled)
+                formGroup {
+                    llmEngineRow("文心一言", hasKey: settings.ernieKey()?.isEmpty == false, isOn: $settings.ernieEnabled)
+                    llmEngineRow("混元", hasKey: settings.hunyuanKey()?.isEmpty == false, isOn: $settings.hunyuanEnabled)
+                    llmEngineRow("零一万物", hasKey: settings.yiKey()?.isEmpty == false, isOn: $settings.yiEnabled)
+                    llmEngineRow("Azure OpenAI", hasKey: settings.azureOpenAIKey()?.isEmpty == false, isOn: $settings.azureOpenAIEnabled)
+                    engineRow("火山翻译", note: nil, status: settings.volcengineEnabled ? .ok : .off, isOn: $settings.volcengineEnabled)
+                    engineRow("阿里翻译", note: nil, status: settings.aliyunEnabled ? .ok : .off, isOn: $settings.aliyunEnabled)
+                    engineRow("小牛翻译", note: nil, status: settings.niutransEnabled ? .ok : .off, isOn: $settings.niutransEnabled)
+                    engineRow("Amazon 翻译", note: nil, status: settings.amazonEnabled ? .ok : .off, isOn: $settings.amazonEnabled)
+                }
             }
 
             disclosureSection("结果顺序", isExpanded: $showEngineOrder) {
-                Text("用箭头调整翻译结果面板中的引擎顺序（仅影响已注册引擎）")
-                    .font(Theme.Font.caption).foregroundStyle(Theme.Palette.label3)
-                    .padding(.bottom, Theme.Spacing.s8)
-                VStack(alignment: .leading, spacing: 4) {
-                    ForEach(Array(engineOrderDraft.enumerated()), id: \.element) { index, id in
-                        HStack(spacing: Theme.Spacing.s8) {
-                            Text(engineDisplayName(id))
-                                .font(Theme.Font.body)
-                            Spacer()
-                            Button("↑") { moveEngine(from: index, to: index - 1) }
-                                .disabled(index == 0)
-                            Button("↓") { moveEngine(from: index, to: index + 1) }
-                                .disabled(index == engineOrderDraft.count - 1)
-                        }
-                        .frame(minHeight: 24)
+                formGroup {
+                    VStack(alignment: .leading, spacing: 0) {
+                        Text("用箭头调整翻译结果面板中的引擎顺序（仅影响已注册引擎）")
+                            .font(Theme.Font.caption)
+                            .foregroundStyle(Theme.Palette.label3)
+                            .padding(.horizontal, Theme.Spacing.s12)
+                            .padding(.vertical, 9)
                         Divider()
+                        ForEach(Array(engineOrderDraft.enumerated()), id: \.element) { index, id in
+                            HStack(spacing: Theme.Spacing.s8) {
+                                Text(engineDisplayName(id))
+                                    .font(Theme.Font.body)
+                                    .foregroundStyle(Theme.Palette.label)
+                                Spacer()
+                                Button("↑") { moveEngine(from: index, to: index - 1) }
+                                    .disabled(index == 0)
+                                Button("↓") { moveEngine(from: index, to: index + 1) }
+                                    .disabled(index == engineOrderDraft.count - 1)
+                            }
+                            .padding(.horizontal, Theme.Spacing.s12)
+                            .frame(minHeight: 32)
+                            if index != engineOrderDraft.count - 1 {
+                                Divider()
+                                    .padding(.leading, Theme.Spacing.s12)
+                            }
+                        }
                     }
+                    .frame(maxHeight: 220)
                 }
-                .frame(maxHeight: 200)
             }
         }
     }
@@ -316,14 +346,16 @@ struct SettingsView: View {
     private var ocrPane: some View {
         VStack(alignment: .leading, spacing: 0) {
             sectionTitle("文本识别")
-            settingRow("默认 OCR 引擎") {
-                Picker("", selection: $settings.ocrProviderId) {
-                    ForEach(state.ocrCoordinator.availableProviders(), id: \.id) { p in
-                        Text(p.name).tag(p.id)
+            formGroup {
+                settingRow("默认 OCR 引擎") {
+                    Picker("", selection: $settings.ocrProviderId) {
+                        ForEach(state.ocrCoordinator.availableProviders(), id: \.id) { p in
+                            Text(p.name).tag(p.id)
+                        }
                     }
+                    .labelsHidden().frame(width: 200)
+                    .onChange(of: settings.ocrProviderId) { _ in state.applySettings() }
                 }
-                .labelsHidden().frame(width: 200)
-                .onChange(of: settings.ocrProviderId) { _ in state.applySettings() }
             }
             callout("离线默认可用 Apple Vision。百度/腾讯 OCR 密钥与翻译相同格式，在「密钥」页配置。")
             HStack(spacing: Theme.Spacing.s12) {
@@ -340,14 +372,16 @@ struct SettingsView: View {
     private var ttsPane: some View {
         VStack(alignment: .leading, spacing: 0) {
             sectionTitle("语音合成")
-            settingRow("默认 TTS 引擎") {
-                Picker("", selection: $settings.ttsProviderId) {
-                    ForEach(state.ttsCoordinator.availableProviders(), id: \.id) { p in
-                        Text(p.name).tag(p.id)
+            formGroup {
+                settingRow("默认 TTS 引擎") {
+                    Picker("", selection: $settings.ttsProviderId) {
+                        ForEach(state.ttsCoordinator.availableProviders(), id: \.id) { p in
+                            Text(p.name).tag(p.id)
+                        }
                     }
+                    .labelsHidden().frame(width: 200)
+                    .onChange(of: settings.ttsProviderId) { _ in state.applySettings() }
                 }
-                .labelsHidden().frame(width: 200)
-                .onChange(of: settings.ttsProviderId) { _ in state.applySettings() }
             }
             callout("默认使用系统离线语音。云端 TTS 需在「密钥」页配置对应 API Key。")
         }
@@ -361,100 +395,148 @@ struct SettingsView: View {
 
     private var keysPane: some View {
         VStack(alignment: .leading, spacing: 0) {
-            sectionTitle("API Keys")
-            Text("复合密钥格式：腾讯/百度/有道为 `Id:Secret`")
-                .font(Theme.Font.caption).foregroundStyle(Theme.Palette.label3)
-                .padding(.bottom, Theme.Spacing.s8)
+            sectionTitle("密钥")
+            Text("密钥只保存在本机。腾讯、百度、有道使用 Id:Secret 格式。")
+                .font(Theme.Font.callout)
+                .foregroundStyle(Theme.Palette.label2)
+                .padding(.bottom, Theme.Spacing.s12)
+
             subsectionTitle("常用")
-            secretRow("DeepL", $deepLKey, placeholder: "免费版以 :fx 结尾", account: AppSettings.deepLAccount, env: "DEEPL_API_KEY")
-            secretRow("OpenAI", $openAIKey, placeholder: "sk-...", account: AppSettings.openAIAccount, env: "OPENAI_API_KEY")
-            secretRow("OpenCode Go", $openCodeKey, placeholder: "Go API Key", account: AppSettings.openCodeAccount, env: "OPENCODE_API_KEY")
+            formGroup {
+                secretRow("DeepL", $deepLKey, placeholder: "免费版以 :fx 结尾", account: AppSettings.deepLAccount, env: "DEEPL_API_KEY")
+                secretRow("OpenAI", $openAIKey, placeholder: "sk-...", account: AppSettings.openAIAccount, env: "OPENAI_API_KEY")
+                secretRow("OpenCode Go", $openCodeKey, placeholder: "Go API Key", account: AppSettings.openCodeAccount, env: "OPENCODE_API_KEY")
+            }
 
             disclosureSection("国内与云厂商", isExpanded: $showMachineKeys) {
-                secretRow("腾讯翻译君", $tencentCreds, placeholder: "SecretId:SecretKey", account: AppSettings.tencentAccount, env: "TENCENT_CREDENTIALS")
-                secretRow("百度翻译", $baiduCreds, placeholder: "AppId:Secret", account: AppSettings.baiduAccount, env: "BAIDU_CREDENTIALS")
-                secretRow("有道翻译", $youdaoCreds, placeholder: "AppKey:AppSecret", account: AppSettings.youdaoAccount, env: "YOUDAO_CREDENTIALS")
-                secretRow("彩云小译", $caiyunToken, placeholder: "Token", account: AppSettings.caiyunAccount, env: "CAIYUN_TOKEN")
-                secretRow("Microsoft", $microsoftKey, placeholder: "订阅 Key", account: AppSettings.microsoftAccount, env: "MICROSOFT_TRANSLATOR_KEY")
+                formGroup {
+                    secretRow("腾讯翻译君", $tencentCreds, placeholder: "SecretId:SecretKey", account: AppSettings.tencentAccount, env: "TENCENT_CREDENTIALS")
+                    secretRow("百度翻译", $baiduCreds, placeholder: "AppId:Secret", account: AppSettings.baiduAccount, env: "BAIDU_CREDENTIALS")
+                    secretRow("有道翻译", $youdaoCreds, placeholder: "AppKey:AppSecret", account: AppSettings.youdaoAccount, env: "YOUDAO_CREDENTIALS")
+                    secretRow("彩云小译", $caiyunToken, placeholder: "Token", account: AppSettings.caiyunAccount, env: "CAIYUN_TOKEN")
+                    secretRow("Microsoft", $microsoftKey, placeholder: "订阅 Key", account: AppSettings.microsoftAccount, env: "MICROSOFT_TRANSLATOR_KEY")
+                }
             }
 
             disclosureSection("LLM Keys", isExpanded: $showLLMKeys) {
-                secretRow("DeepSeek", $deepSeekKey, placeholder: "API Key", account: AppSettings.deepSeekAccount, env: "DEEPSEEK_API_KEY")
-                secretRow("Gemini", $geminiKey, placeholder: "API Key", account: AppSettings.geminiAccount, env: "GEMINI_API_KEY")
-                secretRow("Groq", $groqKey, placeholder: "API Key", account: AppSettings.groqAccount, env: "GROQ_API_KEY")
-                secretRow("通义千问", $qwenKey, placeholder: "DashScope Key", account: AppSettings.qwenAccount, env: "DASHSCOPE_API_KEY")
-                secretRow("豆包", $doubaoKey, placeholder: "方舟 API Key", account: AppSettings.doubaoAccount, env: "DOUBAO_API_KEY")
-                secretRow("Kimi", $kimiKey, placeholder: "Moonshot Key", account: AppSettings.kimiAccount, env: "MOONSHOT_API_KEY")
-                secretRow("智谱 GLM", $zhipuKey, placeholder: "API Key", account: AppSettings.zhipuAccount, env: "ZHIPU_API_KEY")
-                secretRow("硅基流动", $siliconFlowKey, placeholder: "API Key", account: AppSettings.siliconFlowAccount, env: "SILICONFLOW_API_KEY")
+                formGroup {
+                    secretRow("DeepSeek", $deepSeekKey, placeholder: "API Key", account: AppSettings.deepSeekAccount, env: "DEEPSEEK_API_KEY")
+                    secretRow("Gemini", $geminiKey, placeholder: "API Key", account: AppSettings.geminiAccount, env: "GEMINI_API_KEY")
+                    secretRow("Groq", $groqKey, placeholder: "API Key", account: AppSettings.groqAccount, env: "GROQ_API_KEY")
+                    secretRow("通义千问", $qwenKey, placeholder: "DashScope Key", account: AppSettings.qwenAccount, env: "DASHSCOPE_API_KEY")
+                    secretRow("豆包", $doubaoKey, placeholder: "方舟 API Key", account: AppSettings.doubaoAccount, env: "DOUBAO_API_KEY")
+                    secretRow("Kimi", $kimiKey, placeholder: "Moonshot Key", account: AppSettings.kimiAccount, env: "MOONSHOT_API_KEY")
+                    secretRow("智谱 GLM", $zhipuKey, placeholder: "API Key", account: AppSettings.zhipuAccount, env: "ZHIPU_API_KEY")
+                    secretRow("硅基流动", $siliconFlowKey, placeholder: "API Key", account: AppSettings.siliconFlowAccount, env: "SILICONFLOW_API_KEY")
+                }
             }
 
             disclosureSection("高级模型与端点", isExpanded: $showAdvancedKeys) {
-                settingRow("OpenAI Model") { TextField("gpt-4o-mini", text: $openAIModelField).frame(width: 230) }
-                settingRow("OpenAI Endpoint") { TextField("可选", text: $openAIEndpointField).frame(width: 230) }
-                settingRow("OpenCode Go Model") { TextField("glm-5.1", text: $openCodeModelField).frame(width: 230) }
-                settingRow("Ollama Model") { TextField("llama3.2", text: $ollamaModelField).frame(width: 230) }
-                settingRow("Ollama Endpoint") { TextField("http://127.0.0.1:11434/v1/chat/completions", text: $ollamaEndpointField).frame(width: 230) }
-                settingRow("Azure Endpoint") { TextField("Azure deployment URL", text: $azureEndpointField).frame(width: 230) }
+                formGroup {
+                    settingRow("OpenAI Model") { compactTextField("gpt-4o-mini", text: $openAIModelField) }
+                    settingRow("OpenAI Endpoint") { compactTextField("可选", text: $openAIEndpointField) }
+                    settingRow("OpenCode Go Model") { compactTextField("glm-5.1", text: $openCodeModelField) }
+                    settingRow("Ollama Model") { compactTextField("llama3.2", text: $ollamaModelField) }
+                    settingRow("Ollama Endpoint") { compactTextField("http://127.0.0.1:11434/v1/chat/completions", text: $ollamaEndpointField) }
+                    settingRow("Azure Endpoint") { compactTextField("Azure deployment URL", text: $azureEndpointField) }
+                }
             }
 
-            VStack(alignment: .leading, spacing: Theme.Spacing.s8) {
-                HStack(spacing: Theme.Spacing.s12) {
-                    Button("保存到本地") { saveKeys() }
-                    if !savedNote.isEmpty {
-                        Text(savedNote).font(Theme.Font.callout).foregroundStyle(Theme.Palette.success)
-                    }
-                    Spacer()
-                }
-                HStack(spacing: Theme.Spacing.s12) {
-                    Button("验证 OpenAI") { validateEngine("openai") }
-                    Button("验证 OpenCode") { validateEngine("opencode") }
-                    Button("验证 DeepSeek") { validateEngine("deepseek") }
-                    Button("验证智谱") { validateEngine("zhipu") }
-                    if !validateNote.isEmpty {
-                        Text(validateNote).font(Theme.Font.callout).foregroundStyle(Theme.Palette.label2)
-                    }
-                    Spacer()
-                }
-            }
-            .padding(.top, Theme.Spacing.s12)
-            callout("API Key 存储于 ~/Library/Application Support/Parrot/secrets.json，文件权限限制为当前用户可读写。环境变量优先于本地配置。")
+            keyActionBar
+            keyFootnote
         }
+    }
+
+    private var keyActionBar: some View {
+        VStack(alignment: .leading, spacing: Theme.Spacing.s8) {
+            HStack(spacing: Theme.Spacing.s8) {
+                Button("保存到本机") { saveKeys() }
+                    .controlSize(.small)
+                Button("验证 OpenAI") { validateEngine("openai") }
+                    .controlSize(.small)
+                Button("验证 OpenCode") { validateEngine("opencode") }
+                    .controlSize(.small)
+                Button("验证 DeepSeek") { validateEngine("deepseek") }
+                    .controlSize(.small)
+                Button("验证智谱") { validateEngine("zhipu") }
+                    .controlSize(.small)
+                Spacer(minLength: 0)
+            }
+            if !savedNote.isEmpty || !validateNote.isEmpty {
+                Text(savedNote.isEmpty ? validateNote : savedNote)
+                    .font(Theme.Font.caption)
+                    .foregroundStyle(savedNote.isEmpty ? Theme.Palette.label2 : Theme.Palette.success)
+            }
+        }
+        .padding(Theme.Spacing.s12)
+        .background(Theme.Palette.bgContent)
+        .clipShape(RoundedRectangle(cornerRadius: Theme.Radius.group))
+        .overlay(RoundedRectangle(cornerRadius: Theme.Radius.group).strokeBorder(Theme.Palette.hairline, lineWidth: 0.5))
+        .padding(.top, Theme.Spacing.s12)
+    }
+
+    private var keyFootnote: some View {
+        HStack(alignment: .top, spacing: Theme.Spacing.s8) {
+            Image(systemName: "info.circle")
+                .font(.system(size: 12))
+                .foregroundStyle(Theme.Palette.label3)
+            Text("存储路径：~/Library/Application Support/Parrot/secrets.json。文件权限限制为当前用户可读写；环境变量优先于本地配置。")
+                .font(Theme.Font.caption)
+                .foregroundStyle(Theme.Palette.label2)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+        .padding(.top, Theme.Spacing.s8)
+    }
+
+    private func compactTextField(_ placeholder: String, text: Binding<String>) -> some View {
+        TextField(placeholder, text: text)
+            .textFieldStyle(.roundedBorder)
+            .font(Theme.Font.callout)
+            .frame(width: 280)
     }
 
     private func secretRow(_ label: String, _ text: Binding<String>, placeholder: String, account: String, env: String) -> some View {
         let status = settings.secretStatus(account: account, env: env)
         let fromEnv = status.hasPrefix("环境变量")
         let configured = status != "未配置"
-        return VStack(alignment: .leading, spacing: Theme.Spacing.s8) {
-            HStack(spacing: Theme.Spacing.s8) {
-                Text(label).font(Theme.Font.body).foregroundStyle(Theme.Palette.label)
-                Spacer(minLength: 0)
-                Text(status)
-                    .font(Theme.Font.caption)
-                    .foregroundStyle(configured ? Theme.Palette.label2 : Theme.Palette.label3)
-                    .lineLimit(1)
-            }
-            HStack(spacing: Theme.Spacing.s8) {
+        return VStack(spacing: 0) {
+            HStack(alignment: .center, spacing: Theme.Spacing.s12) {
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(label)
+                        .font(Theme.Font.body)
+                        .foregroundStyle(Theme.Palette.label)
+                    Text(status)
+                        .font(Theme.Font.caption)
+                        .foregroundStyle(configured ? Theme.Palette.label2 : Theme.Palette.label3)
+                        .lineLimit(1)
+                }
+                Spacer(minLength: Theme.Spacing.s12)
                 SecureField(fromEnv ? "环境变量优先" : (configured ? "输入新值以替换" : placeholder), text: text)
-                    .frame(maxWidth: .infinity)
+                    .textFieldStyle(.roundedBorder)
+                    .font(Theme.Font.callout)
+                    .frame(width: 280)
                     .disabled(fromEnv)
                 Button("清除") { clearSecret(account, text) }
                     .controlSize(.small)
                     .disabled(!settings.hasStoredSecret(account: account))
             }
+            .padding(.horizontal, Theme.Spacing.s12)
+            .padding(.vertical, 8)
+            .frame(minHeight: 52)
+            Divider()
         }
-        .padding(.vertical, 7)
-        .overlay(Divider(), alignment: .bottom)
+        .background(Color.clear)
     }
 
     private var shortcutsPane: some View {
         VStack(alignment: .leading, spacing: 0) {
             sectionTitle("全局快捷键")
-            shortcutRow("划词翻译", "⌥D")
-            shortcutRow("查词", "⌥E")
-            shortcutRow("截图翻译", "⌥S")
-            shortcutRow("输入翻译", "⌥A")
+            formGroup {
+                shortcutRow("划词翻译", "⌥D")
+                shortcutRow("查词", "⌥E")
+                shortcutRow("截图翻译", "⌥S")
+                shortcutRow("输入翻译", "⌥A")
+            }
         }
     }
 
@@ -494,7 +576,7 @@ struct SettingsView: View {
     // MARK: - Row builders
 
     private func sectionTitle(_ t: String) -> some View {
-        Text(t).font(.system(size: 15, weight: .semibold))
+        Text(t).font(.system(size: 17, weight: .semibold))
             .foregroundStyle(Theme.Palette.label)
             .padding(.bottom, Theme.Spacing.s12)
     }
@@ -531,24 +613,39 @@ struct SettingsView: View {
                 Spacer()
                 control()
             }
-            .frame(minHeight: 30)
+            .padding(.horizontal, Theme.Spacing.s12)
+            .padding(.vertical, 7)
+            .frame(minHeight: 38)
             Divider()
         }
+        .background(Color.clear)
     }
 
     private func engineRow(_ name: String, note: String?, status: EngineStatus, isOn: Binding<Bool>) -> some View {
         VStack(spacing: 0) {
             HStack(spacing: Theme.Spacing.s8) {
-                Text(name).font(Theme.Font.body).foregroundStyle(Theme.Palette.label)
-                if let note { Text(note).font(Theme.Font.caption).foregroundStyle(Theme.Palette.label3) }
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(name)
+                        .font(Theme.Font.body)
+                        .foregroundStyle(Theme.Palette.label)
+                    if let note {
+                        Text(note)
+                            .font(Theme.Font.caption)
+                            .foregroundStyle(Theme.Palette.label3)
+                            .lineLimit(1)
+                    }
+                }
                 Spacer()
                 Circle().fill(status.color).frame(width: 7, height: 7)
                 Toggle("", isOn: isOn).labelsHidden().toggleStyle(.switch).controlSize(.small)
                     .onChange(of: isOn.wrappedValue) { _ in state.applySettings() }
             }
-            .frame(minHeight: 30)
+            .padding(.horizontal, Theme.Spacing.s12)
+            .padding(.vertical, 8)
+            .frame(minHeight: 44)
             Divider()
         }
+        .background(Color.clear)
     }
 
     private func shortcutRow(_ label: String, _ key: String) -> some View {
@@ -560,13 +657,16 @@ struct SettingsView: View {
                     .font(.system(size: 12, weight: .medium))
                     .foregroundStyle(Theme.Palette.label)
                     .padding(.horizontal, 9).padding(.vertical, 3)
-                    .background(Theme.Palette.bgContent2)
+                    .background(Theme.Palette.bgControl)
                     .clipShape(RoundedRectangle(cornerRadius: 6))
                     .overlay(RoundedRectangle(cornerRadius: 6).strokeBorder(Theme.Palette.separator, lineWidth: 0.5))
             }
-            .frame(minHeight: 30)
+            .padding(.horizontal, Theme.Spacing.s12)
+            .padding(.vertical, 7)
+            .frame(minHeight: 38)
             Divider()
         }
+        .background(Color.clear)
     }
 
     private func callout(_ text: String) -> some View {
@@ -575,9 +675,20 @@ struct SettingsView: View {
             .fixedSize(horizontal: false, vertical: true)
             .frame(maxWidth: .infinity, alignment: .leading)
             .padding(Theme.Spacing.s12)
-            .background(Theme.Palette.bgContent2)
-            .clipShape(RoundedRectangle(cornerRadius: 8))
+            .background(Theme.Palette.bgContent)
+            .clipShape(RoundedRectangle(cornerRadius: Theme.Radius.group))
+            .overlay(RoundedRectangle(cornerRadius: Theme.Radius.group).strokeBorder(Theme.Palette.hairline, lineWidth: 0.5))
             .padding(.top, Theme.Spacing.s12)
+    }
+
+    private func formGroup<Content: View>(@ViewBuilder _ content: () -> Content) -> some View {
+        VStack(spacing: 0) {
+            content()
+        }
+        .background(Theme.Palette.bgContent)
+        .clipShape(RoundedRectangle(cornerRadius: Theme.Radius.group))
+        .overlay(RoundedRectangle(cornerRadius: Theme.Radius.group).strokeBorder(Theme.Palette.hairline, lineWidth: 0.5))
+        .padding(.bottom, Theme.Spacing.s16)
     }
 
     // MARK: - Helpers

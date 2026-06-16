@@ -26,8 +26,8 @@ final class HistoryWindow {
             win.title = "Parrot 历史"
             win.styleMask = [.titled, .closable, .miniaturizable, .resizable]
             win.isReleasedWhenClosed = false
-            win.setContentSize(NSSize(width: 720, height: 480))
-            win.contentMinSize = NSSize(width: 640, height: 420)
+            win.setContentSize(NSSize(width: 760, height: 500))
+            win.contentMinSize = NSSize(width: 660, height: 420)
             window = win
         }
         NSApp.activate(ignoringOtherApps: true)
@@ -153,7 +153,7 @@ private struct HistoryView: View {
             }
         }
         .frame(width: 280)
-        .background(.regularMaterial)
+        .background(Theme.Palette.bgSidebar)
     }
 
     private var filterBar: some View {
@@ -166,8 +166,9 @@ private struct HistoryView: View {
                     .font(Theme.Font.body)
             }
             .padding(.horizontal, 9).padding(.vertical, 6)
-            .background(Theme.Palette.bgContent2)
-            .clipShape(RoundedRectangle(cornerRadius: Theme.Radius.control))
+            .frame(minHeight: 30)
+            .background(Theme.Palette.bgControl)
+            .clipShape(RoundedRectangle(cornerRadius: 8))
 
             HStack(spacing: Theme.Spacing.s8) {
                 Picker("", selection: $model.scope) {
@@ -191,7 +192,7 @@ private struct HistoryView: View {
                 }
             }
         }
-        .padding(Theme.Spacing.s8)
+        .padding(10)
     }
 
     private var emptyList: some View {
@@ -224,7 +225,7 @@ private struct HistoryView: View {
                     .font(Theme.Font.callout).foregroundStyle(Theme.Palette.label2)
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
-            .background(Theme.Palette.bgContent)
+            .background(Theme.Palette.bgCanvas)
         }
     }
 
@@ -247,24 +248,25 @@ private struct HistoryRow: View {
             HStack(spacing: 6) {
                 Text(record.sourceText)
                     .font(Theme.Font.body)
-                    .foregroundStyle(selected ? Color.white : Theme.Palette.label)
+                    .foregroundStyle(Theme.Palette.label)
                     .lineLimit(1)
                 Spacer(minLength: 0)
                 if record.isFavorite {
                     Image(systemName: "star.fill")
                         .font(.system(size: 9))
-                        .foregroundStyle(selected ? Color.white : Theme.Palette.star)
+                        .foregroundStyle(Theme.Palette.star)
                 }
             }
             Text(record.translated)
                 .font(Theme.Font.caption)
-                .foregroundStyle(selected ? Color.white.opacity(0.85) : Theme.Palette.label2)
+                .foregroundStyle(Theme.Palette.label2)
                 .lineLimit(1)
         }
-        .padding(.horizontal, 10).padding(.vertical, 7)
+        .padding(.horizontal, 10).padding(.vertical, 9)
+        .frame(minHeight: 54)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(selected ? Theme.Palette.accent : Color.clear)
-        .clipShape(RoundedRectangle(cornerRadius: 7))
+        .background(selected ? Theme.Palette.bgSelection : Color.clear)
+        .clipShape(RoundedRectangle(cornerRadius: 9))
     }
 }
 
@@ -285,10 +287,10 @@ private struct HistoryDetail: View {
                 sourceBlock
                 translationCard
             }
-            .padding(Theme.Spacing.s16)
+            .padding(18)
             .frame(maxWidth: .infinity, alignment: .leading)
         }
-        .background(Theme.Palette.bgContent)
+        .background(Theme.Palette.bgCanvas)
     }
 
     private var header: some View {
@@ -314,8 +316,9 @@ private struct HistoryDetail: View {
             .fixedSize(horizontal: false, vertical: true)
             .frame(maxWidth: .infinity, alignment: .leading)
             .padding(Theme.Spacing.s12)
-            .background(Theme.Palette.bgContent2)
-            .clipShape(RoundedRectangle(cornerRadius: Theme.Radius.card))
+            .background(Theme.Palette.bgContent)
+            .clipShape(RoundedRectangle(cornerRadius: Theme.Radius.group))
+            .overlay(RoundedRectangle(cornerRadius: Theme.Radius.group).strokeBorder(Theme.Palette.hairline, lineWidth: 0.5))
     }
 
     private var translationCard: some View {
@@ -340,16 +343,16 @@ private struct HistoryDetail: View {
             Button { onRetranslate() } label: {
                 Label("重新翻译", systemImage: "arrow.clockwise")
             }
-            .controlSize(.small)
+            .buttonStyle(PrimaryActionButtonStyle())
             .padding(.top, Theme.Spacing.s4)
         }
-        .padding(Theme.Spacing.s12)
+        .padding(14)
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(Theme.Palette.bgContent)
-        .clipShape(RoundedRectangle(cornerRadius: Theme.Radius.card))
+        .clipShape(RoundedRectangle(cornerRadius: Theme.Radius.group))
         .overlay(
-            RoundedRectangle(cornerRadius: Theme.Radius.card)
-                .strokeBorder(Theme.Palette.separator, lineWidth: 0.5)
+            RoundedRectangle(cornerRadius: Theme.Radius.group)
+                .strokeBorder(Theme.Palette.hairline, lineWidth: 0.5)
         )
     }
 

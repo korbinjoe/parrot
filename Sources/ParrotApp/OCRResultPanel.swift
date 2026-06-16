@@ -34,7 +34,7 @@ final class OCRResultPanel {
         w.standardWindowButton(.closeButton)?.isHidden = true
         w.standardWindowButton(.miniaturizeButton)?.isHidden = true
         w.standardWindowButton(.zoomButton)?.isHidden = true
-        w.setContentSize(NSSize(width: 420, height: 360))
+        w.setContentSize(NSSize(width: 360, height: 380))
         self.window = w
 
         NSApp.activate(ignoringOtherApps: true)
@@ -73,11 +73,11 @@ private struct OCRResultView: View {
             Divider()
             footer
         }
-        .frame(width: 420, height: 360)
-        .background(.regularMaterial)
-        .clipShape(RoundedRectangle(cornerRadius: Theme.Radius.window))
+        .frame(width: 360, height: 380)
+        .background(Theme.Palette.bgPanel)
+        .clipShape(RoundedRectangle(cornerRadius: 13))
         .overlay(
-            RoundedRectangle(cornerRadius: Theme.Radius.window)
+            RoundedRectangle(cornerRadius: 13)
                 .strokeBorder(Theme.Palette.separator, lineWidth: 0.5)
         )
         .onExitCommand { onCancel() }
@@ -90,23 +90,33 @@ private struct OCRResultView: View {
             Spacer(minLength: 0)
             Button(allSelected ? "取消全选" : "全选") { toggleAll() }
                 .buttonStyle(.borderless).font(Theme.Font.callout)
+                .foregroundStyle(Theme.Palette.accent)
         }
-        .padding(.horizontal, Theme.Spacing.s12).frame(height: 40)
+        .padding(.horizontal, Theme.Spacing.s12).frame(height: 42)
     }
 
     private func lineRow(_ idx: Int, _ line: String) -> some View {
         let on = selected.contains(idx)
         return HStack(alignment: .top, spacing: Theme.Spacing.s8) {
-            Image(systemName: on ? "checkmark.circle.fill" : "circle")
-                .foregroundStyle(on ? Theme.Palette.accent : Theme.Palette.label3)
+            ZStack {
+                Circle()
+                    .fill(on ? Theme.Palette.accent : Color.clear)
+                    .overlay(Circle().strokeBorder(on ? Theme.Palette.accent : Theme.Palette.label3, lineWidth: 1.5))
+                if on {
+                    Image(systemName: "checkmark")
+                        .font(.system(size: 9, weight: .bold))
+                        .foregroundStyle(Theme.Palette.accentInk)
+                }
+            }
+            .frame(width: 18, height: 18)
             Text(line)
-                .font(Theme.Font.body).foregroundStyle(Theme.Palette.label)
+                .font(Theme.Font.callout).foregroundStyle(Theme.Palette.label)
                 .fixedSize(horizontal: false, vertical: true)
                 .frame(maxWidth: .infinity, alignment: .leading)
         }
-        .padding(.horizontal, 10).padding(.vertical, 7)
-        .background(on ? Theme.Palette.accentSoft : Color.clear)
-        .clipShape(RoundedRectangle(cornerRadius: 6))
+        .padding(8)
+        .background(on ? Theme.Palette.bgSelection : Color.clear)
+        .clipShape(RoundedRectangle(cornerRadius: 8))
         .contentShape(Rectangle())
         .onTapGesture { toggle(idx) }
     }
@@ -118,11 +128,11 @@ private struct OCRResultView: View {
             Button("复制选中") { copy() }
                 .controlSize(.small).disabled(selected.isEmpty)
             Button("翻译选中") { translate() }
-                .buttonStyle(.borderedProminent).controlSize(.small)
+                .buttonStyle(PrimaryActionButtonStyle())
                 .keyboardShortcut(.return, modifiers: [])
                 .disabled(selected.isEmpty)
         }
-        .padding(.horizontal, Theme.Spacing.s12).frame(height: 44)
+        .padding(.horizontal, 10).frame(height: 46)
     }
 
     // MARK: - Helpers

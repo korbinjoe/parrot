@@ -115,7 +115,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
         let content = MenuBarPopoverView(
             state: state,
-            settings: state.settings,
             onSelection: { [weak self] in self?.closePopoverThen { self?.translateSelection() } },
             onLookup: { [weak self] in self?.closePopoverThen { self?.lookupSelection() } },
             onScreenshot: { [weak self] in self?.closePopoverThen { self?.translateScreenshot() } },
