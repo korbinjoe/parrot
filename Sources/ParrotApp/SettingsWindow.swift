@@ -105,6 +105,58 @@ private struct SettingsMiniButtonStyle: ButtonStyle {
     }
 }
 
+private struct NativeSearchField: NSViewRepresentable {
+    let placeholder: String
+    @Binding var text: String
+
+    init(_ placeholder: String, text: Binding<String>) {
+        self.placeholder = placeholder
+        self._text = text
+    }
+
+    func makeCoordinator() -> Coordinator {
+        Coordinator(text: $text)
+    }
+
+    func makeNSView(context: Context) -> NSSearchField {
+        let field = NSSearchField()
+        field.placeholderString = placeholder
+        field.controlSize = .small
+        field.font = NSFont.systemFont(ofSize: 12)
+        field.sendsSearchStringImmediately = true
+        field.target = context.coordinator
+        field.action = #selector(Coordinator.searchChanged(_:))
+        field.delegate = context.coordinator
+        return field
+    }
+
+    func updateNSView(_ field: NSSearchField, context: Context) {
+        if field.stringValue != text {
+            field.stringValue = text
+        }
+        if field.placeholderString != placeholder {
+            field.placeholderString = placeholder
+        }
+    }
+
+    final class Coordinator: NSObject, NSSearchFieldDelegate {
+        @Binding var text: String
+
+        init(text: Binding<String>) {
+            self._text = text
+        }
+
+        @objc func searchChanged(_ sender: NSSearchField) {
+            text = sender.stringValue
+        }
+
+        func controlTextDidChange(_ notification: Notification) {
+            guard let field = notification.object as? NSSearchField else { return }
+            text = field.stringValue
+        }
+    }
+}
+
 /// Preferences laid out as a sidebar + content panel (see redesign-app-ui mockups/surf-settings).
 @MainActor
 struct SettingsView: View {
@@ -566,45 +618,19 @@ struct SettingsView: View {
     }
 
     private var keySearchAndFilter: some View {
-        VStack(alignment: .leading, spacing: Theme.Spacing.s8) {
-            HStack(spacing: Theme.Spacing.s8) {
-                Image(systemName: "magnifyingglass")
-                    .font(.system(size: 12, weight: .medium))
-                    .foregroundStyle(Theme.Palette.label3)
-                TextField("搜索服务、Key 或环境变量", text: $keySearchText)
-                    .textFieldStyle(.plain)
-                    .font(Theme.Font.callout)
-                if !keySearchText.isEmpty {
-                    Button {
-                        keySearchText = ""
-                    } label: {
-                        Image(systemName: "xmark.circle.fill")
-                            .foregroundStyle(Theme.Palette.label3)
-                    }
-                    .buttonStyle(.plain)
-                }
-            }
-            .padding(.horizontal, Theme.Spacing.s12)
-            .frame(height: 32)
-            .background(Theme.Palette.bgContent)
-            .clipShape(RoundedRectangle(cornerRadius: Theme.Radius.control))
-            .overlay(RoundedRectangle(cornerRadius: Theme.Radius.control).strokeBorder(Theme.Palette.hairline, lineWidth: 0.5))
+        VStack(alignment: .leading, spacing: 9) {
+            NativeSearchField("搜索服务、Key 或环境变量", text: $keySearchText)
+                .frame(width: 330, height: 24, alignment: .leading)
 
-            HStack(spacing: 5) {
+            Picker("", selection: $keyFilter) {
                 ForEach(KeyFilter.allCases) { filter in
-                    Button(filter.title) {
-                        keyFilter = filter
-                    }
-                    .font(Theme.Font.caption)
-                    .foregroundStyle(keyFilter == filter ? Theme.Palette.accentInk : Theme.Palette.label2)
-                    .padding(.horizontal, 8)
-                    .frame(height: 24)
-                    .background(keyFilter == filter ? Theme.Palette.accent : Theme.Palette.bgControl)
-                    .clipShape(RoundedRectangle(cornerRadius: Theme.Radius.control))
-                    .buttonStyle(.plain)
+                    Text(filter.title).tag(filter)
                 }
-                Spacer(minLength: 0)
             }
+            .pickerStyle(.segmented)
+            .labelsHidden()
+            .controlSize(.small)
+            .fixedSize(horizontal: true, vertical: false)
         }
         .padding(.bottom, Theme.Spacing.s16)
     }
@@ -798,10 +824,11 @@ struct SettingsView: View {
             SecureField(credentialPlaceholder(for: descriptor, status: status),
                         text: secretBinding(for: credential.account))
                 .textFieldStyle(.roundedBorder)
+                .controlSize(.small)
                 .font(Theme.Font.callout)
                 .focused($focusedCredentialFieldID, equals: descriptor.id)
                 .disabled(status.fromPrimaryEnv)
-                .frame(height: 26)
+                .frame(minWidth: 180, idealWidth: 320, maxWidth: 380, minHeight: 22, idealHeight: 22, maxHeight: 22)
             Button("保存") { saveCredentialService(descriptor) }
                 .buttonStyle(SettingsMiniButtonStyle())
                 .disabled(!dirty && !hasSecretDraft(for: descriptor))
@@ -816,8 +843,10 @@ struct SettingsView: View {
             formRowLabel(label)
             TextField(placeholder, text: text)
                 .textFieldStyle(.roundedBorder)
+                .controlSize(.small)
                 .font(Theme.Font.callout)
-                .frame(height: 26)
+                .frame(minWidth: 180, idealWidth: 320, maxWidth: 380, minHeight: 22, idealHeight: 22, maxHeight: 22)
+            Spacer(minLength: 0)
         }
     }
 
