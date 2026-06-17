@@ -23,11 +23,11 @@ Cover these journeys every time unless the user narrows scope:
 - Selected text translation: select text -> `Option+D` -> review -> edit source -> retranslate -> copy/use -> return.
 - Manual input translation: `Option+A` -> type/paste -> translate -> edit again -> compare engines -> copy/use.
 - Lookup: select/type word -> lookup -> inspect pronunciation/definition -> switch to translation if needed.
-- OCR translation: `Option+S` -> capture -> inspect recognized text -> remove noise/edit -> translate -> copy/use.
+- OCR translation: `Option+S` -> capture -> OCR text enters editable workspace -> auto-translate -> inspect/remove noise/edit -> retranslate -> copy/use.
 - History reuse: open history -> search -> reopen prior item -> edit -> retranslate.
 - Error recovery: missing permission, missing key, timeout, offline, unsupported language.
-- Settings/configuration: enable engine -> configure key/model/endpoint -> validate -> return to original task.
-- Spatial continuity: user moves/pins workspace -> edit/retranslate/result resizes -> workspace stays where the user put it.
+- Settings/configuration: enable engine -> reorder enabled engines in the same list -> configure key/model/endpoint -> validate -> return to original task.
+- Spatial continuity: user moves/pins/resizes workspace -> edit/retranslate/result updates -> workspace keeps the user's position and size.
 
 For each journey, document:
 
@@ -51,9 +51,10 @@ Reject designs where:
 - The user cannot revise source text and rerun translation in place.
 - A result panel steals focus but cannot accept meaningful input.
 - A transient panel hides while the user is editing or before results are consumed.
-- A dragged or pinned workspace jumps back to an old cursor anchor after retranslation, provider updates, OCR completion, or content resize.
-- OCR text is translated before the user can remove noise when recognition has multiple lines.
+- A dragged, resized, or pinned workspace jumps back to an old cursor anchor or default size after retranslation, provider updates, OCR completion, or content resize.
+- OCR text is translated into a read-only or disconnected surface before the user can remove noise and retranslate in place.
 - History retranslation bypasses the editing workspace.
+- Result ordering is separated from enabled engines, forcing users to mentally connect two settings areas for one result-list behavior.
 - Errors tell the user what failed but not what to do next.
 
 ## Output Format

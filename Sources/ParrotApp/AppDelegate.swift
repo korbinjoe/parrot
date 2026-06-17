@@ -291,6 +291,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                     return
                 }
                 state.openOCRWorkspace(result: result, providerName: providerName)
+                state.translateDraft()
                 floating.show(focusComposer: true)
             } catch ScreenOCR.OCRError.captureCancelled {
                 return
@@ -356,6 +357,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             confidence: confidenceValue
         )
         state.openOCRWorkspace(result: result, providerName: providerName)
+        state.translateDraft()
         floating.show(focusComposer: true)
     }
 }

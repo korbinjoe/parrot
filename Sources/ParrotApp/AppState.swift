@@ -19,6 +19,11 @@ struct WorkspaceNotice: Equatable {
         case error
     }
 
+    enum Prominence: Equatable {
+        case compact
+        case card
+    }
+
     enum Action: Equatable {
         case retryScreenshot
         case openScreenRecordingSettings
@@ -35,6 +40,7 @@ struct WorkspaceNotice: Equatable {
     let systemImage: String
     let title: String
     let detail: String
+    let prominence: Prominence
     let primaryAction: ButtonSpec?
     let secondaryAction: ButtonSpec?
 }
@@ -231,6 +237,7 @@ final class AppState: ObservableObject {
             systemImage: "doc.text.viewfinder",
             title: "正在识别截图",
             detail: "\(providerName) 正在读取框选区域；识别完成后会进入可编辑源文区。",
+            prominence: .compact,
             primaryAction: nil,
             secondaryAction: nil
         )
@@ -255,12 +262,13 @@ final class AppState: ObservableObject {
         let lineCount = max(1, text.split(separator: "\n", omittingEmptySubsequences: true).count)
         let confidence = Int((result.confidence * 100).rounded())
         workspaceNotice = WorkspaceNotice(
-            tone: confidence < 75 ? .warning : .info,
+            tone: .info,
             systemImage: "doc.text.magnifyingglass",
-            title: "OCR 识别稿已就绪",
-            detail: "\(providerName) · \(lineCount) 行 · 平均置信度 \(confidence)% · 请先校对，再按 ⌘↩ 翻译。",
-            primaryAction: WorkspaceNotice.ButtonSpec(title: "重新截图", action: .retryScreenshot),
-            secondaryAction: WorkspaceNotice.ButtonSpec(title: "识别设置", action: .openOCRSettings)
+            title: "OCR · \(lineCount) 行 · \(confidence)%",
+            detail: "\(providerName) 已自动翻译；可继续校对源文后按 ⌘↩ 重译。",
+            prominence: .compact,
+            primaryAction: nil,
+            secondaryAction: nil
         )
         requestComposerFocus()
     }
@@ -274,6 +282,7 @@ final class AppState: ObservableObject {
             systemImage: "text.viewfinder",
             title: "未识别到文字",
             detail: "\(providerName) 没有读到可翻译文本。请重新框选包含清晰文字的区域，或切换 OCR 引擎。",
+            prominence: .card,
             primaryAction: WorkspaceNotice.ButtonSpec(title: "重新截图", action: .retryScreenshot),
             secondaryAction: WorkspaceNotice.ButtonSpec(title: "识别设置", action: .openOCRSettings)
         )
@@ -288,6 +297,7 @@ final class AppState: ObservableObject {
             systemImage: "exclamationmark.triangle",
             title: "截图识别失败",
             detail: "\(providerName) 无法完成识别。请重试截图，或检查 OCR 引擎配置。",
+            prominence: .card,
             primaryAction: WorkspaceNotice.ButtonSpec(title: "重新截图", action: .retryScreenshot),
             secondaryAction: WorkspaceNotice.ButtonSpec(title: "识别设置", action: .openOCRSettings)
         )
@@ -302,6 +312,7 @@ final class AppState: ObservableObject {
             systemImage: "lock.shield",
             title: "需要屏幕录制权限",
             detail: "Parrot 需要屏幕录制权限才能截图识别。授权后回到这里重新截图。",
+            prominence: .card,
             primaryAction: WorkspaceNotice.ButtonSpec(title: "打开设置", action: .openScreenRecordingSettings),
             secondaryAction: WorkspaceNotice.ButtonSpec(title: "重新截图", action: .retryScreenshot)
         )

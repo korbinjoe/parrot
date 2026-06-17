@@ -23,7 +23,7 @@ enum WindowPlacement {
             height: size.height
         )
         frame = clamped(frame, to: visible)
-        window.setFrameOrigin(frame.origin)
+        window.setFrame(frame, display: true)
     }
 
     static func clamp(_ window: NSWindow, near anchor: NSPoint? = nil) {

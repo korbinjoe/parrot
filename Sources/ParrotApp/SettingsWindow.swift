@@ -79,7 +79,6 @@ struct SettingsView: View {
     @State private var showMachineEngines = true
     @State private var showLLMEngines = true
     @State private var showMoreEngines = true
-    @State private var showEngineOrder = true
     @State private var showMachineKeys = false
     @State private var showLLMKeys = false
     @State private var showAdvancedKeys = false
@@ -204,7 +203,11 @@ struct SettingsView: View {
         VStack(alignment: .leading, spacing: 0) {
             sectionTitle("翻译引擎")
             subsectionTitle("已开启")
-            engineOptionsGroup(enabledEngineOptions, emptyText: "还没有开启任何翻译引擎")
+            Text("结果面板按这里的顺序显示；用箭头调整优先级。")
+                .font(Theme.Font.caption)
+                .foregroundStyle(Theme.Palette.label3)
+                .padding(.bottom, Theme.Spacing.s8)
+            enabledEngineOptionsGroup
 
             subsectionTitle("基础服务")
             engineOptionsGroup(disabledEngineOptions(in: .base), emptyText: "基础服务都已开启")
@@ -220,48 +223,19 @@ struct SettingsView: View {
             disclosureSection("更多服务", isExpanded: $showMoreEngines) {
                 engineOptionsGroup(disabledEngineOptions(in: .more), emptyText: "更多服务都已开启")
             }
-
-            disclosureSection("结果顺序", isExpanded: $showEngineOrder) {
-                formGroup {
-                    VStack(alignment: .leading, spacing: 0) {
-                        Text("用箭头调整翻译结果面板中的已启用引擎顺序")
-                            .font(Theme.Font.caption)
-                            .foregroundStyle(Theme.Palette.label3)
-                            .padding(.horizontal, Theme.Spacing.s12)
-                            .padding(.vertical, 9)
-                        Divider()
-                        ForEach(Array(orderableEngineIDs.enumerated()), id: \.element) { index, id in
-                            HStack(spacing: Theme.Spacing.s8) {
-                                Text(engineDisplayName(id))
-                                    .font(Theme.Font.body)
-                                    .foregroundStyle(Theme.Palette.label)
-                                Spacer()
-                                Button("↑") { moveEnabledEngine(from: index, to: index - 1) }
-                                    .disabled(index == 0)
-                                Button("↓") { moveEnabledEngine(from: index, to: index + 1) }
-                                    .disabled(index == orderableEngineIDs.count - 1)
-                            }
-                            .padding(.horizontal, Theme.Spacing.s12)
-                            .frame(minHeight: 32)
-                            if index != orderableEngineIDs.count - 1 {
-                                Divider()
-                                    .padding(.leading, Theme.Spacing.s12)
-                            }
-                        }
-                    }
-                    .frame(maxHeight: 220)
-                }
-            }
         }
     }
 
     private var enabledEngineOptions: [EngineDescriptor] {
-        EngineCatalog.orderedDescriptors(settings: settings)
-            .filter { settings.isEngineEnabled($0.id) }
+        orderableEngineIDs.compactMap { EngineCatalog.descriptor(for: $0) }
+    }
+
+    private var effectiveEngineOrder: [String] {
+        engineOrderDraft.isEmpty ? EngineBootstrap.resolvedOrder(settings.engineOrder) : engineOrderDraft
     }
 
     private var orderableEngineIDs: [String] {
-        engineOrderDraft.filter { settings.isEngineEnabled($0) }
+        effectiveEngineOrder.filter { settings.isEngineEnabled($0) }
     }
 
     private func disabledEngineOptions(in category: EngineCategory) -> [EngineDescriptor] {
@@ -274,13 +248,17 @@ struct SettingsView: View {
             get: { settings.isEngineEnabled(id) },
             set: { newValue in
                 settings.setEngineEnabled(id, newValue)
+                if newValue {
+                    var nextOrder = effectiveEngineOrder
+                    if !nextOrder.contains(id) {
+                        nextOrder.append(id)
+                    }
+                    engineOrderDraft = nextOrder
+                    settings.setEngineOrder(nextOrder)
+                }
                 state.applySettings()
             }
         )
-    }
-
-    private func engineDisplayName(_ id: String) -> String {
-        EngineCatalog.descriptor(for: id)?.name ?? id
     }
 
     private var ocrPane: some View {
@@ -339,6 +317,18 @@ struct SettingsView: View {
         }
     }
 
+    private var enabledEngineOptionsGroup: some View {
+        formGroup {
+            if enabledEngineOptions.isEmpty {
+                emptyEngineRow("还没有开启任何翻译引擎")
+            } else {
+                ForEach(Array(enabledEngineOptions.enumerated()), id: \.element.id) { index, descriptor in
+                    enabledEngineOptionRow(descriptor, index: index, count: enabledEngineOptions.count)
+                }
+            }
+        }
+    }
+
     private func engineOptionRow(_ descriptor: EngineDescriptor) -> some View {
         engineRow(
             descriptor.name,
@@ -346,6 +336,57 @@ struct SettingsView: View {
             status: status(descriptor),
             isOn: binding(forEngine: descriptor.id)
         )
+    }
+
+    private func enabledEngineOptionRow(_ descriptor: EngineDescriptor, index: Int, count: Int) -> some View {
+        VStack(spacing: 0) {
+            HStack(spacing: Theme.Spacing.s8) {
+                Text("\(index + 1)")
+                    .font(.system(size: 11, weight: .semibold, design: .rounded))
+                    .foregroundStyle(Theme.Palette.label2)
+                    .frame(width: 22, height: 22)
+                    .background(Theme.Palette.bgControl)
+                    .clipShape(RoundedRectangle(cornerRadius: Theme.Radius.control))
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(descriptor.name)
+                        .font(Theme.Font.body)
+                        .foregroundStyle(Theme.Palette.label)
+                    if let note = settings.engineStatusText(descriptor) {
+                        Text(note)
+                            .font(Theme.Font.caption)
+                            .foregroundStyle(Theme.Palette.label3)
+                            .lineLimit(1)
+                    }
+                }
+                Spacer(minLength: Theme.Spacing.s8)
+                Circle().fill(status(descriptor).color).frame(width: 7, height: 7)
+                HStack(spacing: 2) {
+                    reorderButton(
+                        systemName: "chevron.up",
+                        help: "上移 \(descriptor.name)",
+                        disabled: index == 0
+                    ) {
+                        moveEnabledEngine(from: index, to: index - 1)
+                    }
+                    reorderButton(
+                        systemName: "chevron.down",
+                        help: "下移 \(descriptor.name)",
+                        disabled: index == count - 1
+                    ) {
+                        moveEnabledEngine(from: index, to: index + 1)
+                    }
+                }
+                Toggle("", isOn: binding(forEngine: descriptor.id))
+                    .labelsHidden()
+                    .toggleStyle(.switch)
+                    .controlSize(.small)
+            }
+            .padding(.horizontal, Theme.Spacing.s12)
+            .padding(.vertical, 8)
+            .frame(minHeight: 44)
+            Divider()
+        }
+        .background(Color.clear)
     }
 
     private func emptyEngineRow(_ text: String) -> some View {
@@ -722,6 +763,26 @@ struct SettingsView: View {
         .background(Color.clear)
     }
 
+    private func reorderButton(
+        systemName: String,
+        help: String,
+        disabled: Bool,
+        action: @escaping () -> Void
+    ) -> some View {
+        Button(action: action) {
+            Image(systemName: systemName)
+                .font(.system(size: 10, weight: .semibold))
+                .foregroundStyle(disabled ? Theme.Palette.label3.opacity(0.45) : Theme.Palette.label2)
+                .frame(width: 22, height: 22)
+        }
+        .buttonStyle(.borderless)
+        .background(disabled ? Theme.Palette.bgControl.opacity(0.25) : Theme.Palette.bgControl)
+        .clipShape(RoundedRectangle(cornerRadius: Theme.Radius.control))
+        .disabled(disabled)
+        .help(help)
+        .accessibilityLabel(help)
+    }
+
     private func shortcutRow(_ action: ShortcutAction) -> some View {
         let isRecording = recordingShortcut == action
         let key = settings.shortcutSpec(for: action).displayText
@@ -994,7 +1055,7 @@ struct SettingsView: View {
         var enabled = orderableEngineIDs
         guard to >= 0, to < enabled.count, from != to else { return }
         enabled.move(fromOffsets: IndexSet(integer: from), toOffset: to > from ? to + 1 : to)
-        let disabled = engineOrderDraft.filter { !settings.isEngineEnabled($0) }
+        let disabled = effectiveEngineOrder.filter { !settings.isEngineEnabled($0) }
         engineOrderDraft = enabled + disabled
         settings.setEngineOrder(engineOrderDraft)
         state.applySettings()

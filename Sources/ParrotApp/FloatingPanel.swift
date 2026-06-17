@@ -11,6 +11,11 @@ final class FloatingPanelPresentation: ObservableObject {
 /// auto-hides when it loses focus. Implements an "即用即走" (use-and-dismiss) behavior.
 @MainActor
 final class FloatingPanel {
+    private enum Metrics {
+        static let defaultContentSize = NSSize(width: 560, height: 640)
+        static let minContentSize = NSSize(width: 480, height: 320)
+    }
+
     private var panel: NSPanel?
     private var hosting: NSHostingController<ResultView>?
     private let state: AppState
@@ -66,8 +71,7 @@ final class FloatingPanel {
             return
         }
         isHiding = false
-        // Use-and-dismiss entrance: fade in. Height is driven by SwiftUI's preferredContentSize,
-        // so we animate opacity only (no height补间) to avoid NSPanel jitter — see design.md Decision 4.
+        // Use-and-dismiss entrance: fade in only. Size is user-adjustable, so avoid height animation.
         panel?.alphaValue = 0
         if focusComposer {
             panel?.makeKeyAndOrderFront(nil)
@@ -114,15 +118,14 @@ final class FloatingPanel {
             onWorkspaceNoticeAction: onWorkspaceNoticeAction,
             onClose: { [weak self] in self?.hide(force: true) }
         ))
-        // Let the window track the SwiftUI content's ideal size automatically — including when
-        // translations arrive asynchronously and the content grows/shrinks.
-        hosting.sizingOptions = [.preferredContentSize]
         self.hosting = hosting
         let p = NSPanel(contentViewController: hosting)
-        p.styleMask = [.titled, .closable, .fullSizeContentView]
+        p.styleMask = [.titled, .closable, .resizable, .fullSizeContentView]
         p.title = "Parrot 翻译"
         p.titleVisibility = .hidden
         p.titlebarAppearsTransparent = true
+        p.contentMinSize = Metrics.minContentSize
+        p.setContentSize(Metrics.defaultContentSize)
         p.isFloatingPanel = true
         p.level = .floating
         p.hidesOnDeactivate = false

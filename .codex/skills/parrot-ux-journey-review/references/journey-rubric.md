@@ -7,7 +7,7 @@ Parrot is a utility for turning text in the user's current context into useful t
 - **Continuity**: the user should not lose the source text, current task, or previous app context.
 - **Editability**: every captured or typed source should be editable before and after translation.
 - **Recoverability**: every failure should have a visible next action.
-- **Spatial stability**: once the user moves or pins a workspace, translation, OCR, provider updates, and content resizing should not move it unexpectedly.
+- **Spatial stability**: once the user moves, resizes, or pins a workspace, translation, OCR, provider updates, and content resizing should not move or resize it unexpectedly.
 
 ## Severity
 
@@ -24,7 +24,7 @@ Prefer one reusable translation workspace:
 - Results below: provider cards update in place.
 - Draft state persists while the panel is visible.
 - Retrying after edit updates the same panel.
-- Dragged/pinned workspace position persists while the panel remains visible; resizing only clamps to the visible screen and never jumps back to an old cursor anchor.
+- Dragged/pinned workspace position and user-resized dimensions persist while the panel remains visible; resizing only clamps to the visible screen and never jumps back to an old cursor anchor or default size.
 
 Avoid a split model where input happens in one window and results appear in another with no way back.
 
@@ -49,13 +49,14 @@ Ask these for every journey:
 - Does the flow return the user to their original app when the task is done?
 - Does history preserve enough context to reuse a previous translation?
 - Does the interaction work with keyboard only?
-- If the user drags or pins the workspace, does it remain stable through retranslation, result growth, OCR completion, and provider retries?
+- If the user drags, resizes, or pins the workspace, does it remain stable through retranslation, result growth, OCR completion, and provider retries?
 
 ## Common Anti-Patterns In This Project
 
 - Static source blocks that force users to restart the flow to correct one character.
 - A dedicated input panel that disappears after submit and sends results to a separate panel.
 - Auto-hide behavior that treats editing, reading, and completed consumption the same.
-- Resize or result-update behavior that repositions a user-moved panel back to the original mouse/capture anchor.
-- OCR translating all recognized text before the user can remove headers, page numbers, and noise.
+- Resize or result-update behavior that repositions a user-moved panel back to the original mouse/capture anchor, or shrinks a user-resized panel back to a default size.
+- OCR auto-translating recognized text without keeping the recognized source editable for removing headers, page numbers, and noise before retranslation.
+- A separate result-order panel disconnected from the enabled-engine list; enabled engines should be reordered where they are enabled.
 - Settings changes that do not return the user to the task that triggered the configuration need.

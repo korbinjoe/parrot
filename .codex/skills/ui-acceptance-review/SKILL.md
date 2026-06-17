@@ -26,7 +26,7 @@ Reject the implementation and return to development if any of these are true:
 - Standard App menu fallback entries are missing.
 - A permission-dependent action can fail silently.
 - A window opens off the visible screen or away from the user's likely attention area.
-- A user-moved or pinned workspace jumps back to a previous cursor anchor after in-place translation, provider updates, OCR completion, retry, or content resize.
+- A user-moved, user-resized, or pinned workspace jumps back to a previous cursor anchor or default size after in-place translation, provider updates, OCR completion, retry, or content resize.
 - A required control is inaccessible to AX automation without a fallback path.
 - Error states do not include a clear recovery action.
 
@@ -51,7 +51,7 @@ After the script passes, do a short review of the changed screens:
 - Does each failure state tell the user exactly what to do next?
 - Are settings dense but scannable, with advanced controls visually secondary?
 - Do windows open on the current mouse or active screen and stay within visible bounds?
-- If the user drags the workspace, does it stay there after pressing `Command+Enter`, provider cards arriving, OCR completion, and retry actions?
+- If the user drags or resizes the workspace, does it stay there after pressing `Command+Enter`, provider cards arriving, OCR completion, and retry actions?
 - Do menu, keyboard, and URL Scheme entry points converge on the same behavior?
 - Are accessibility labels present for icon-only or non-obvious controls?
 

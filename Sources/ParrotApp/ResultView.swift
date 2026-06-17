@@ -5,6 +5,15 @@ import ParrotCore
 /// Floating result content: a language-direction header, source context, then provider
 /// slots displayed in the order configured in Settings.
 struct ResultView: View {
+    private enum Layout {
+        static let minWidth: CGFloat = 480
+        static let idealWidth: CGFloat = 560
+        static let minHeight: CGFloat = 320
+        static let minScrollHeight: CGFloat = 260
+        static let idealScrollFloor: CGFloat = 520
+        static let maxPreferredHeight: CGFloat = 680
+    }
+
     @ObservedObject var state: AppState
     @ObservedObject var panelPresentation: FloatingPanelPresentation
     let onTogglePinned: () -> Void
@@ -77,7 +86,11 @@ struct ResultView: View {
                         Color.clear.preference(key: ContentHeightKey.self, value: geo.size.height)
                     })
                 }
-                .frame(height: min(contentHeight, 460))
+                .frame(
+                    minHeight: Layout.minScrollHeight,
+                    idealHeight: min(max(contentHeight, Layout.idealScrollFloor), Layout.maxPreferredHeight),
+                    maxHeight: .infinity
+                )
                 if !feedbackText.isEmpty {
                     Divider()
                     Text(feedbackText)
@@ -90,7 +103,14 @@ struct ResultView: View {
             .clipShape(RoundedRectangle(cornerRadius: Theme.Radius.window))
             .overlay(panelStroke)
         }
-        .frame(width: 384)
+        .frame(
+            minWidth: Layout.minWidth,
+            idealWidth: Layout.idealWidth,
+            maxWidth: .infinity,
+            minHeight: Layout.minHeight,
+            idealHeight: min(max(contentHeight, Layout.idealScrollFloor), Layout.maxPreferredHeight),
+            maxHeight: .infinity
+        )
         .onPreferenceChange(ContentHeightKey.self) { contentHeight = $0 }
         .onDisappear {
             sourceComposerFocused = false
@@ -365,6 +385,47 @@ private struct WorkspaceNoticeView: View {
     let onAction: (WorkspaceNotice.Action) -> Void
 
     var body: some View {
+        if notice.prominence == .compact {
+            compactBody
+        } else {
+            cardBody
+        }
+    }
+
+    private var compactBody: some View {
+        HStack(spacing: Theme.Spacing.s8) {
+            Image(systemName: notice.systemImage)
+                .font(.system(size: 11, weight: .semibold))
+                .foregroundStyle(tint.opacity(0.85))
+                .frame(width: 16, height: 18)
+            Text(notice.title)
+                .font(Theme.Font.caption)
+                .foregroundStyle(Theme.Palette.label2)
+                .lineLimit(1)
+            Text(notice.detail)
+                .font(Theme.Font.caption)
+                .foregroundStyle(Theme.Palette.label3)
+                .lineLimit(1)
+            Spacer(minLength: 0)
+            Button {
+                onAction(.dismiss)
+            } label: {
+                Image(systemName: "xmark")
+                    .font(.system(size: 9, weight: .semibold))
+                    .foregroundStyle(Theme.Palette.label3)
+                    .frame(width: 18, height: 18)
+            }
+            .buttonStyle(.borderless)
+            .help("隐藏提示")
+            .accessibilityLabel("隐藏提示")
+        }
+        .padding(.horizontal, 10)
+        .frame(height: 30)
+        .background(Theme.Palette.bgControl.opacity(0.55))
+        .clipShape(RoundedRectangle(cornerRadius: Theme.Radius.control))
+    }
+
+    private var cardBody: some View {
         HStack(alignment: .top, spacing: Theme.Spacing.s8) {
             Image(systemName: notice.systemImage)
                 .font(.system(size: 13, weight: .semibold))

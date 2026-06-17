@@ -85,6 +85,13 @@ func pointValue(_ element: AXUIElement, _ name: String) -> CGPoint? {
     return point
 }
 
+func sizeValue(_ element: AXUIElement, _ name: String) -> CGSize? {
+    guard let value = attr(element, name) else { return nil }
+    var size = CGSize.zero
+    guard AXValueGetValue(value as! AXValue, .cgSize, &size) else { return nil }
+    return size
+}
+
 func setPosition(_ element: AXUIElement, _ point: CGPoint) {
     var mutable = point
     guard let axValue = AXValueCreate(.cgPoint, &mutable) else {
@@ -93,6 +100,17 @@ func setPosition(_ element: AXUIElement, _ point: CGPoint) {
     let error = AXUIElementSetAttributeValue(element, kAXPositionAttribute as CFString, axValue)
     guard error == .success else {
         fail("could not move window through AX: \(error.rawValue)")
+    }
+}
+
+func setSize(_ element: AXUIElement, _ size: CGSize) {
+    var mutable = size
+    guard let axValue = AXValueCreate(.cgSize, &mutable) else {
+        fail("could not create AX size value")
+    }
+    let error = AXUIElementSetAttributeValue(element, kAXSizeAttribute as CFString, axValue)
+    guard error == .success else {
+        fail("could not resize window through AX: \(error.rawValue)")
     }
 }
 
@@ -183,6 +201,14 @@ func assertStablePosition(_ before: CGPoint, _ after: CGPoint, context: String) 
     }
 }
 
+func assertStableSize(_ before: CGSize, _ after: CGSize, context: String) {
+    let dw = abs(before.width - after.width)
+    let dh = abs(before.height - after.height)
+    guard dw <= 8 && dh <= 8 else {
+        fail("\(context) resized unexpectedly; before=\(before) after=\(after)")
+    }
+}
+
 func press(_ item: AXUIElement, name: String) {
     let error = AXUIElementPerformAction(item, kAXPressAction as CFString)
     guard error == .success else {
@@ -230,7 +256,7 @@ if let input = menuItem(named: "输入翻译", in: app) {
 }
 
 openURL("parrot://ocr-fixture?text=OCR%20fixture%20line%201%0AOCR%20fixture%20line%202&confidence=0.62&provider=Fixture%20OCR", appURL: appURL)
-usleep(900_000)
+usleep(1_500_000)
 if let workspace = window(named: "Parrot 翻译", in: app),
    let composer = editableComposer(in: workspace) {
     let composerValue = value(composer)
@@ -243,6 +269,19 @@ if let workspace = window(named: "Parrot 翻译", in: app),
     let movedPosition = CGPoint(x: originalPosition.x + 64, y: originalPosition.y + 42)
     setPosition(workspace, movedPosition)
     usleep(250_000)
+    guard let sizeBeforeResize = sizeValue(workspace, kAXSizeAttribute as String) else {
+        fail("could not read workspace size")
+    }
+    let targetSize = CGSize(width: sizeBeforeResize.width + 80, height: sizeBeforeResize.height + 80)
+    setSize(workspace, targetSize)
+    usleep(350_000)
+    guard let sizeAfterManualResize = sizeValue(workspace, kAXSizeAttribute as String) else {
+        fail("could not read manually resized workspace size")
+    }
+    guard sizeAfterManualResize.width >= sizeBeforeResize.width + 32,
+          sizeAfterManualResize.height >= sizeBeforeResize.height + 32 else {
+        fail("workspace did not accept manual resize; before=\(sizeBeforeResize) after=\(sizeAfterManualResize)")
+    }
     guard let positionBeforeTranslate = pointValue(workspace, kAXPositionAttribute as String) else {
         fail("could not read moved workspace position")
     }
@@ -254,6 +293,10 @@ if let workspace = window(named: "Parrot 翻译", in: app),
         fail("workspace disappeared after translating OCR fixture")
     }
     assertStablePosition(positionBeforeTranslate, positionAfterTranslate, context: "workspace position after in-place translation")
+    guard let sizeAfterTranslate = sizeValue(translatedWorkspace, kAXSizeAttribute as String) else {
+        fail("could not read workspace size after translation")
+    }
+    assertStableSize(sizeAfterManualResize, sizeAfterTranslate, context: "workspace size after in-place translation")
 } else {
     fail("OCR fixture did not open editable translation workspace; windows=\(windowTitles(in: app))")
 }
