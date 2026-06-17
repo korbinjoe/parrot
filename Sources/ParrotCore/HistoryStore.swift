@@ -1,11 +1,28 @@
 import Foundation
 
-/// A persisted translation record (one source text + its best/primary translation).
+/// One provider result persisted inside a translation history record.
+public struct TranslationRecordOutcome: Codable, Sendable, Identifiable, Equatable {
+    public var id: String { providerId }
+    public var providerId: String
+    public var displayName: String
+    public var translated: String
+    public var latencyMs: Int?
+
+    public init(providerId: String, displayName: String, translated: String, latencyMs: Int? = nil) {
+        self.providerId = providerId
+        self.displayName = displayName
+        self.translated = translated
+        self.latencyMs = latencyMs
+    }
+}
+
+/// A persisted translation record (one source text + all successful provider results).
 public struct TranslationRecord: Codable, Sendable, Identifiable, Equatable {
     public let id: UUID
     public var sourceText: String
     public var translated: String
     public var providerId: String
+    public var outcomes: [TranslationRecordOutcome]
     public var sourceLang: String
     public var targetLang: String
     public var createdAt: Date
@@ -15,6 +32,7 @@ public struct TranslationRecord: Codable, Sendable, Identifiable, Equatable {
                 sourceText: String,
                 translated: String,
                 providerId: String,
+                outcomes: [TranslationRecordOutcome] = [],
                 sourceLang: String,
                 targetLang: String,
                 createdAt: Date = Date(),
@@ -23,10 +41,40 @@ public struct TranslationRecord: Codable, Sendable, Identifiable, Equatable {
         self.sourceText = sourceText
         self.translated = translated
         self.providerId = providerId
+        if outcomes.isEmpty {
+            self.outcomes = [TranslationRecordOutcome(providerId: providerId, displayName: providerId, translated: translated)]
+        } else {
+            self.outcomes = outcomes
+        }
         self.sourceLang = sourceLang
         self.targetLang = targetLang
         self.createdAt = createdAt
         self.isFavorite = isFavorite
+    }
+
+    public var displayOutcomes: [TranslationRecordOutcome] {
+        outcomes.isEmpty
+            ? [TranslationRecordOutcome(providerId: providerId, displayName: providerId, translated: translated)]
+            : outcomes
+    }
+
+    private enum CodingKeys: String, CodingKey {
+        case id, sourceText, translated, providerId, outcomes, sourceLang, targetLang, createdAt, isFavorite
+    }
+
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        id = try container.decode(UUID.self, forKey: .id)
+        sourceText = try container.decode(String.self, forKey: .sourceText)
+        translated = try container.decode(String.self, forKey: .translated)
+        providerId = try container.decode(String.self, forKey: .providerId)
+        outcomes = try container.decodeIfPresent([TranslationRecordOutcome].self, forKey: .outcomes) ?? [
+            TranslationRecordOutcome(providerId: providerId, displayName: providerId, translated: translated)
+        ]
+        sourceLang = try container.decode(String.self, forKey: .sourceLang)
+        targetLang = try container.decode(String.self, forKey: .targetLang)
+        createdAt = try container.decode(Date.self, forKey: .createdAt)
+        isFavorite = try container.decode(Bool.self, forKey: .isFavorite)
     }
 }
 

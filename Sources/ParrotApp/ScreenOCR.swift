@@ -11,8 +11,26 @@ enum ScreenOCR {
 
     /// Present the system region selector and OCR the result. Returns layout-ordered text.
     static func captureAndRecognize(languages: [String] = ["zh-Hans", "en-US"]) async throws -> String {
-        let image = try await interactiveCapture()
+        let image = try await captureImage()
         return try recognize(image, languages: languages)
+    }
+
+    /// Present the system region selector and OCR the result via the given coordinator.
+    static func captureAndRecognizeResult(
+        coordinator: OCRCoordinator,
+        languages: [String] = ["zh-Hans", "en-US"]
+    ) async throws -> OCRResult {
+        let image = try await captureImage()
+        return try await recognize(image, coordinator: coordinator, languages: languages)
+    }
+
+    static func recognize(
+        _ image: CGImage,
+        coordinator: OCRCoordinator,
+        languages: [String] = ["zh-Hans", "en-US"]
+    ) async throws -> OCRResult {
+        let hints: [Language] = languages.contains(where: { $0.hasPrefix("zh") }) ? [.zh, .en] : [.en]
+        return try await coordinator.recognize(image, languageHints: hints)
     }
 
     /// Present the system region selector and OCR the result via the given coordinator.
@@ -20,20 +38,18 @@ enum ScreenOCR {
         coordinator: OCRCoordinator,
         languages: [String] = ["zh-Hans", "en-US"]
     ) async throws -> [String] {
-        let image = try await interactiveCapture()
-        let hints: [Language] = languages.contains(where: { $0.hasPrefix("zh") }) ? [.zh, .en] : [.en]
-        let result = try await coordinator.recognize(image, languageHints: hints)
+        let result = try await captureAndRecognizeResult(coordinator: coordinator, languages: languages)
         return result.fullText.split(separator: "\n", omittingEmptySubsequences: true).map(String.init)
     }
 
     /// Legacy path using inline Vision (tests / fallback).
     static func captureAndRecognizeLines(languages: [String] = ["zh-Hans", "en-US"]) async throws -> [String] {
-        let image = try await interactiveCapture()
+        let image = try await captureImage()
         return try recognizeLines(image, languages: languages)
     }
 
     /// Run `screencapture -i` to a temp file and load it as a CGImage.
-    private static func interactiveCapture() async throws -> CGImage {
+    static func captureImage() async throws -> CGImage {
         let tmp = FileManager.default.temporaryDirectory
             .appendingPathComponent("parrot-ocr-\(UUID().uuidString).png")
 

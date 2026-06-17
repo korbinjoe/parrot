@@ -19,9 +19,29 @@ struct MenuBarPopoverView: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
-            actionRow("character.cursor.ibeam", "划词翻译", "⌥D", action: onSelection)
-            actionRow("text.magnifyingglass", "查词", "⌥E", action: onLookup)
-            actionRow("camera.viewfinder", "截图翻译", "⌥S", action: onScreenshot)
+            permissionStrip
+
+            actionRow(
+                "character.cursor.ibeam",
+                "划词翻译",
+                state.permissions.accessibilityGranted ? "⌥D" : "需辅助功能",
+                disabled: !state.permissions.accessibilityGranted,
+                action: onSelection
+            )
+            actionRow(
+                "text.magnifyingglass",
+                "查词",
+                state.permissions.accessibilityGranted ? "⌥E" : "需辅助功能",
+                disabled: !state.permissions.accessibilityGranted,
+                action: onLookup
+            )
+            actionRow(
+                "camera.viewfinder",
+                "截图翻译",
+                state.permissions.screenRecordingGranted ? "⌥S" : "需屏幕录制",
+                disabled: !state.permissions.screenRecordingGranted,
+                action: onScreenshot
+            )
             actionRow("keyboard", "输入翻译", "⌥A", action: onInput)
 
             sectionDivider
@@ -46,13 +66,22 @@ struct MenuBarPopoverView: View {
         .padding(6)
         .frame(width: 248)
         .background(Theme.Palette.bgContent)
-        .onAppear(perform: loadRecents)
+        .onAppear {
+            state.refreshPermissions()
+            loadRecents()
+        }
     }
 
     // MARK: - Rows
 
-    private func actionRow(_ icon: String, _ title: String, _ shortcut: String, action: @escaping () -> Void) -> some View {
-        HoverRow(action: action) {
+    private func actionRow(
+        _ icon: String,
+        _ title: String,
+        _ shortcut: String,
+        disabled: Bool = false,
+        action: @escaping () -> Void
+    ) -> some View {
+        HoverRow(action: action, disabled: disabled) {
             HStack(spacing: 9) {
                 Image(systemName: icon).frame(width: 16).foregroundStyle(Theme.Palette.label2)
                 Text(title).font(Theme.Font.body).foregroundStyle(Theme.Palette.label)
@@ -60,6 +89,8 @@ struct MenuBarPopoverView: View {
                 Text(shortcut).font(Theme.Font.caption).foregroundStyle(Theme.Palette.label3)
             }
         }
+        .accessibilityLabel(title)
+        .accessibilityHint(shortcut)
     }
 
     private func plainRow(_ title: String, icon: String, action: @escaping () -> Void) -> some View {
@@ -69,6 +100,35 @@ struct MenuBarPopoverView: View {
                 Text(title).font(Theme.Font.body).foregroundStyle(Theme.Palette.accent)
                 Spacer(minLength: 0)
             }
+        }
+    }
+
+    @ViewBuilder
+    private var permissionStrip: some View {
+        if state.permissions.hasBlockingIssue {
+            HStack(alignment: .top, spacing: Theme.Spacing.s8) {
+                Image(systemName: "exclamationmark.triangle.fill")
+                    .font(.system(size: 11, weight: .semibold))
+                    .foregroundStyle(Theme.Palette.warning)
+                    .frame(width: 16, height: 16)
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(state.permissions.summary)
+                        .font(.system(size: 12, weight: .semibold))
+                        .foregroundStyle(Theme.Palette.label)
+                    Text("部分快捷动作暂不可用")
+                        .font(Theme.Font.caption)
+                        .foregroundStyle(Theme.Palette.label3)
+                }
+                Spacer(minLength: 0)
+                Button("设置") { onSettings() }
+                    .buttonStyle(.borderless)
+                    .font(Theme.Font.caption)
+            }
+            .padding(.horizontal, 9)
+            .padding(.vertical, 8)
+            .background(Theme.Palette.bgControl)
+            .clipShape(RoundedRectangle(cornerRadius: 8))
+            .padding(.bottom, 5)
         }
     }
 
@@ -116,18 +176,23 @@ struct MenuBarPopoverView: View {
 /// A full-width row that highlights with the shared selection fill on hover.
 private struct HoverRow<Content: View>: View {
     let action: () -> Void
+    var disabled: Bool = false
     @ViewBuilder let content: () -> Content
     @State private var hovering = false
 
     var body: some View {
-        content()
-            .padding(.horizontal, 9)
-            .frame(minHeight: 28)
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .background(hovering ? Theme.Palette.bgSelection : Color.clear)
-            .clipShape(RoundedRectangle(cornerRadius: 8))
-            .contentShape(Rectangle())
-            .onHover { hovering = $0 }
-            .onTapGesture(perform: action)
+        Button(action: action) {
+            content()
+                .padding(.horizontal, 9)
+                .frame(minHeight: 28)
+                .frame(maxWidth: .infinity, alignment: .leading)
+        }
+        .buttonStyle(.plain)
+        .disabled(disabled)
+        .opacity(disabled ? 0.55 : 1)
+        .background(!disabled && hovering ? Theme.Palette.bgSelection : Color.clear)
+        .clipShape(RoundedRectangle(cornerRadius: 8))
+        .contentShape(Rectangle())
+        .onHover { hovering = $0 }
     }
 }

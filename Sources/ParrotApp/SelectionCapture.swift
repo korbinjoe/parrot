@@ -89,8 +89,6 @@ enum SelectionCapture {
 
     /// Whether the app has Accessibility permission (needed for AX read & key synthesis).
     static func hasAccessibilityPermission(prompt: Bool) -> Bool {
-        let key = kAXTrustedCheckOptionPrompt.takeUnretainedValue() as String
-        let options = [key: prompt] as CFDictionary
-        return AXIsProcessTrustedWithOptions(options)
+        AppPermissions.accessibility(prompt: prompt)
     }
 }

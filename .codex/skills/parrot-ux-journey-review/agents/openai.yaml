@@ -1,0 +1,4 @@
+interface:
+  display_name: "Parrot UX Journey Review"
+  short_description: "Review Parrot end-to-end user journeys"
+  default_prompt: "Use $parrot-ux-journey-review to audit Parrot user journeys and produce a rework plan."

@@ -12,6 +12,33 @@ struct PendingProviderViewState: Identifiable, Equatable {
     var softTimedOut: Bool = false
 }
 
+struct WorkspaceNotice: Equatable {
+    enum Tone: Equatable {
+        case info
+        case warning
+        case error
+    }
+
+    enum Action: Equatable {
+        case retryScreenshot
+        case openScreenRecordingSettings
+        case openOCRSettings
+        case dismiss
+    }
+
+    struct ButtonSpec: Equatable {
+        let title: String
+        let action: Action
+    }
+
+    let tone: Tone
+    let systemImage: String
+    let title: String
+    let detail: String
+    let primaryAction: ButtonSpec?
+    let secondaryAction: ButtonSpec?
+}
+
 @MainActor
 final class AppState: ObservableObject {
     let registry = ProviderRegistry()
@@ -23,16 +50,22 @@ final class AppState: ObservableObject {
     let settings = AppSettings()
 
     @Published var sourceText: String = ""
+    @Published var sourceDraft: String = ""
     @Published var outcomes: [AggregatedOutcome] = []
     @Published var pendingProviders: [PendingProviderViewState] = []
     @Published var slowProviderIDs: Set<String> = []
     @Published var isTranslating: Bool = false
+    @Published var isComposerFocused: Bool = false
+    @Published var composerFocusRequest: Int = 0
+    @Published var isRecognizingOCR: Bool = false
+    @Published var workspaceNotice: WorkspaceNotice?
     @Published var sourceLanguage: Language = .auto
     @Published var targetLanguage: Language = .zh
     @Published var detectedSource: Language = .auto
     @Published var savedRecordId: UUID?
     @Published var isFavorite: Bool = false
     @Published var isOffline: Bool = false
+    @Published var permissions: PermissionSnapshot = AppPermissions.snapshot()
 
     private let netMonitor = NWPathMonitor()
     private var translationTask: Task<Void, Never>?
@@ -42,6 +75,30 @@ final class AppState: ObservableObject {
     private var currentMode: TranslateMode = .translate
     private let directionResolver = TranslationDirectionResolver()
     private static let slowProviderSoftTimeout: TimeInterval = 8
+
+    var sourceDraftTrimmed: String {
+        sourceDraft.trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
+    var committedSourceTrimmed: String {
+        sourceText.trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
+    var isSourceDirty: Bool {
+        sourceDraftTrimmed != committedSourceTrimmed
+    }
+
+    var canTranslateDraft: Bool {
+        !sourceDraftTrimmed.isEmpty
+    }
+
+    var actionSourceText: String {
+        sourceDraftTrimmed.isEmpty ? committedSourceTrimmed : sourceDraft
+    }
+
+    var shouldKeepWorkspaceVisible: Bool {
+        isComposerFocused || isSourceDirty || isRecognizingOCR
+    }
 
     init() {
         coordinator = TranslationCoordinator(registry: registry)
@@ -74,6 +131,13 @@ final class AppState: ObservableObject {
         loadPlugins()
     }
 
+    func refreshPermissions(promptAccessibility: Bool = false, promptScreenRecording: Bool = false) {
+        permissions = AppPermissions.snapshot(
+            promptAccessibility: promptAccessibility,
+            promptScreenRecording: promptScreenRecording
+        )
+    }
+
     func setLanguageDirection(sourceCode: String? = nil, targetCode: String? = nil) {
         if let sourceCode {
             settings.sourceLanguageCode = sourceCode
@@ -82,8 +146,9 @@ final class AppState: ObservableObject {
             settings.targetLanguageCode = targetCode
         }
         applySettings()
-        guard !sourceText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return }
-        translate(sourceText, mode: currentMode)
+        let text = sourceDraftTrimmed.isEmpty ? committedSourceTrimmed : sourceDraft
+        guard !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return }
+        translate(text, mode: currentMode)
     }
 
     private func loadPlugins() {
@@ -97,12 +162,175 @@ final class AppState: ObservableObject {
         return await EngineValidator.validate(provider)
     }
 
+    func updateDraft(_ text: String) {
+        sourceDraft = text
+    }
+
+    func clearDraft() {
+        resetTranslationSession(keepDraft: false)
+        workspaceNotice = nil
+    }
+
+    func removeBlankDraftLines() {
+        let cleaned = sourceDraft
+            .components(separatedBy: .newlines)
+            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+            .filter { !$0.isEmpty }
+            .joined(separator: "\n")
+        sourceDraft = cleaned
+    }
+
+    func mergeDraftLines() {
+        let merged = sourceDraft
+            .components(separatedBy: .newlines)
+            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+            .filter { !$0.isEmpty }
+            .joined(separator: " ")
+        sourceDraft = merged
+    }
+
+    func dismissWorkspaceNotice() {
+        workspaceNotice = nil
+    }
+
+    func requestComposerFocus() {
+        composerFocusRequest += 1
+    }
+
+    func setComposerFocused(_ focused: Bool) {
+        isComposerFocused = focused
+    }
+
+    func openWorkspace(
+        text: String,
+        mode: TranslateMode = .translate,
+        autoRun: Bool,
+        focusComposer: Bool
+    ) {
+        currentMode = mode
+        isRecognizingOCR = false
+        workspaceNotice = nil
+        sourceDraft = text
+        if autoRun {
+            translateDraft(mode: mode)
+        } else if text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            resetTranslationSession(keepDraft: true)
+        }
+        if focusComposer {
+            requestComposerFocus()
+        }
+    }
+
+    func beginOCRRecognition(providerName: String) {
+        currentMode = .translate
+        isRecognizingOCR = true
+        sourceDraft = ""
+        resetTranslationSession(keepDraft: true)
+        workspaceNotice = WorkspaceNotice(
+            tone: .info,
+            systemImage: "doc.text.viewfinder",
+            title: "正在识别截图",
+            detail: "\(providerName) 正在读取框选区域；识别完成后会进入可编辑源文区。",
+            primaryAction: nil,
+            secondaryAction: nil
+        )
+    }
+
+    func openOCRWorkspace(result: OCRResult, providerName: String) {
+        isRecognizingOCR = false
+        currentMode = .translate
+        let text = result.fullText.trimmingCharacters(in: .whitespacesAndNewlines)
+        sourceDraft = text
+        sourceText = ""
+        outcomes = []
+        pendingProviders = []
+        slowProviderIDs = []
+        isTranslating = false
+        detectedSource = result.detectedLanguages.first ?? .auto
+        savedRecordId = nil
+        isFavorite = false
+        didSaveCurrentTranslation = false
+        currentTranslationID = UUID()
+
+        let lineCount = max(1, text.split(separator: "\n", omittingEmptySubsequences: true).count)
+        let confidence = Int((result.confidence * 100).rounded())
+        workspaceNotice = WorkspaceNotice(
+            tone: confidence < 75 ? .warning : .info,
+            systemImage: "doc.text.magnifyingglass",
+            title: "OCR 识别稿已就绪",
+            detail: "\(providerName) · \(lineCount) 行 · 平均置信度 \(confidence)% · 请先校对，再按 ⌘↩ 翻译。",
+            primaryAction: WorkspaceNotice.ButtonSpec(title: "重新截图", action: .retryScreenshot),
+            secondaryAction: WorkspaceNotice.ButtonSpec(title: "识别设置", action: .openOCRSettings)
+        )
+        requestComposerFocus()
+    }
+
+    func showOCRNoText(providerName: String) {
+        isRecognizingOCR = false
+        sourceDraft = ""
+        resetTranslationSession(keepDraft: true)
+        workspaceNotice = WorkspaceNotice(
+            tone: .warning,
+            systemImage: "text.viewfinder",
+            title: "未识别到文字",
+            detail: "\(providerName) 没有读到可翻译文本。请重新框选包含清晰文字的区域，或切换 OCR 引擎。",
+            primaryAction: WorkspaceNotice.ButtonSpec(title: "重新截图", action: .retryScreenshot),
+            secondaryAction: WorkspaceNotice.ButtonSpec(title: "识别设置", action: .openOCRSettings)
+        )
+    }
+
+    func showOCRError(_ error: Error, providerName: String) {
+        isRecognizingOCR = false
+        sourceDraft = ""
+        resetTranslationSession(keepDraft: true)
+        workspaceNotice = WorkspaceNotice(
+            tone: .error,
+            systemImage: "exclamationmark.triangle",
+            title: "截图识别失败",
+            detail: "\(providerName) 无法完成识别。请重试截图，或检查 OCR 引擎配置。",
+            primaryAction: WorkspaceNotice.ButtonSpec(title: "重新截图", action: .retryScreenshot),
+            secondaryAction: WorkspaceNotice.ButtonSpec(title: "识别设置", action: .openOCRSettings)
+        )
+    }
+
+    func showScreenRecordingPermissionIssue() {
+        isRecognizingOCR = false
+        sourceDraft = ""
+        resetTranslationSession(keepDraft: true)
+        workspaceNotice = WorkspaceNotice(
+            tone: .error,
+            systemImage: "lock.shield",
+            title: "需要屏幕录制权限",
+            detail: "Parrot 需要屏幕录制权限才能截图识别。授权后回到这里重新截图。",
+            primaryAction: WorkspaceNotice.ButtonSpec(title: "打开设置", action: .openScreenRecordingSettings),
+            secondaryAction: WorkspaceNotice.ButtonSpec(title: "重新截图", action: .retryScreenshot)
+        )
+    }
+
+    func openManualInputWorkspace() {
+        currentMode = .translate
+        isRecognizingOCR = false
+        workspaceNotice = nil
+        if !isSourceDirty {
+            sourceDraft = ""
+            resetTranslationSession(keepDraft: true)
+        }
+        requestComposerFocus()
+    }
+
+    func translateDraft(mode: TranslateMode? = nil) {
+        let trimmed = sourceDraftTrimmed
+        guard !trimmed.isEmpty else { return }
+        translate(trimmed, mode: mode ?? currentMode)
+    }
+
     func translate(_ text: String, mode: TranslateMode = .translate) {
         let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else { return }
         translationTask?.cancel()
         slowHintTasks.forEach { $0.cancel() }
         slowHintTasks = []
+        isRecognizingOCR = false
 
         let runID = UUID()
         currentTranslationID = runID
@@ -112,6 +340,7 @@ final class AppState: ObservableObject {
         reloadProviders()
         loadPlugins()
         sourceText = trimmed
+        sourceDraft = trimmed
         let direction = directionResolver.resolve(
             text: trimmed,
             from: settings.sourceLanguage,
@@ -121,8 +350,16 @@ final class AppState: ObservableObject {
         targetLanguage = direction.to
         detectedSource = direction.detected
         isTranslating = true
-        outcomes = []
         let activeProviders = registry.activeProviders()
+        outcomes = EngineCatalog.missingConfigurationDescriptors(settings: settings).map {
+            AggregatedOutcome(
+                providerId: $0.id,
+                displayName: $0.name,
+                result: nil,
+                error: .notConfigured,
+                latencyMs: 0
+            )
+        }
         slowProviderIDs = Set(activeProviders.filter(Self.isSlowProvider).map(\.id))
         pendingProviders = activeProviders.map {
             PendingProviderViewState(
@@ -142,10 +379,29 @@ final class AppState: ObservableObject {
             let stream = await coordinator.translateIncrementally(req)
             for await outcome in stream {
                 guard !Task.isCancelled else { break }
-                await self?.handleIncrementalOutcome(outcome, sourceText: trimmed, runID: runID)
+                await self?.handleIncrementalOutcome(outcome, runID: runID)
             }
-            self?.finishTranslation(runID: runID)
+            await self?.finishTranslation(runID: runID)
         }
+    }
+
+    private func resetTranslationSession(keepDraft: Bool) {
+        translationTask?.cancel()
+        slowHintTasks.forEach { $0.cancel() }
+        slowHintTasks = []
+        if !keepDraft {
+            sourceDraft = ""
+        }
+        sourceText = ""
+        outcomes = []
+        pendingProviders = []
+        slowProviderIDs = []
+        isTranslating = false
+        detectedSource = .auto
+        savedRecordId = nil
+        isFavorite = false
+        didSaveCurrentTranslation = false
+        currentTranslationID = UUID()
     }
 
     private static func isSlowProvider(_ provider: TranslationProvider) -> Bool {
@@ -170,7 +426,6 @@ final class AppState: ObservableObject {
 
     private func handleIncrementalOutcome(
         _ outcome: AggregatedOutcome,
-        sourceText trimmed: String,
         runID: UUID
     ) async {
         guard currentTranslationID == runID else { return }
@@ -186,27 +441,41 @@ final class AppState: ObservableObject {
         if sourceLanguage == .auto, let detected = outcome.result?.detectedFrom {
             detectedSource = detected
         }
+    }
 
-        guard let primary = outcome.result, !didSaveCurrentTranslation else { return }
+    private func finishTranslation(runID: UUID) async {
+        guard currentTranslationID == runID else { return }
+        isTranslating = false
+        pendingProviders = []
+        slowHintTasks.forEach { $0.cancel() }
+        slowHintTasks = []
+        await saveCurrentTranslationIfNeeded(runID: runID)
+    }
+
+    private func saveCurrentTranslationIfNeeded(runID: UUID) async {
+        guard currentTranslationID == runID, !didSaveCurrentTranslation else { return }
+        let successes = outcomes.compactMap { outcome -> TranslationRecordOutcome? in
+            guard let result = outcome.result else { return nil }
+            return TranslationRecordOutcome(
+                providerId: outcome.providerId,
+                displayName: outcome.displayName,
+                translated: result.translated,
+                latencyMs: outcome.latencyMs
+            )
+        }
+        guard let primary = successes.first else { return }
         didSaveCurrentTranslation = true
         let record = TranslationRecord(
-            sourceText: trimmed,
+            sourceText: sourceText,
             translated: primary.translated,
             providerId: primary.providerId,
+            outcomes: successes,
             sourceLang: ((sourceLanguage == .auto ? detectedSource : sourceLanguage).code ?? "auto"),
             targetLang: (targetLanguage.code ?? "")
         )
         await history.add(record)
         guard currentTranslationID == runID else { return }
         savedRecordId = record.id
-    }
-
-    private func finishTranslation(runID: UUID) {
-        guard currentTranslationID == runID else { return }
-        isTranslating = false
-        pendingProviders = []
-        slowHintTasks.forEach { $0.cancel() }
-        slowHintTasks = []
     }
 
     private func log(_ outcome: AggregatedOutcome) {
@@ -224,8 +493,77 @@ final class AppState: ObservableObject {
         Task { _ = await history.setFavorite(id, value) }
     }
 
+    func retryCurrentTranslation() {
+        translateDraft(mode: currentMode)
+    }
+
+    func retryProvider(_ id: String) {
+        if isSourceDirty {
+            translateDraft(mode: currentMode)
+            return
+        }
+        let trimmed = committedSourceTrimmed
+        guard !trimmed.isEmpty else { return }
+        reloadProviders()
+        let direction = directionResolver.resolve(
+            text: trimmed,
+            from: settings.sourceLanguage,
+            to: settings.targetLanguage
+        )
+        let req = TranslateRequest(text: trimmed, from: direction.from, to: direction.to, mode: currentMode)
+
+        guard let provider = registry.activeProviders().first(where: { $0.id == id }) else {
+            if let descriptor = EngineCatalog.descriptor(for: id) {
+                upsertOutcome(AggregatedOutcome(providerId: id, displayName: descriptor.name, result: nil, error: .notConfigured, latencyMs: 0))
+            }
+            return
+        }
+
+        let runID = currentTranslationID
+        outcomes.removeAll { $0.providerId == id }
+        pendingProviders.removeAll { $0.id == id }
+        pendingProviders.append(PendingProviderViewState(id: provider.id, displayName: provider.displayName, isSlow: Self.isSlowProvider(provider)))
+        isTranslating = true
+
+        Task { [weak self, provider] in
+            let start = Date()
+            let outcome: AggregatedOutcome
+            do {
+                let result = try await provider.translate(req)
+                outcome = AggregatedOutcome(
+                    providerId: provider.id,
+                    displayName: provider.displayName,
+                    result: result,
+                    error: nil,
+                    latencyMs: Int(Date().timeIntervalSince(start) * 1000)
+                )
+            } catch {
+                outcome = AggregatedOutcome(
+                    providerId: provider.id,
+                    displayName: provider.displayName,
+                    result: nil,
+                    error: (error as? ProviderError) ?? .network,
+                    latencyMs: Int(Date().timeIntervalSince(start) * 1000)
+                )
+            }
+            await self?.handleIncrementalOutcome(outcome, runID: runID)
+            await MainActor.run {
+                guard let self else { return }
+                if self.pendingProviders.isEmpty { self.isTranslating = false }
+            }
+        }
+    }
+
+    private func upsertOutcome(_ outcome: AggregatedOutcome) {
+        if let index = outcomes.firstIndex(where: { $0.providerId == outcome.providerId }) {
+            outcomes[index] = outcome
+        } else {
+            outcomes.append(outcome)
+        }
+    }
+
     func speakSource() {
-        Speaker.shared.speak(sourceText, language: sourceLanguage == .auto ? detectedSource : sourceLanguage)
+        Speaker.shared.speak(actionSourceText, language: sourceLanguage == .auto ? detectedSource : sourceLanguage)
     }
 
     func speakTranslation(_ text: String) {

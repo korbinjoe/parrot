@@ -21,6 +21,17 @@ mkdir -p "$MACOS" "$RES"
 cp "$BIN" "$MACOS/Parrot"
 cp "$ROOT/Resources/Info.plist" "$APP/Contents/Info.plist"
 
+BUNDLE_ID="${PARROT_BUNDLE_ID:-com.parrot.app}"
+DISPLAY_NAME="${PARROT_DISPLAY_NAME:-Parrot}"
+URL_SCHEME="${PARROT_URL_SCHEME:-parrot}"
+PLIST="$APP/Contents/Info.plist"
+/usr/libexec/PlistBuddy -c "Set :CFBundleIdentifier $BUNDLE_ID" "$PLIST"
+/usr/libexec/PlistBuddy -c "Set :CFBundleDisplayName $DISPLAY_NAME" "$PLIST"
+/usr/libexec/PlistBuddy -c "Set :CFBundleName $DISPLAY_NAME" "$PLIST"
+/usr/libexec/PlistBuddy -c "Set :CFBundleURLTypes:0:CFBundleURLName $BUNDLE_ID.url" "$PLIST"
+/usr/libexec/PlistBuddy -c "Set :CFBundleURLTypes:0:CFBundleURLSchemes:0 $URL_SCHEME" "$PLIST"
+echo "  bundle: $BUNDLE_ID, scheme: $URL_SCHEME"
+
 # Sign with a stable identity so TCC (Accessibility / Screen Recording) grants survive rebuilds.
 # A self-signed "Parrot Dev" cert gives a designated requirement keyed to the certificate
 # (not the cdhash), so re-signing a fresh binary keeps the same DR and the OS keeps the grant.

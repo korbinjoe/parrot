@@ -31,7 +31,9 @@ final class HistoryWindow {
             window = win
         }
         NSApp.activate(ignoringOtherApps: true)
-        window?.center()
+        if let window {
+            WindowPlacement.center(window)
+        }
         window?.makeKeyAndOrderFront(nil)
     }
 }
@@ -143,9 +145,13 @@ private struct HistoryView: View {
                 ScrollView {
                     LazyVStack(spacing: 2) {
                         ForEach(model.filtered) { rec in
-                            HistoryRow(record: rec, selected: model.selectedId == rec.id)
-                                .contentShape(Rectangle())
-                                .onTapGesture { model.selectedId = rec.id }
+                            Button {
+                                model.selectedId = rec.id
+                            } label: {
+                                HistoryRow(record: rec, selected: model.selectedId == rec.id)
+                            }
+                            .buttonStyle(.plain)
+                            .accessibilityLabel("查看历史记录")
                         }
                     }
                     .padding(Theme.Spacing.s8)
@@ -212,10 +218,10 @@ private struct HistoryView: View {
         if let rec = model.filtered.first(where: { $0.id == model.selectedId }) {
             HistoryDetail(record: rec,
                           onRetranslate: { onRetranslate(rec.sourceText) },
-                          onCopy: { copy(rec.translated) },
-                          onSpeak: { state.speakTranslation(rec.translated) },
+                          onCopy: { copy($0) },
+                          onSpeak: { state.speakTranslation($0) },
                           onFavorite: { model.toggleFavorite(rec) },
-                          onDelete: { model.delete(rec) })
+                          onDelete: { confirmDelete(rec) })
             .id(rec.id)
         } else {
             VStack(spacing: Theme.Spacing.s8) {
@@ -234,6 +240,17 @@ private struct HistoryView: View {
         let pb = NSPasteboard.general
         pb.clearContents()
         pb.setString(text, forType: .string)
+    }
+
+    private func confirmDelete(_ rec: TranslationRecord) {
+        let alert = NSAlert()
+        alert.messageText = "删除这条历史记录？"
+        alert.informativeText = "删除后不会影响已复制的文本或当前翻译结果。"
+        alert.alertStyle = .warning
+        alert.addButton(withTitle: "删除")
+        alert.addButton(withTitle: "取消")
+        guard alert.runModal() == .alertFirstButtonReturn else { return }
+        model.delete(rec)
     }
 }
 
@@ -275,8 +292,8 @@ private struct HistoryRow: View {
 private struct HistoryDetail: View {
     let record: TranslationRecord
     let onRetranslate: () -> Void
-    let onCopy: () -> Void
-    let onSpeak: () -> Void
+    let onCopy: (String) -> Void
+    let onSpeak: (String) -> Void
     let onFavorite: () -> Void
     let onDelete: () -> Void
 
@@ -302,8 +319,8 @@ private struct HistoryDetail: View {
                     .foregroundStyle(record.isFavorite ? Theme.Palette.star : Theme.Palette.label2)
             }
             .buttonStyle(.borderless).help("收藏")
-            IconButton("doc.on.doc", help: "复制译文") { onCopy() }
-            IconButton("speaker.wave.2", help: "朗读译文") { onSpeak() }
+            IconButton("doc.on.doc", help: "复制译文") { onCopy(record.translated) }
+            IconButton("speaker.wave.2", help: "朗读译文") { onSpeak(record.translated) }
             IconButton("trash", help: "删除") { onDelete() }
         }
     }
@@ -323,23 +340,9 @@ private struct HistoryDetail: View {
 
     private var translationCard: some View {
         VStack(alignment: .leading, spacing: Theme.Spacing.s8) {
-            HStack(spacing: Theme.Spacing.s8) {
-                Text(record.providerId.uppercased())
-                    .font(Theme.Font.tag)
-                    .foregroundStyle(Theme.Palette.accent)
-                    .padding(.horizontal, 6).padding(.vertical, 2)
-                    .background(Theme.Palette.accentSoft)
-                    .clipShape(RoundedRectangle(cornerRadius: 5))
-                Spacer(minLength: 0)
-                Text(Self.dateText(record.createdAt))
-                    .font(Theme.Font.caption).foregroundStyle(Theme.Palette.label3)
+            ForEach(record.displayOutcomes) { outcome in
+                outcomeCard(outcome)
             }
-            Text(record.translated)
-                .font(Theme.Font.result)
-                .foregroundStyle(Theme.Palette.label)
-                .textSelection(.enabled)
-                .fixedSize(horizontal: false, vertical: true)
-                .frame(maxWidth: .infinity, alignment: .leading)
             Button { onRetranslate() } label: {
                 Label("重新翻译", systemImage: "arrow.clockwise")
             }
@@ -354,6 +357,44 @@ private struct HistoryDetail: View {
             RoundedRectangle(cornerRadius: Theme.Radius.group)
                 .strokeBorder(Theme.Palette.hairline, lineWidth: 0.5)
         )
+    }
+
+    private func outcomeCard(_ outcome: TranslationRecordOutcome) -> some View {
+        VStack(alignment: .leading, spacing: Theme.Spacing.s8) {
+            HStack(spacing: Theme.Spacing.s8) {
+                Text(outcome.displayName.uppercased())
+                    .font(Theme.Font.tag)
+                    .foregroundStyle(Theme.Palette.accent)
+                    .padding(.horizontal, 6).padding(.vertical, 2)
+                    .background(Theme.Palette.accentSoft)
+                    .clipShape(RoundedRectangle(cornerRadius: 5))
+                Spacer(minLength: 0)
+                if let latency = outcome.latencyMs {
+                    Text("\(latency)ms")
+                        .font(Theme.Font.caption.monospacedDigit())
+                        .foregroundStyle(Theme.Palette.label3)
+                }
+                IconButton("doc.on.doc", help: "复制此结果", size: 11) { onCopy(outcome.translated) }
+                IconButton("speaker.wave.2", help: "朗读此结果", size: 11) { onSpeak(outcome.translated) }
+            }
+            Text(outcome.translated)
+                .font(Theme.Font.result)
+                .foregroundStyle(Theme.Palette.label)
+                .textSelection(.enabled)
+                .fixedSize(horizontal: false, vertical: true)
+                .frame(maxWidth: .infinity, alignment: .leading)
+        }
+        .padding(.bottom, Theme.Spacing.s8)
+        .overlay(alignment: .bottom) {
+            if outcome.id != record.displayOutcomes.last?.id {
+                Divider()
+            }
+        }
+    }
+
+    private var dateLine: some View {
+        Text(Self.dateText(record.createdAt))
+                    .font(Theme.Font.caption).foregroundStyle(Theme.Palette.label3)
     }
 
     private static func dateText(_ date: Date) -> String {

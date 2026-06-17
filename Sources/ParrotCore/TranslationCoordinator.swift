@@ -8,6 +8,20 @@ public struct AggregatedOutcome: Sendable {
     public let error: ProviderError?
     public let latencyMs: Int
 
+    public init(
+        providerId: String,
+        displayName: String,
+        result: TranslateResult?,
+        error: ProviderError?,
+        latencyMs: Int
+    ) {
+        self.providerId = providerId
+        self.displayName = displayName
+        self.result = result
+        self.error = error
+        self.latencyMs = latencyMs
+    }
+
     public var isSuccess: Bool { result != nil }
 }
 

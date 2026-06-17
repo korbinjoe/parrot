@@ -36,7 +36,7 @@ final class InputPanel {
             window.makeKeyAndOrderFront(nil)
             return
         }
-        window.center()
+        WindowPlacement.center(window)
         isHiding = false
         window.alphaValue = 0
         window.makeKeyAndOrderFront(nil)
@@ -113,6 +113,7 @@ final class InputPanel {
         frame.origin.x = center.x - frame.width / 2
         frame.origin.y = center.y - frame.height / 2
         window.setFrame(frame, display: true, animate: window.isVisible)
+        WindowPlacement.clamp(window)
     }
 
     private func installOutsideClickMonitors() {

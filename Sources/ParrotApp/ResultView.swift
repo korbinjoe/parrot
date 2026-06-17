@@ -9,19 +9,27 @@ struct ResultView: View {
     @ObservedObject var panelPresentation: FloatingPanelPresentation
     let onTogglePinned: () -> Void
     let onConfigureProvider: () -> Void
+    let onWorkspaceNoticeAction: (WorkspaceNotice.Action) -> Void
+    let onClose: () -> Void
 
     @State private var contentHeight: CGFloat = 160
+    @State private var feedbackText: String = ""
+    @State private var sourceComposerFocused: Bool = false
 
     init(
         state: AppState,
         panelPresentation: FloatingPanelPresentation = FloatingPanelPresentation(),
         onTogglePinned: @escaping () -> Void = {},
-        onConfigureProvider: @escaping () -> Void = {}
+        onConfigureProvider: @escaping () -> Void = {},
+        onWorkspaceNoticeAction: @escaping (WorkspaceNotice.Action) -> Void = { _ in },
+        onClose: @escaping () -> Void = {}
     ) {
         self.state = state
         self.panelPresentation = panelPresentation
         self.onTogglePinned = onTogglePinned
         self.onConfigureProvider = onConfigureProvider
+        self.onWorkspaceNoticeAction = onWorkspaceNoticeAction
+        self.onClose = onClose
     }
 
     var body: some View {
@@ -33,12 +41,21 @@ struct ResultView: View {
                 ScrollView {
                     VStack(alignment: .leading, spacing: Theme.Spacing.s8) {
                         header
+                        if let notice = state.workspaceNotice {
+                            WorkspaceNoticeView(notice: notice, onAction: handleNoticeAction)
+                        }
                         sourceBlock
 
                         if state.isTranslating && state.outcomes.isEmpty && state.pendingProviders.isEmpty {
                             ForEach(0..<2, id: \.self) { _ in SkeletonCard() }
                         } else if state.outcomes.isEmpty && state.pendingProviders.isEmpty {
-                            emptyState
+                            if state.isRecognizingOCR {
+                                recognizingState
+                            } else if state.canTranslateDraft {
+                                readyToTranslateState
+                            } else {
+                                emptyState
+                            }
                         } else {
                             ForEach(orderedSlots) { slot in
                                 switch slot {
@@ -47,6 +64,7 @@ struct ResultView: View {
                                                            isSlow: state.slowProviderIDs.contains(outcome.providerId),
                                                            onSpeak: { state.speakTranslation($0) },
                                                            onCopy: { copy($0) },
+                                                           onRetry: { state.retryProvider(outcome.providerId) },
                                                            onConfigure: onConfigureProvider)
                                 case .pending(let provider):
                                     PendingOutcomeCard(provider: provider)
@@ -60,6 +78,13 @@ struct ResultView: View {
                     })
                 }
                 .frame(height: min(contentHeight, 460))
+                if !feedbackText.isEmpty {
+                    Divider()
+                    Text(feedbackText)
+                        .font(Theme.Font.caption)
+                        .foregroundStyle(Theme.Palette.label2)
+                        .frame(maxWidth: .infinity, minHeight: 26)
+                }
             }
             .background(Theme.Palette.bgPanel)
             .clipShape(RoundedRectangle(cornerRadius: Theme.Radius.window))
@@ -67,6 +92,10 @@ struct ResultView: View {
         }
         .frame(width: 384)
         .onPreferenceChange(ContentHeightKey.self) { contentHeight = $0 }
+        .onDisappear {
+            sourceComposerFocused = false
+            state.setComposerFocused(false)
+        }
     }
 
     private var panelStroke: some View {
@@ -79,11 +108,43 @@ struct ResultView: View {
     }
 
     private var emptyState: some View {
-        Text("无可用引擎或暂无结果")
+        Text("输入、划词或截图后，源文会出现在这里。")
             .foregroundStyle(Theme.Palette.label2)
             .font(Theme.Font.callout)
             .padding(.vertical, Theme.Spacing.s8)
             .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    private var readyToTranslateState: some View {
+        HStack(spacing: Theme.Spacing.s8) {
+            Image(systemName: "keyboard")
+                .font(.system(size: 12))
+                .foregroundStyle(Theme.Palette.accent)
+            Text("校对源文后按 ⌘↩ 翻译，或点击源文区右下角的“翻译”。")
+                .font(Theme.Font.callout)
+                .foregroundStyle(Theme.Palette.label2)
+            Spacer(minLength: 0)
+        }
+        .padding(.horizontal, Theme.Spacing.s12)
+        .padding(.vertical, 10)
+        .background(Theme.Palette.bgContent)
+        .clipShape(RoundedRectangle(cornerRadius: Theme.Radius.card))
+        .overlay(RoundedRectangle(cornerRadius: Theme.Radius.card).strokeBorder(Theme.Palette.hairline, lineWidth: 0.5))
+    }
+
+    private var recognizingState: some View {
+        HStack(spacing: Theme.Spacing.s8) {
+            ProgressView().controlSize(.small)
+            Text("正在识别截图文字…")
+                .font(Theme.Font.callout)
+                .foregroundStyle(Theme.Palette.label2)
+            Spacer(minLength: 0)
+        }
+        .padding(.horizontal, Theme.Spacing.s12)
+        .padding(.vertical, 10)
+        .background(Theme.Palette.bgContent)
+        .clipShape(RoundedRectangle(cornerRadius: Theme.Radius.card))
+        .overlay(RoundedRectangle(cornerRadius: Theme.Radius.card).strokeBorder(Theme.Palette.hairline, lineWidth: 0.5))
     }
 
     // MARK: - Header (language direction + source actions)
@@ -98,6 +159,9 @@ struct ResultView: View {
                 onSwap: swapLanguages
             )
             Spacer(minLength: 0)
+            IconButton("arrow.clockwise", help: state.isSourceDirty ? "翻译当前编辑内容" : "重新翻译") {
+                state.retryCurrentTranslation()
+            }
             IconButton(
                 panelPresentation.isPinned ? "pin.fill" : "pin",
                 help: panelPresentation.isPinned ? "取消常驻" : "常驻",
@@ -108,7 +172,10 @@ struct ResultView: View {
             }
             .help(panelPresentation.isPinned ? "取消常驻" : "常驻")
             .accessibilityLabel(panelPresentation.isPinned ? "取消常驻结果面板" : "常驻结果面板")
-            Button { state.toggleFavorite() } label: {
+            Button {
+                state.toggleFavorite()
+                showFeedback(state.isFavorite ? "已收藏" : "已取消收藏")
+            } label: {
                 Image(systemName: state.isFavorite ? "star.fill" : "star")
                     .foregroundStyle(state.isFavorite ? Theme.Palette.star : Theme.Palette.label2)
                     .frame(width: 26, height: 26)
@@ -116,8 +183,9 @@ struct ResultView: View {
             .buttonStyle(.borderless)
             .disabled(state.savedRecordId == nil)
             .help("收藏")
-            IconButton("doc.on.doc", help: "复制原文") { copy(state.sourceText) }
+            IconButton("doc.on.doc", help: "复制原文") { copy(state.actionSourceText) }
             IconButton("speaker.wave.2", help: "朗读原文") { state.speakSource() }
+            IconButton("xmark", help: "关闭面板") { onClose() }
         }
         .frame(height: 28)
     }
@@ -133,20 +201,61 @@ struct ResultView: View {
 
     private var sourceBlock: some View {
         VStack(alignment: .leading, spacing: Theme.Spacing.s8) {
-            Text(state.sourceText)
-                .font(Theme.Font.body)
-                .foregroundStyle(Theme.Palette.label)
-                .textSelection(.enabled)
-                .fixedSize(horizontal: false, vertical: true)
-                .frame(maxWidth: .infinity, alignment: .leading)
+            ZStack(alignment: .topLeading) {
+                if state.sourceDraft.isEmpty {
+                    Text("输入或粘贴要翻译的文本…")
+                        .font(Theme.Font.body)
+                        .foregroundStyle(Theme.Palette.label3)
+                        .padding(.top, 8)
+                        .padding(.leading, 5)
+                        .allowsHitTesting(false)
+                }
+                SourceComposerTextView(
+                    text: sourceDraftBinding,
+                    focusRequest: state.composerFocusRequest,
+                    onCommandReturn: { state.translateDraft() },
+                    onFocusChange: { focused in
+                        sourceComposerFocused = focused
+                        state.setComposerFocused(focused)
+                    }
+                )
+                    .frame(height: sourceEditorHeight)
+                    .accessibilityLabel("源文编辑器")
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
             HStack {
-                Text(sourceLanguageText)
+                Text(sourceStatusText)
                 Spacer(minLength: 0)
                 if state.isTranslating {
                     ProgressView().controlSize(.small)
+                } else if state.isSourceDirty {
+                    Text("已修改，⌘↩ 重新翻译")
                 } else {
-                    Text("\(state.sourceText.count) 个字符")
+                    Text("\(state.sourceDraft.count) 个字符")
                 }
+                Menu {
+                    Button("删除空行") { state.removeBlankDraftLines() }
+                    Button("合并为一段") { state.mergeDraftLines() }
+                    Divider()
+                    Button("清空源文", role: .destructive) { state.clearDraft() }
+                } label: {
+                    Image(systemName: "wand.and.stars")
+                        .font(.system(size: 12))
+                        .foregroundStyle(state.canTranslateDraft ? Theme.Palette.label2 : Theme.Palette.label3)
+                        .frame(width: 26, height: 26)
+                }
+                .menuStyle(.borderlessButton)
+                .disabled(!state.canTranslateDraft)
+                .help("整理源文")
+                .accessibilityLabel("整理源文")
+                Button {
+                    state.translateDraft()
+                } label: {
+                    Label("翻译", systemImage: "arrow.right.circle.fill")
+                }
+                .buttonStyle(PrimaryActionButtonStyle())
+                .keyboardShortcut(.return, modifiers: .command)
+                .disabled(!state.canTranslateDraft)
             }
             .font(Theme.Font.caption)
             .foregroundStyle(Theme.Palette.label3)
@@ -155,7 +264,34 @@ struct ResultView: View {
         .padding(.vertical, 11)
         .background(Theme.Palette.bgContent)
         .clipShape(RoundedRectangle(cornerRadius: Theme.Radius.card))
-        .overlay(RoundedRectangle(cornerRadius: Theme.Radius.card).strokeBorder(Theme.Palette.hairline, lineWidth: 0.5))
+        .overlay(
+            RoundedRectangle(cornerRadius: Theme.Radius.card)
+                .strokeBorder(sourceComposerFocused ? Theme.Palette.accent.opacity(0.75) : Theme.Palette.hairline,
+                              lineWidth: sourceComposerFocused ? 1.2 : 0.5)
+        )
+    }
+
+    private var sourceDraftBinding: Binding<String> {
+        Binding(
+            get: { state.sourceDraft },
+            set: { state.updateDraft($0) }
+        )
+    }
+
+    private var sourceEditorHeight: CGFloat {
+        let explicitLines = max(1, state.sourceDraft.reduce(1) { count, char in
+            char.isNewline ? count + 1 : count
+        })
+        let wrappedLines = max(1, Int(ceil(Double(max(state.sourceDraft.count, 1)) / 42.0)))
+        let lines = min(7, max(2, max(explicitLines, wrappedLines)))
+        return CGFloat(lines) * 18 + 22
+    }
+
+    private var sourceStatusText: String {
+        if state.sourceDraftTrimmed.isEmpty {
+            return "编辑源文"
+        }
+        return sourceLanguageText
     }
 
     private var sourceLanguageText: String {
@@ -171,6 +307,22 @@ struct ResultView: View {
         let pb = NSPasteboard.general
         pb.clearContents()
         pb.setString(text, forType: .string)
+        showFeedback("已复制")
+    }
+
+    private func showFeedback(_ text: String) {
+        feedbackText = text
+        DispatchQueue.main.asyncAfter(deadline: .now() + 1.4) {
+            if feedbackText == text { feedbackText = "" }
+        }
+    }
+
+    private func handleNoticeAction(_ action: WorkspaceNotice.Action) {
+        if action == .dismiss {
+            state.dismissWorkspaceNotice()
+        } else {
+            onWorkspaceNoticeAction(action)
+        }
     }
 
     private var orderedSlots: [TranslationSlot] {
@@ -204,6 +356,67 @@ private enum TranslationSlot: Identifiable {
         switch self {
         case .outcome(let outcome): return outcome.providerId
         case .pending(let provider): return provider.id
+        }
+    }
+}
+
+private struct WorkspaceNoticeView: View {
+    let notice: WorkspaceNotice
+    let onAction: (WorkspaceNotice.Action) -> Void
+
+    var body: some View {
+        HStack(alignment: .top, spacing: Theme.Spacing.s8) {
+            Image(systemName: notice.systemImage)
+                .font(.system(size: 13, weight: .semibold))
+                .foregroundStyle(tint)
+                .frame(width: 18, height: 20)
+            VStack(alignment: .leading, spacing: Theme.Spacing.s4) {
+                Text(notice.title)
+                    .font(Theme.Font.body)
+                    .foregroundStyle(Theme.Palette.label)
+                Text(notice.detail)
+                    .font(Theme.Font.caption)
+                    .foregroundStyle(Theme.Palette.label2)
+                    .fixedSize(horizontal: false, vertical: true)
+                if notice.primaryAction != nil || notice.secondaryAction != nil {
+                    HStack(spacing: Theme.Spacing.s8) {
+                        if let primary = notice.primaryAction {
+                            Button(primary.title) { onAction(primary.action) }
+                                .controlSize(.small)
+                        }
+                        if let secondary = notice.secondaryAction {
+                            Button(secondary.title) { onAction(secondary.action) }
+                                .controlSize(.small)
+                        }
+                    }
+                    .padding(.top, 2)
+                }
+            }
+            Spacer(minLength: 0)
+            Button {
+                onAction(.dismiss)
+            } label: {
+                Image(systemName: "xmark")
+                    .font(.system(size: 10, weight: .semibold))
+                    .foregroundStyle(Theme.Palette.label3)
+                    .frame(width: 22, height: 22)
+            }
+            .buttonStyle(.borderless)
+            .help("隐藏提示")
+            .accessibilityLabel("隐藏提示")
+        }
+        .padding(.horizontal, Theme.Spacing.s12)
+        .padding(.vertical, 10)
+        .background(tint.opacity(0.10))
+        .clipShape(RoundedRectangle(cornerRadius: Theme.Radius.card))
+        .overlay(RoundedRectangle(cornerRadius: Theme.Radius.card).strokeBorder(tint.opacity(0.35), lineWidth: 0.5))
+    }
+
+    private var tint: Color {
+        switch notice.tone {
+        case .info: return Theme.Palette.accent
+        case .warning: return Theme.Palette.warning
+        case .error: return Theme.Palette.danger
         }
     }
 }
@@ -279,6 +492,114 @@ private struct ContentHeightKey: PreferenceKey {
     }
 }
 
+private struct SourceComposerTextView: NSViewRepresentable {
+    @Binding var text: String
+    let focusRequest: Int
+    let onCommandReturn: () -> Void
+    let onFocusChange: (Bool) -> Void
+
+    func makeCoordinator() -> Coordinator {
+        Coordinator(self)
+    }
+
+    func makeNSView(context: Context) -> NSScrollView {
+        let scrollView = NSScrollView()
+        scrollView.borderType = .noBorder
+        scrollView.drawsBackground = false
+        scrollView.hasVerticalScroller = true
+        scrollView.autohidesScrollers = true
+        scrollView.scrollerStyle = .overlay
+
+        let textView = CommandAwareTextView()
+        textView.delegate = context.coordinator
+        textView.onCommandReturn = onCommandReturn
+        textView.string = text
+        textView.isEditable = true
+        textView.isSelectable = true
+        textView.isRichText = false
+        textView.importsGraphics = false
+        textView.allowsUndo = true
+        textView.drawsBackground = false
+        textView.font = NSFont.systemFont(ofSize: 13)
+        textView.textColor = .labelColor
+        textView.insertionPointColor = .controlAccentColor
+        textView.textContainerInset = NSSize(width: 4, height: 6)
+        textView.textContainer?.lineFragmentPadding = 0
+        textView.textContainer?.widthTracksTextView = true
+        textView.isHorizontallyResizable = false
+        textView.isVerticallyResizable = true
+        textView.autoresizingMask = [.width]
+        textView.setAccessibilityElement(true)
+        textView.setAccessibilityLabel("源文编辑器")
+
+        scrollView.documentView = textView
+        context.coordinator.textView = textView
+        return scrollView
+    }
+
+    func updateNSView(_ scrollView: NSScrollView, context: Context) {
+        context.coordinator.parent = self
+        guard let textView = scrollView.documentView as? CommandAwareTextView else { return }
+        textView.onCommandReturn = onCommandReturn
+        textView.font = NSFont.systemFont(ofSize: 13)
+        textView.textColor = .labelColor
+        if textView.string != text {
+            let selectedRange = textView.selectedRange()
+            textView.string = text
+            let length = (text as NSString).length
+            let location = min(selectedRange.location, length)
+            let selectionLength = min(selectedRange.length, max(0, length - location))
+            textView.setSelectedRange(NSRange(location: location, length: selectionLength))
+        }
+        if context.coordinator.lastFocusRequest != focusRequest {
+            context.coordinator.lastFocusRequest = focusRequest
+            DispatchQueue.main.async { [weak textView] in
+                guard let textView else { return }
+                textView.window?.makeFirstResponder(textView)
+            }
+        }
+    }
+
+    final class Coordinator: NSObject, NSTextViewDelegate {
+        var parent: SourceComposerTextView
+        weak var textView: CommandAwareTextView?
+        var lastFocusRequest: Int
+
+        init(_ parent: SourceComposerTextView) {
+            self.parent = parent
+            self.lastFocusRequest = parent.focusRequest
+        }
+
+        func textDidChange(_ notification: Notification) {
+            guard let textView = notification.object as? NSTextView else { return }
+            parent.text = textView.string
+        }
+
+        func textDidBeginEditing(_ notification: Notification) {
+            parent.onFocusChange(true)
+        }
+
+        func textDidEndEditing(_ notification: Notification) {
+            parent.onFocusChange(false)
+        }
+    }
+
+    final class CommandAwareTextView: NSTextView {
+        var onCommandReturn: (() -> Void)?
+
+        override func keyDown(with event: NSEvent) {
+            let flags = event.modifierFlags.intersection(.deviceIndependentFlagsMask)
+            let commandReturn = flags.contains(.command)
+                && (event.charactersIgnoringModifiers == "\r" || event.charactersIgnoringModifiers == "\u{3}")
+            if commandReturn {
+                onCommandReturn?()
+                return
+            }
+            super.keyDown(with: event)
+        }
+    }
+}
+
 // MARK: - Provider slots
 
 private struct TranslationOutcomeCard: View {
@@ -286,6 +607,7 @@ private struct TranslationOutcomeCard: View {
     let isSlow: Bool
     let onSpeak: (String) -> Void
     let onCopy: (String) -> Void
+    let onRetry: () -> Void
     let onConfigure: () -> Void
 
     var body: some View {
@@ -295,6 +617,7 @@ private struct TranslationOutcomeCard: View {
             if let result = outcome.result {
                 HStack(spacing: 2) {
                     Spacer(minLength: 0)
+                    IconButton("arrow.clockwise", help: "重试此引擎", size: 11) { onRetry() }
                     IconButton("doc.on.doc", help: "复制译文", size: 11) { onCopy(result.translated) }
                     IconButton("speaker.wave.2", help: "朗读译文", size: 11) { onSpeak(result.translated) }
                 }
@@ -321,7 +644,7 @@ private struct TranslationOutcomeCard: View {
                     .foregroundStyle(Theme.Palette.label3)
             }
             Spacer(minLength: 0)
-            Text(outcome.error == nil ? "\(outcome.latencyMs)ms" : "失败")
+            Text(outcome.error == nil ? "\(outcome.latencyMs)ms" : providerStatusText(outcome.error))
                 .font(Theme.Font.caption.monospacedDigit())
                 .foregroundStyle(outcome.error == nil ? Theme.Palette.label3 : Theme.Palette.danger)
         }
@@ -340,6 +663,11 @@ private struct TranslationOutcomeCard: View {
                 if providerNeedsConfiguration(error) {
                     Button { onConfigure() } label: {
                         Label("配置密钥", systemImage: "gearshape")
+                    }
+                    .controlSize(.small)
+                } else {
+                    Button { onRetry() } label: {
+                        Label("重试此引擎", systemImage: "arrow.clockwise")
                     }
                     .controlSize(.small)
                 }
@@ -491,6 +819,17 @@ private func providerNeedsConfiguration(_ e: ProviderError) -> Bool {
     switch e {
     case .auth, .notConfigured: return true
     default: return false
+    }
+}
+
+private func providerStatusText(_ e: ProviderError?) -> String {
+    switch e {
+    case .notConfigured: return "需配置"
+    case .auth: return "鉴权失败"
+    case .rateLimited: return "限流"
+    case .timeout: return "超时"
+    case .none: return ""
+    default: return "失败"
     }
 }
 

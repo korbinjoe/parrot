@@ -15,6 +15,7 @@ final class FloatingPanel {
     private var hosting: NSHostingController<ResultView>?
     private let state: AppState
     private let onConfigureProvider: () -> Void
+    private let onWorkspaceNoticeAction: (WorkspaceNotice.Action) -> Void
     private let presentation = FloatingPanelPresentation()
     private var anchorPoint: NSPoint?
     private var resizeObserver: NSObjectProtocol?
@@ -22,33 +23,58 @@ final class FloatingPanel {
     private var resignObserver: NSObjectProtocol?
     private var globalMouseDownMonitor: Any?
     private var localMouseDownMonitor: Any?
+    private var moveObserver: NSObjectProtocol?
     private var isHiding = false
+    private var isProgrammaticMove = false
+    private var userPositionedPanel = false
+    private var lastStableFrame: NSRect?
 
-    init(state: AppState, onConfigureProvider: @escaping () -> Void = {}) {
+    init(
+        state: AppState,
+        onConfigureProvider: @escaping () -> Void = {},
+        onWorkspaceNoticeAction: @escaping (WorkspaceNotice.Action) -> Void = { _ in }
+    ) {
         self.state = state
         self.onConfigureProvider = onConfigureProvider
+        self.onWorkspaceNoticeAction = onWorkspaceNoticeAction
     }
 
-    func show() {
+    func show(focusComposer: Bool = false) {
         if panel == nil { build() }
+        if focusComposer {
+            NSApp.activate(ignoringOtherApps: true)
+        }
         let wasVisible = panel?.isVisible == true
-        if !presentation.isPinned || !wasVisible {
+        if !wasVisible {
             anchorPoint = NSEvent.mouseLocation
+            userPositionedPanel = false
         }
         // Force a layout pass so the window adopts the current content size before positioning.
         panel?.layoutIfNeeded()
-        if !presentation.isPinned || !wasVisible {
-            positionNearAnchor()
+        if !wasVisible {
+            placeNearAnchor()
+        } else {
+            keepCurrentPlacement()
         }
         if presentation.isPinned && wasVisible {
-            panel?.orderFrontRegardless()
+            if focusComposer {
+                panel?.makeKeyAndOrderFront(nil)
+                requestComposerFocusOnNextRunLoop()
+            } else {
+                panel?.orderFrontRegardless()
+            }
             return
         }
         isHiding = false
         // Use-and-dismiss entrance: fade in. Height is driven by SwiftUI's preferredContentSize,
         // so we animate opacity only (no height补间) to avoid NSPanel jitter — see design.md Decision 4.
         panel?.alphaValue = 0
-        panel?.orderFrontRegardless()
+        if focusComposer {
+            panel?.makeKeyAndOrderFront(nil)
+            requestComposerFocusOnNextRunLoop()
+        } else {
+            panel?.orderFrontRegardless()
+        }
         NSAnimationContext.runAnimationGroup { ctx in
             ctx.duration = 0.18
             ctx.timingFunction = CAMediaTimingFunction(name: .easeOut)
@@ -56,17 +82,26 @@ final class FloatingPanel {
         }
     }
 
-    func hide() {
+    func hide(force: Bool = false) {
+        guard force || !state.shouldKeepWorkspaceVisible else { return }
         panel?.orderOut(nil)
         panel?.alphaValue = 1
         isHiding = false
+        userPositionedPanel = false
+        lastStableFrame = nil
     }
 
     /// Before capturing selected text, hide only transient panels. A pinned panel should keep
     /// its place and simply update with the next translation result.
     func prepareForExternalCapture() {
         if !presentation.isPinned {
-            hide()
+            hide(force: true)
+        }
+    }
+
+    private func requestComposerFocusOnNextRunLoop() {
+        DispatchQueue.main.async { [weak self] in
+            self?.state.requestComposerFocus()
         }
     }
 
@@ -75,14 +110,17 @@ final class FloatingPanel {
             state: state,
             panelPresentation: presentation,
             onTogglePinned: { [weak self] in self?.togglePinned() },
-            onConfigureProvider: onConfigureProvider
+            onConfigureProvider: onConfigureProvider,
+            onWorkspaceNoticeAction: onWorkspaceNoticeAction,
+            onClose: { [weak self] in self?.hide(force: true) }
         ))
         // Let the window track the SwiftUI content's ideal size automatically — including when
         // translations arrive asynchronously and the content grows/shrinks.
         hosting.sizingOptions = [.preferredContentSize]
         self.hosting = hosting
         let p = NSPanel(contentViewController: hosting)
-        p.styleMask = [.titled, .closable, .nonactivatingPanel, .fullSizeContentView]
+        p.styleMask = [.titled, .closable, .fullSizeContentView]
+        p.title = "Parrot 翻译"
         p.titleVisibility = .hidden
         p.titlebarAppearsTransparent = true
         p.isFloatingPanel = true
@@ -105,13 +143,26 @@ final class FloatingPanel {
         resizeObserver = NotificationCenter.default.addObserver(
             forName: NSWindow.didResizeNotification, object: p, queue: .main
         ) { [weak self] _ in
-            Task { @MainActor in self?.positionNearAnchor() }
+            Task { @MainActor in self?.preservePlacementAfterResize() }
         }
 
         screenObserver = NotificationCenter.default.addObserver(
             forName: NSWindow.didChangeScreenNotification, object: p, queue: .main
         ) { [weak self] _ in
-            Task { @MainActor in self?.positionNearAnchor() }
+            Task { @MainActor in self?.keepCurrentPlacement() }
+        }
+
+        moveObserver = NotificationCenter.default.addObserver(
+            forName: NSWindow.didMoveNotification, object: p, queue: .main
+        ) { [weak self] _ in
+            Task { @MainActor in
+                guard let self else { return }
+                if self.isProgrammaticMove {
+                    return
+                }
+                self.userPositionedPanel = true
+                self.lastStableFrame = self.panel?.frame
+            }
         }
 
         // Auto-hide when the panel resigns key.
@@ -166,6 +217,7 @@ final class FloatingPanel {
     private func hideTransientPanelIfNeeded() {
         guard !presentation.isPinned else { return }
         guard let panel, panel.isVisible else { return }
+        guard !state.shouldKeepWorkspaceVisible else { return }
         guard !isHiding else { return }
         isHiding = true
         NSAnimationContext.runAnimationGroup { ctx in
@@ -181,28 +233,49 @@ final class FloatingPanel {
         }
     }
 
-    private func positionNearAnchor() {
+    private func placeNearAnchor() {
         guard let panel else { return }
-        let mouse = anchorPoint ?? NSEvent.mouseLocation
-        let size = panel.frame.size
-        var origin = NSPoint(x: mouse.x + 12, y: mouse.y - size.height - 12)
-        if let screen = NSScreen.screens.first(where: { $0.frame.contains(mouse) }) ?? NSScreen.main {
-            let visible = screen.visibleFrame.insetBy(dx: 8, dy: 8)
-            origin.x = Self.clamp(origin.x, min: visible.minX, max: visible.maxX - size.width)
-            origin.y = Self.clamp(origin.y, min: visible.minY, max: visible.maxY - size.height)
+        moveProgrammatically {
+            WindowPlacement.place(panel, near: anchorPoint ?? NSEvent.mouseLocation)
         }
-        panel.setFrameOrigin(origin)
     }
 
-    private static func clamp(_ value: CGFloat, min minValue: CGFloat, max maxValue: CGFloat) -> CGFloat {
-        guard maxValue >= minValue else { return minValue }
-        return Swift.min(Swift.max(value, minValue), maxValue)
+    private func keepCurrentPlacement() {
+        guard let panel else { return }
+        moveProgrammatically {
+            WindowPlacement.clamp(panel)
+        }
+    }
+
+    private func preservePlacementAfterResize() {
+        guard let panel else { return }
+        guard let previous = lastStableFrame else {
+            keepCurrentPlacement()
+            return
+        }
+
+        var frame = panel.frame
+        frame.origin.x = previous.origin.x
+        frame.origin.y = previous.maxY - frame.height
+        moveProgrammatically {
+            panel.setFrame(WindowPlacement.clampedFrame(frame), display: true)
+        }
+    }
+
+    private func moveProgrammatically(_ action: () -> Void) {
+        isProgrammaticMove = true
+        action()
+        lastStableFrame = panel?.frame
+        DispatchQueue.main.async { [weak self] in
+            self?.isProgrammaticMove = false
+        }
     }
 
     deinit {
         if let resizeObserver { NotificationCenter.default.removeObserver(resizeObserver) }
         if let screenObserver { NotificationCenter.default.removeObserver(screenObserver) }
         if let resignObserver { NotificationCenter.default.removeObserver(resignObserver) }
+        if let moveObserver { NotificationCenter.default.removeObserver(moveObserver) }
         if let globalMouseDownMonitor { NSEvent.removeMonitor(globalMouseDownMonitor) }
         if let localMouseDownMonitor { NSEvent.removeMonitor(localMouseDownMonitor) }
     }

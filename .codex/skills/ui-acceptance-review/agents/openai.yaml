@@ -1,0 +1,4 @@
+interface:
+  display_name: "UI Acceptance Review"
+  short_description: "Gate Parrot UI changes with automated GUI checks"
+  default_prompt: "Use $ui-acceptance-review to validate the latest Parrot UI changes and reject regressions."

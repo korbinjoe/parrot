@@ -1,5 +1,6 @@
 import AppKit
 import SwiftUI
+import Carbon.HIToolbox
 import ParrotCore
 import ParrotEngines
 
@@ -13,9 +14,9 @@ final class SettingsWindow {
         self.state = state
     }
 
-    func show() {
+    func show(pane: SettingsView.Pane = .general) {
         if window == nil {
-            let hosting = NSHostingController(rootView: SettingsView(state: state))
+            let hosting = NSHostingController(rootView: SettingsView(state: state, initialPane: pane))
             let win = NSWindow(contentViewController: hosting)
             win.title = "Parrot 设置"
             win.styleMask = [.titled, .closable, .miniaturizable, .resizable]
@@ -23,9 +24,13 @@ final class SettingsWindow {
             win.contentMinSize = NSSize(width: 640, height: 420)
             win.setContentSize(NSSize(width: 720, height: 500))
             window = win
+        } else {
+            window?.contentViewController = NSHostingController(rootView: SettingsView(state: state, initialPane: pane))
         }
         NSApp.activate(ignoringOtherApps: true)
-        window?.center()
+        if let window {
+            WindowPlacement.center(window)
+        }
         window?.makeKeyAndOrderFront(nil)
     }
 }
@@ -64,41 +69,10 @@ struct SettingsView: View {
         }
     }
 
-    private enum EngineCategory: Equatable {
-        case base, machine, llm, more
-    }
-
-    private struct EngineOption: Identifiable {
-        let id: String
-        let name: String
-        let category: EngineCategory
-        let note: String?
-        let hasKey: Bool
-    }
-
     @State private var selection: Pane = .general
-    @State private var deepLKey: String = ""
-    @State private var openAIKey: String = ""
-    @State private var openCodeKey: String = ""
-    @State private var tencentCreds: String = ""
-    @State private var baiduCreds: String = ""
-    @State private var youdaoCreds: String = ""
-    @State private var caiyunToken: String = ""
-    @State private var microsoftKey: String = ""
-    @State private var deepSeekKey: String = ""
-    @State private var geminiKey: String = ""
-    @State private var groqKey: String = ""
-    @State private var qwenKey: String = ""
-    @State private var doubaoKey: String = ""
-    @State private var kimiKey: String = ""
-    @State private var zhipuKey: String = ""
-    @State private var siliconFlowKey: String = ""
-    @State private var ollamaEndpointField: String = ""
-    @State private var ollamaModelField: String = ""
-    @State private var openAIModelField: String = ""
-    @State private var openAIEndpointField: String = ""
-    @State private var openCodeModelField: String = ""
-    @State private var azureEndpointField: String = ""
+    @State private var secretDrafts: [String: String] = [:]
+    @State private var modelDrafts: [String: String] = [:]
+    @State private var endpointDrafts: [String: String] = [:]
     @State private var validateNote: String = ""
     @State private var savedNote: String = ""
     @State private var engineOrderDraft: [String] = []
@@ -109,15 +83,18 @@ struct SettingsView: View {
     @State private var showMachineKeys = false
     @State private var showLLMKeys = false
     @State private var showAdvancedKeys = false
+    @State private var recordingShortcut: ShortcutAction?
+    @State private var shortcutMonitor: Any?
 
     private let languages: [(String, String)] = [
         ("zh", "中文"), ("en", "English"), ("ja", "日本語"), ("ko", "한국어"),
         ("fr", "Français"), ("de", "Deutsch"), ("es", "Español"), ("ru", "Русский"),
     ]
 
-    init(state: AppState) {
+    init(state: AppState, initialPane: Pane = .general) {
         self.state = state
         self.settings = state.settings
+        _selection = State(initialValue: initialPane)
     }
 
     var body: some View {
@@ -137,12 +114,8 @@ struct SettingsView: View {
         }
         .frame(minWidth: 640, minHeight: 420)
         .onAppear {
-            ollamaEndpointField = settings.ollamaEndpoint
-            ollamaModelField = settings.model(for: "ollama") ?? "llama3.2"
-            openAIModelField = settings.openAIModel
-            openAIEndpointField = settings.openAIEndpoint
-            openCodeModelField = settings.model(for: "opencode") ?? "glm-5.1"
-            azureEndpointField = settings.endpoint(for: "azure-openai") ?? ""
+            state.refreshPermissions()
+            loadAdvancedDrafts()
             engineOrderDraft = EngineBootstrap.resolvedOrder(settings.engineOrder)
         }
     }
@@ -164,19 +137,25 @@ struct SettingsView: View {
 
     private func sidebarRow(_ pane: Pane) -> some View {
         let selected = selection == pane
-        return HStack(spacing: 9) {
-            Image(systemName: pane.icon).frame(width: 16)
-            Text(pane.title)
-            Spacer()
+        return Button {
+            selection = pane
+        } label: {
+            HStack(spacing: 9) {
+                Image(systemName: pane.icon).frame(width: 16)
+                Text(pane.title)
+                Spacer()
+            }
+            .padding(.horizontal, 10)
+            .frame(minHeight: 32)
+            .frame(maxWidth: .infinity, alignment: .leading)
         }
+        .buttonStyle(.plain)
         .font(Theme.Font.body)
         .foregroundStyle(selected ? Theme.Palette.label : Theme.Palette.label)
-        .padding(.horizontal, 10)
-        .frame(minHeight: 32)
         .background(selected ? Theme.Palette.bgSelection : Color.clear)
         .clipShape(RoundedRectangle(cornerRadius: 8))
         .contentShape(Rectangle())
-        .onTapGesture { selection = pane }
+        .accessibilityLabel(pane.title)
     }
 
     // MARK: - Content
@@ -198,6 +177,7 @@ struct SettingsView: View {
     private var generalPane: some View {
         VStack(alignment: .leading, spacing: 0) {
             sectionTitle("通用")
+            permissionGroup
             formGroup {
                 settingRow("默认来源语言") {
                     Picker("", selection: $settings.sourceLanguageCode) {
@@ -244,26 +224,26 @@ struct SettingsView: View {
             disclosureSection("结果顺序", isExpanded: $showEngineOrder) {
                 formGroup {
                     VStack(alignment: .leading, spacing: 0) {
-                        Text("用箭头调整翻译结果面板中的引擎顺序（仅影响已注册引擎）")
+                        Text("用箭头调整翻译结果面板中的已启用引擎顺序")
                             .font(Theme.Font.caption)
                             .foregroundStyle(Theme.Palette.label3)
                             .padding(.horizontal, Theme.Spacing.s12)
                             .padding(.vertical, 9)
                         Divider()
-                        ForEach(Array(engineOrderDraft.enumerated()), id: \.element) { index, id in
+                        ForEach(Array(orderableEngineIDs.enumerated()), id: \.element) { index, id in
                             HStack(spacing: Theme.Spacing.s8) {
                                 Text(engineDisplayName(id))
                                     .font(Theme.Font.body)
                                     .foregroundStyle(Theme.Palette.label)
                                 Spacer()
-                                Button("↑") { moveEngine(from: index, to: index - 1) }
+                                Button("↑") { moveEnabledEngine(from: index, to: index - 1) }
                                     .disabled(index == 0)
-                                Button("↓") { moveEngine(from: index, to: index + 1) }
-                                    .disabled(index == engineOrderDraft.count - 1)
+                                Button("↓") { moveEnabledEngine(from: index, to: index + 1) }
+                                    .disabled(index == orderableEngineIDs.count - 1)
                             }
                             .padding(.horizontal, Theme.Spacing.s12)
                             .frame(minHeight: 32)
-                            if index != engineOrderDraft.count - 1 {
+                            if index != orderableEngineIDs.count - 1 {
                                 Divider()
                                     .padding(.leading, Theme.Spacing.s12)
                             }
@@ -275,156 +255,32 @@ struct SettingsView: View {
         }
     }
 
-    private var engineOptions: [EngineOption] {
-        var options: [EngineOption] = [
-            EngineOption(id: "google", name: "Google 翻译", category: .base, note: "免费 · 无需 Key", hasKey: true),
-            EngineOption(id: "deepl", name: "DeepL", category: .base, note: settings.hasDeepLKey ? nil : "未配置 Key", hasKey: settings.hasDeepLKey),
-            EngineOption(id: "openai", name: "OpenAI", category: .base, note: settings.hasOpenAIKey ? nil : "未配置 Key", hasKey: settings.hasOpenAIKey),
-            EngineOption(id: "tencent", name: "腾讯翻译君", category: .machine, note: settings.hasTencentCredentials ? nil : "SecretId:SecretKey", hasKey: settings.hasTencentCredentials),
-            EngineOption(id: "baidu", name: "百度翻译", category: .machine, note: settings.hasBaiduCredentials ? nil : "AppId:Secret", hasKey: settings.hasBaiduCredentials),
-            EngineOption(id: "youdao", name: "有道翻译", category: .machine, note: settings.hasYoudaoCredentials ? nil : "AppKey:Secret", hasKey: settings.hasYoudaoCredentials),
-            EngineOption(id: "caiyun", name: "彩云小译", category: .machine, note: settings.hasCaiyunToken ? nil : "Token", hasKey: settings.hasCaiyunToken),
-            EngineOption(id: "microsoft", name: "Microsoft 翻译", category: .machine, note: settings.hasMicrosoftKey ? nil : "订阅 Key", hasKey: settings.hasMicrosoftKey),
-            EngineOption(id: "opencode", name: "OpenCode Go", category: .llm, note: settings.hasOpenCodeKey ? nil : "未配置 Key", hasKey: settings.hasOpenCodeKey),
-            EngineOption(id: "deepseek", name: "DeepSeek", category: .llm, note: settings.hasDeepSeekKey ? nil : "未配置 Key", hasKey: settings.hasDeepSeekKey),
-            EngineOption(id: "gemini", name: "Gemini", category: .llm, note: settings.hasGeminiKey ? nil : "未配置 Key", hasKey: settings.hasGeminiKey),
-            EngineOption(id: "groq", name: "Groq", category: .llm, note: settings.hasGroqKey ? nil : "未配置 Key", hasKey: settings.hasGroqKey),
-            EngineOption(id: "ollama", name: "Ollama", category: .llm, note: "本地服务 · 无需 Key", hasKey: true),
-            EngineOption(id: "qwen", name: "通义千问", category: .llm, note: settings.hasQwenKey ? nil : "未配置 Key", hasKey: settings.hasQwenKey),
-            EngineOption(id: "doubao", name: "豆包", category: .llm, note: settings.hasDoubaoKey ? nil : "未配置 Key", hasKey: settings.hasDoubaoKey),
-            EngineOption(id: "kimi", name: "Kimi", category: .llm, note: settings.hasKimiKey ? nil : "未配置 Key", hasKey: settings.hasKimiKey),
-            EngineOption(id: "zhipu", name: "智谱 GLM", category: .llm, note: settings.hasZhipuKey ? nil : "未配置 Key", hasKey: settings.hasZhipuKey),
-            EngineOption(id: "siliconflow", name: "硅基流动", category: .llm, note: settings.hasSiliconFlowKey ? nil : "未配置 Key", hasKey: settings.hasSiliconFlowKey),
-            EngineOption(id: "ernie", name: "文心一言", category: .more, note: hasSecret(AppSettings.ernieAccount, env: "ERNIE_API_KEY") ? nil : "未配置 Key", hasKey: hasSecret(AppSettings.ernieAccount, env: "ERNIE_API_KEY")),
-            EngineOption(id: "hunyuan", name: "混元", category: .more, note: hasSecret(AppSettings.hunyuanAccount, env: "HUNYUAN_API_KEY") ? nil : "未配置 Key", hasKey: hasSecret(AppSettings.hunyuanAccount, env: "HUNYUAN_API_KEY")),
-            EngineOption(id: "yi", name: "零一万物", category: .more, note: hasSecret(AppSettings.yiAccount, env: "YI_API_KEY") ? nil : "未配置 Key", hasKey: hasSecret(AppSettings.yiAccount, env: "YI_API_KEY")),
-            EngineOption(id: "azure-openai", name: "Azure OpenAI", category: .more, note: hasSecret(AppSettings.azureOpenAIAccount, env: "AZURE_OPENAI_API_KEY") ? nil : "未配置 Key", hasKey: hasSecret(AppSettings.azureOpenAIAccount, env: "AZURE_OPENAI_API_KEY")),
-            EngineOption(id: "volcengine", name: "火山翻译", category: .more, note: hasSecret(AppSettings.volcengineAccount, env: "VOLCENGINE_API_KEY") ? nil : "未配置 Key", hasKey: hasSecret(AppSettings.volcengineAccount, env: "VOLCENGINE_API_KEY")),
-            EngineOption(id: "aliyun", name: "阿里翻译", category: .more, note: hasSecret(AppSettings.aliyunAccount, env: "ALIYUN_CREDENTIALS") ? nil : "未配置凭证", hasKey: hasSecret(AppSettings.aliyunAccount, env: "ALIYUN_CREDENTIALS")),
-            EngineOption(id: "niutrans", name: "小牛翻译", category: .more, note: hasSecret(AppSettings.niutransAccount, env: "NIUTRANS_API_KEY") ? nil : "未配置 Key", hasKey: hasSecret(AppSettings.niutransAccount, env: "NIUTRANS_API_KEY")),
-            EngineOption(id: "amazon", name: "Amazon 翻译", category: .more, note: hasSecret(AppSettings.amazonAccount, env: "AWS_CREDENTIALS") ? nil : "未配置凭证", hasKey: hasSecret(AppSettings.amazonAccount, env: "AWS_CREDENTIALS")),
-        ]
-        if AppleTranslationEngine.isSupported {
-            options.insert(
-                EngineOption(id: "apple", name: "系统翻译", category: .base, note: "macOS 15+ · 需离线语言包", hasKey: true),
-                at: min(3, options.count)
-            )
-        }
-        return options
+    private var enabledEngineOptions: [EngineDescriptor] {
+        EngineCatalog.orderedDescriptors(settings: settings)
+            .filter { settings.isEngineEnabled($0.id) }
     }
 
-    private var enabledEngineOptions: [EngineOption] {
-        let optionsByID = Dictionary(uniqueKeysWithValues: engineOptions.map { ($0.id, $0) })
-        return EngineBootstrap.resolvedOrder(settings.engineOrder)
-            .compactMap { optionsByID[$0] }
-            .filter { isEngineEnabled($0.id) }
+    private var orderableEngineIDs: [String] {
+        engineOrderDraft.filter { settings.isEngineEnabled($0) }
     }
 
-    private func disabledEngineOptions(in category: EngineCategory) -> [EngineOption] {
-        engineOptions.filter { $0.category == category && !isEngineEnabled($0.id) }
-    }
-
-    private func hasSecret(_ account: String, env: String) -> Bool {
-        settings.hasSecret(account, env: env)
-    }
-
-    private func isEngineEnabled(_ id: String) -> Bool {
-        switch id {
-        case "google": return settings.googleEnabled
-        case "deepl": return settings.deepLEnabled
-        case "openai": return settings.openAIEnabled
-        case "apple": return settings.appleEnabled
-        case "tencent": return settings.tencentEnabled
-        case "baidu": return settings.baiduEnabled
-        case "youdao": return settings.youdaoEnabled
-        case "caiyun": return settings.caiyunEnabled
-        case "microsoft": return settings.microsoftEnabled
-        case "opencode": return settings.openCodeEnabled
-        case "deepseek": return settings.deepSeekEnabled
-        case "gemini": return settings.geminiEnabled
-        case "groq": return settings.groqEnabled
-        case "ollama": return settings.ollamaEnabled
-        case "qwen": return settings.qwenEnabled
-        case "doubao": return settings.doubaoEnabled
-        case "kimi": return settings.kimiEnabled
-        case "zhipu": return settings.zhipuEnabled
-        case "siliconflow": return settings.siliconFlowEnabled
-        case "ernie": return settings.ernieEnabled
-        case "hunyuan": return settings.hunyuanEnabled
-        case "yi": return settings.yiEnabled
-        case "azure-openai": return settings.azureOpenAIEnabled
-        case "volcengine": return settings.volcengineEnabled
-        case "aliyun": return settings.aliyunEnabled
-        case "niutrans": return settings.niutransEnabled
-        case "amazon": return settings.amazonEnabled
-        default: return false
-        }
+    private func disabledEngineOptions(in category: EngineCategory) -> [EngineDescriptor] {
+        EngineCatalog.orderedDescriptors(settings: settings)
+            .filter { $0.category == category && !settings.isEngineEnabled($0.id) }
     }
 
     private func binding(forEngine id: String) -> Binding<Bool> {
-        switch id {
-        case "google": return $settings.googleEnabled
-        case "deepl": return $settings.deepLEnabled
-        case "openai": return $settings.openAIEnabled
-        case "apple": return $settings.appleEnabled
-        case "tencent": return $settings.tencentEnabled
-        case "baidu": return $settings.baiduEnabled
-        case "youdao": return $settings.youdaoEnabled
-        case "caiyun": return $settings.caiyunEnabled
-        case "microsoft": return $settings.microsoftEnabled
-        case "opencode": return $settings.openCodeEnabled
-        case "deepseek": return $settings.deepSeekEnabled
-        case "gemini": return $settings.geminiEnabled
-        case "groq": return $settings.groqEnabled
-        case "ollama": return $settings.ollamaEnabled
-        case "qwen": return $settings.qwenEnabled
-        case "doubao": return $settings.doubaoEnabled
-        case "kimi": return $settings.kimiEnabled
-        case "zhipu": return $settings.zhipuEnabled
-        case "siliconflow": return $settings.siliconFlowEnabled
-        case "ernie": return $settings.ernieEnabled
-        case "hunyuan": return $settings.hunyuanEnabled
-        case "yi": return $settings.yiEnabled
-        case "azure-openai": return $settings.azureOpenAIEnabled
-        case "volcengine": return $settings.volcengineEnabled
-        case "aliyun": return $settings.aliyunEnabled
-        case "niutrans": return $settings.niutransEnabled
-        case "amazon": return $settings.amazonEnabled
-        default: return .constant(false)
-        }
+        Binding(
+            get: { settings.isEngineEnabled(id) },
+            set: { newValue in
+                settings.setEngineEnabled(id, newValue)
+                state.applySettings()
+            }
+        )
     }
 
     private func engineDisplayName(_ id: String) -> String {
-        switch id {
-        case "google": return "Google 翻译"
-        case "deepl": return "DeepL"
-        case "openai": return "OpenAI"
-        case "opencode": return "OpenCode Go"
-        case "tencent": return "腾讯翻译君"
-        case "baidu": return "百度翻译"
-        case "youdao": return "有道翻译"
-        case "caiyun": return "彩云小译"
-        case "microsoft": return "Microsoft 翻译"
-        case "apple": return "系统翻译"
-        case "deepseek": return "DeepSeek"
-        case "gemini": return "Gemini"
-        case "groq": return "Groq"
-        case "ollama": return "Ollama"
-        case "qwen": return "通义千问"
-        case "doubao": return "豆包"
-        case "kimi": return "Kimi"
-        case "zhipu": return "智谱 GLM"
-        case "siliconflow": return "硅基流动"
-        case "ernie": return "文心一言"
-        case "hunyuan": return "混元"
-        case "yi": return "零一万物"
-        case "azure-openai": return "Azure OpenAI"
-        case "volcengine": return "火山翻译"
-        case "aliyun": return "阿里翻译"
-        case "niutrans": return "小牛翻译"
-        case "amazon": return "Amazon 翻译"
-        default: return id
-        }
+        EngineCatalog.descriptor(for: id)?.name ?? id
     }
 
     private var ocrPane: some View {
@@ -471,24 +327,24 @@ struct SettingsView: View {
         }
     }
 
-    private func engineOptionsGroup(_ options: [EngineOption], emptyText: String) -> some View {
+    private func engineOptionsGroup(_ options: [EngineDescriptor], emptyText: String) -> some View {
         formGroup {
             if options.isEmpty {
                 emptyEngineRow(emptyText)
             } else {
-                ForEach(options) { option in
-                    engineOptionRow(option)
+                ForEach(options) { descriptor in
+                    engineOptionRow(descriptor)
                 }
             }
         }
     }
 
-    private func engineOptionRow(_ option: EngineOption) -> some View {
+    private func engineOptionRow(_ descriptor: EngineDescriptor) -> some View {
         engineRow(
-            option.name,
-            note: option.note,
-            status: status(enabled: isEngineEnabled(option.id), hasKey: option.hasKey),
-            isOn: binding(forEngine: option.id)
+            descriptor.name,
+            note: settings.engineStatusText(descriptor),
+            status: status(descriptor),
+            isOn: binding(forEngine: descriptor.id)
         )
     }
 
@@ -503,58 +359,57 @@ struct SettingsView: View {
         .frame(minHeight: 40)
     }
 
-    private func llmEngineRow(_ name: String, hasKey: Bool, isOn: Binding<Bool>) -> some View {
-        engineRow(name, note: hasKey ? nil : "未配置 Key",
-                  status: status(enabled: isOn.wrappedValue, hasKey: hasKey),
-                  isOn: isOn)
-    }
-
     private var keysPane: some View {
         VStack(alignment: .leading, spacing: 0) {
             sectionTitle("密钥")
-            Text("密钥只保存在本机。腾讯、百度、有道使用 Id:Secret 格式。")
+            Text("密钥只保存在本机。需要双字段凭证的服务使用 Id:Secret 格式。")
                 .font(Theme.Font.callout)
                 .foregroundStyle(Theme.Palette.label2)
                 .padding(.bottom, Theme.Spacing.s12)
 
             subsectionTitle("常用")
             formGroup {
-                secretRow("DeepL", $deepLKey, placeholder: "免费版以 :fx 结尾", account: AppSettings.deepLAccount, env: "DEEPL_API_KEY")
-                secretRow("OpenAI", $openAIKey, placeholder: "sk-...", account: AppSettings.openAIAccount, env: "OPENAI_API_KEY")
-                secretRow("OpenCode Go", $openCodeKey, placeholder: "Go API Key", account: AppSettings.openCodeAccount, env: "OPENCODE_API_KEY")
+                ForEach(commonKeyDescriptors) { descriptor in
+                    secretRow(descriptor)
+                }
             }
 
             disclosureSection("国内与云厂商", isExpanded: $showMachineKeys) {
                 formGroup {
-                    secretRow("腾讯翻译君", $tencentCreds, placeholder: "SecretId:SecretKey", account: AppSettings.tencentAccount, env: "TENCENT_CREDENTIALS")
-                    secretRow("百度翻译", $baiduCreds, placeholder: "AppId:Secret", account: AppSettings.baiduAccount, env: "BAIDU_CREDENTIALS")
-                    secretRow("有道翻译", $youdaoCreds, placeholder: "AppKey:AppSecret", account: AppSettings.youdaoAccount, env: "YOUDAO_CREDENTIALS")
-                    secretRow("彩云小译", $caiyunToken, placeholder: "Token", account: AppSettings.caiyunAccount, env: "CAIYUN_TOKEN")
-                    secretRow("Microsoft", $microsoftKey, placeholder: "订阅 Key", account: AppSettings.microsoftAccount, env: "MICROSOFT_TRANSLATOR_KEY")
+                    ForEach(keyDescriptors(in: .machine)) { descriptor in
+                        secretRow(descriptor)
+                    }
                 }
             }
 
             disclosureSection("LLM Keys", isExpanded: $showLLMKeys) {
                 formGroup {
-                    secretRow("DeepSeek", $deepSeekKey, placeholder: "API Key", account: AppSettings.deepSeekAccount, env: "DEEPSEEK_API_KEY")
-                    secretRow("Gemini", $geminiKey, placeholder: "API Key", account: AppSettings.geminiAccount, env: "GEMINI_API_KEY")
-                    secretRow("Groq", $groqKey, placeholder: "API Key", account: AppSettings.groqAccount, env: "GROQ_API_KEY")
-                    secretRow("通义千问", $qwenKey, placeholder: "DashScope Key", account: AppSettings.qwenAccount, env: "DASHSCOPE_API_KEY")
-                    secretRow("豆包", $doubaoKey, placeholder: "方舟 API Key", account: AppSettings.doubaoAccount, env: "DOUBAO_API_KEY")
-                    secretRow("Kimi", $kimiKey, placeholder: "Moonshot Key", account: AppSettings.kimiAccount, env: "MOONSHOT_API_KEY")
-                    secretRow("智谱 GLM", $zhipuKey, placeholder: "API Key", account: AppSettings.zhipuAccount, env: "ZHIPU_API_KEY")
-                    secretRow("硅基流动", $siliconFlowKey, placeholder: "API Key", account: AppSettings.siliconFlowAccount, env: "SILICONFLOW_API_KEY")
+                    ForEach(keyDescriptors(in: .llm).filter { !commonKeyIDs.contains($0.id) }) { descriptor in
+                        secretRow(descriptor)
+                    }
+                }
+            }
+
+            disclosureSection("更多服务", isExpanded: $showMoreEngines) {
+                formGroup {
+                    ForEach(keyDescriptors(in: .more)) { descriptor in
+                        secretRow(descriptor)
+                    }
                 }
             }
 
             disclosureSection("高级模型与端点", isExpanded: $showAdvancedKeys) {
                 formGroup {
-                    settingRow("OpenAI Model") { compactTextField("gpt-4o-mini", text: $openAIModelField) }
-                    settingRow("OpenAI Endpoint") { compactTextField("可选", text: $openAIEndpointField) }
-                    settingRow("OpenCode Go Model") { compactTextField("glm-5.1", text: $openCodeModelField) }
-                    settingRow("Ollama Model") { compactTextField("llama3.2", text: $ollamaModelField) }
-                    settingRow("Ollama Endpoint") { compactTextField("http://127.0.0.1:11434/v1/chat/completions", text: $ollamaEndpointField) }
-                    settingRow("Azure Endpoint") { compactTextField("Azure deployment URL", text: $azureEndpointField) }
+                    ForEach(modelDescriptors) { descriptor in
+                        settingRow("\(descriptor.name) Model") {
+                            compactTextField(descriptor.defaultModel ?? "model", text: modelBinding(for: descriptor))
+                        }
+                    }
+                    ForEach(endpointDescriptors) { descriptor in
+                        settingRow("\(descriptor.name) Endpoint") {
+                            compactTextField(endpointPlaceholder(for: descriptor), text: endpointBinding(for: descriptor))
+                        }
+                    }
                 }
             }
 
@@ -611,14 +466,15 @@ struct SettingsView: View {
             .frame(width: 280)
     }
 
-    private func secretRow(_ label: String, _ text: Binding<String>, placeholder: String, account: String, env: String) -> some View {
-        let status = settings.secretStatus(account: account, env: env)
+    private func secretRow(_ descriptor: EngineDescriptor) -> some View {
+        guard let credential = descriptor.credential else { return AnyView(EmptyView()) }
+        let status = settings.secretStatus(account: credential.account, env: credential.env)
         let fromEnv = status.hasPrefix("环境变量")
         let configured = status != "未配置"
-        return VStack(spacing: 0) {
+        return AnyView(VStack(spacing: 0) {
             HStack(alignment: .center, spacing: Theme.Spacing.s12) {
                 VStack(alignment: .leading, spacing: 2) {
-                    Text(label)
+                    Text(descriptor.name)
                         .font(Theme.Font.body)
                         .foregroundStyle(Theme.Palette.label)
                     Text(status)
@@ -627,33 +483,54 @@ struct SettingsView: View {
                         .lineLimit(1)
                 }
                 Spacer(minLength: Theme.Spacing.s12)
-                SecureField(fromEnv ? "环境变量优先" : (configured ? "输入新值以替换" : placeholder), text: text)
+                SecureField(fromEnv ? "环境变量优先" : (configured ? "输入新值以替换" : credential.placeholder),
+                            text: secretBinding(for: credential.account))
                     .textFieldStyle(.roundedBorder)
                     .font(Theme.Font.callout)
                     .frame(width: 280)
                     .disabled(fromEnv)
-                Button("清除") { clearSecret(account, text) }
+                Button("清除") { clearSecret(credential.account) }
                     .controlSize(.small)
-                    .disabled(!settings.hasStoredSecret(account: account))
+                    .disabled(!settings.hasStoredSecret(account: credential.account))
             }
             .padding(.horizontal, Theme.Spacing.s12)
             .padding(.vertical, 8)
             .frame(minHeight: 52)
             Divider()
         }
-        .background(Color.clear)
+        .background(Color.clear))
     }
 
     private var shortcutsPane: some View {
         VStack(alignment: .leading, spacing: 0) {
             sectionTitle("全局快捷键")
+            Text(recordingShortcut == nil ? "点击录制后按下新的组合键。至少包含一个修饰键。" : "正在录制 \(recordingShortcut?.title ?? "")，按 Esc 取消。")
+                .font(Theme.Font.callout)
+                .foregroundStyle(recordingShortcut == nil ? Theme.Palette.label2 : Theme.Palette.accent)
+                .padding(.bottom, Theme.Spacing.s12)
             formGroup {
-                shortcutRow("划词翻译", "⌥D")
-                shortcutRow("查词", "⌥E")
-                shortcutRow("截图翻译", "⌥S")
-                shortcutRow("输入翻译", "⌥A")
+                ForEach(ShortcutAction.allCases) { action in
+                    shortcutRow(action)
+                }
             }
+            HStack(spacing: Theme.Spacing.s8) {
+                Button("恢复默认快捷键") {
+                    stopShortcutRecording()
+                    settings.resetShortcuts()
+                    savedNote = "已恢复默认快捷键"
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 2) { savedNote = "" }
+                }
+                .controlSize(.small)
+                if !savedNote.isEmpty || !validateNote.isEmpty {
+                    Text(savedNote.isEmpty ? validateNote : savedNote)
+                        .font(Theme.Font.caption)
+                        .foregroundStyle(savedNote.isEmpty ? Theme.Palette.label2 : Theme.Palette.success)
+                }
+                Spacer()
+            }
+            .padding(.top, Theme.Spacing.s8)
         }
+        .onDisappear { stopShortcutRecording() }
     }
 
     private var pluginsPane: some View {
@@ -684,8 +561,50 @@ struct SettingsView: View {
             Text("开源的 macOS 翻译 + OCR 工具 · 完全免费、无次数限制")
                 .font(Theme.Font.callout).foregroundStyle(Theme.Palette.label2)
                 .padding(.top, Theme.Spacing.s4)
+            formGroup {
+                settingRow("Bundle ID") {
+                    Text(bundleIdentifier)
+                        .font(Theme.Font.caption)
+                        .foregroundStyle(Theme.Palette.label2)
+                        .lineLimit(1)
+                }
+                settingRow("运行路径") {
+                    Text(appPath)
+                        .font(Theme.Font.caption)
+                        .foregroundStyle(Theme.Palette.label2)
+                        .lineLimit(1)
+                        .truncationMode(.middle)
+                        .frame(maxWidth: 360, alignment: .trailing)
+                }
+                settingRow("运行实例") {
+                    Text(sameBundleInstanceSummary)
+                        .font(Theme.Font.caption)
+                        .foregroundStyle(hasSameBundleConflict ? Theme.Palette.warning : Theme.Palette.label2)
+                        .lineLimit(1)
+                }
+            }
+            .padding(.top, Theme.Spacing.s8)
             Link("GitHub 仓库", destination: URL(string: "https://github.com/korbinjoe/parrot")!)
                 .font(Theme.Font.callout)
+        }
+    }
+
+    private var permissionGroup: some View {
+        formGroup {
+            permissionRow(
+                "辅助功能",
+                granted: state.permissions.accessibilityGranted,
+                detail: "划词翻译、查词和快捷键捕获需要此权限。",
+                actionTitle: "打开设置",
+                action: AppPermissions.openAccessibilitySettings
+            )
+            permissionRow(
+                "屏幕录制",
+                granted: state.permissions.screenRecordingGranted,
+                detail: "截图翻译需要此权限。",
+                actionTitle: "打开设置",
+                action: AppPermissions.openScreenRecordingSettings
+            )
         }
     }
 
@@ -737,6 +656,45 @@ struct SettingsView: View {
         .background(Color.clear)
     }
 
+    private func permissionRow(
+        _ name: String,
+        granted: Bool,
+        detail: String,
+        actionTitle: String,
+        action: @escaping () -> Void
+    ) -> some View {
+        VStack(spacing: 0) {
+            HStack(spacing: Theme.Spacing.s12) {
+                Circle()
+                    .fill(granted ? Theme.Palette.success : Theme.Palette.warning)
+                    .frame(width: 8, height: 8)
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(name)
+                        .font(Theme.Font.body)
+                        .foregroundStyle(Theme.Palette.label)
+                    Text(granted ? "已开启" : detail)
+                        .font(Theme.Font.caption)
+                        .foregroundStyle(granted ? Theme.Palette.label2 : Theme.Palette.label3)
+                        .lineLimit(1)
+                }
+                Spacer()
+                if granted {
+                    Text("可用")
+                        .font(Theme.Font.caption)
+                        .foregroundStyle(Theme.Palette.success)
+                } else {
+                    Button(actionTitle) { action() }
+                        .controlSize(.small)
+                }
+            }
+            .padding(.horizontal, Theme.Spacing.s12)
+            .padding(.vertical, 8)
+            .frame(minHeight: 44)
+            Divider()
+        }
+        .background(Color.clear)
+    }
+
     private func engineRow(_ name: String, note: String?, status: EngineStatus, isOn: Binding<Bool>) -> some View {
         VStack(spacing: 0) {
             HStack(spacing: Theme.Spacing.s8) {
@@ -764,18 +722,23 @@ struct SettingsView: View {
         .background(Color.clear)
     }
 
-    private func shortcutRow(_ label: String, _ key: String) -> some View {
-        VStack(spacing: 0) {
+    private func shortcutRow(_ action: ShortcutAction) -> some View {
+        let isRecording = recordingShortcut == action
+        let key = settings.shortcutSpec(for: action).displayText
+        return VStack(spacing: 0) {
             HStack {
-                Text(label).font(Theme.Font.body).foregroundStyle(Theme.Palette.label)
+                Text(action.title).font(Theme.Font.body).foregroundStyle(Theme.Palette.label)
                 Spacer()
-                Text(key)
-                    .font(.system(size: 12, weight: .medium))
-                    .foregroundStyle(Theme.Palette.label)
-                    .padding(.horizontal, 9).padding(.vertical, 3)
-                    .background(Theme.Palette.bgControl)
-                    .clipShape(RoundedRectangle(cornerRadius: 6))
-                    .overlay(RoundedRectangle(cornerRadius: 6).strokeBorder(Theme.Palette.separator, lineWidth: 0.5))
+                Button(isRecording ? "按键中…" : key) {
+                    beginShortcutRecording(action)
+                }
+                .font(.system(size: 12, weight: .medium))
+                .foregroundStyle(isRecording ? Theme.Palette.accent : Theme.Palette.label)
+                .padding(.horizontal, 9).padding(.vertical, 3)
+                .background(isRecording ? Theme.Palette.bgSelection : Theme.Palette.bgControl)
+                .clipShape(RoundedRectangle(cornerRadius: 6))
+                .overlay(RoundedRectangle(cornerRadius: 6).strokeBorder(isRecording ? Theme.Palette.accent : Theme.Palette.separator, lineWidth: 0.5))
+                .buttonStyle(.plain)
             }
             .padding(.horizontal, Theme.Spacing.s12)
             .padding(.vertical, 7)
@@ -820,13 +783,138 @@ struct SettingsView: View {
         }
     }
 
-    private func status(enabled: Bool, hasKey: Bool) -> EngineStatus {
-        if !enabled { return .off }
-        return hasKey ? .ok : .warn
+    private func status(_ descriptor: EngineDescriptor) -> EngineStatus {
+        if !settings.isEngineEnabled(descriptor.id) { return .off }
+        return settings.isEngineConfigured(descriptor) ? .ok : .warn
+    }
+
+    private func beginShortcutRecording(_ action: ShortcutAction) {
+        stopShortcutRecording(removeAction: false)
+        recordingShortcut = action
+        validateNote = ""
+        shortcutMonitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { event in
+            handleShortcutEvent(event)
+            return nil
+        }
+    }
+
+    private func stopShortcutRecording(removeAction: Bool = true) {
+        if let shortcutMonitor {
+            NSEvent.removeMonitor(shortcutMonitor)
+            self.shortcutMonitor = nil
+        }
+        if removeAction { recordingShortcut = nil }
+    }
+
+    private func handleShortcutEvent(_ event: NSEvent) {
+        guard let action = recordingShortcut else { return }
+        if Int(event.keyCode) == kVK_Escape {
+            stopShortcutRecording()
+            return
+        }
+        guard let spec = HotKeySpec.from(event: event) else {
+            validateNote = "请至少包含一个修饰键"
+            return
+        }
+        if let conflict = ShortcutAction.allCases.first(where: { $0 != action && settings.shortcutSpec(for: $0) == spec }) {
+            validateNote = "快捷键已被「\(conflict.title)」使用"
+            return
+        }
+        settings.setShortcutSpec(spec, for: action)
+        stopShortcutRecording()
+        savedNote = "已设置 \(action.title)：\(spec.displayText)"
+        DispatchQueue.main.asyncAfter(deadline: .now() + 2) { savedNote = "" }
+    }
+
+    private var commonKeyIDs: Set<String> { ["deepl", "openai", "opencode"] }
+
+    private var commonKeyDescriptors: [EngineDescriptor] {
+        EngineCatalog.all.filter { commonKeyIDs.contains($0.id) }
+    }
+
+    private func keyDescriptors(in category: EngineCategory) -> [EngineDescriptor] {
+        EngineCatalog.all.filter { $0.category == category && $0.credential != nil }
+    }
+
+    private var modelDescriptors: [EngineDescriptor] {
+        EngineCatalog.all.filter { $0.defaultModel != nil }
+    }
+
+    private var endpointDescriptors: [EngineDescriptor] {
+        EngineCatalog.all.filter { $0.defaultEndpoint != nil }
+    }
+
+    private func secretBinding(for account: String) -> Binding<String> {
+        Binding(
+            get: { secretDrafts[account] ?? "" },
+            set: { secretDrafts[account] = $0 }
+        )
+    }
+
+    private func modelBinding(for descriptor: EngineDescriptor) -> Binding<String> {
+        Binding(
+            get: { modelDrafts[descriptor.id] ?? descriptor.defaultModel ?? "" },
+            set: { modelDrafts[descriptor.id] = $0 }
+        )
+    }
+
+    private func endpointBinding(for descriptor: EngineDescriptor) -> Binding<String> {
+        Binding(
+            get: { endpointDrafts[descriptor.id] ?? currentEndpoint(for: descriptor) },
+            set: { endpointDrafts[descriptor.id] = $0 }
+        )
+    }
+
+    private func endpointPlaceholder(for descriptor: EngineDescriptor) -> String {
+        switch descriptor.id {
+        case "openai": return "可选"
+        case "azure-openai": return "Azure deployment URL"
+        default: return descriptor.defaultEndpoint ?? "Endpoint"
+        }
+    }
+
+    private func loadAdvancedDrafts() {
+        modelDrafts = Dictionary(uniqueKeysWithValues: modelDescriptors.map { ($0.id, currentModel(for: $0)) })
+        endpointDrafts = Dictionary(uniqueKeysWithValues: endpointDescriptors.map { ($0.id, currentEndpoint(for: $0)) })
+    }
+
+    private func currentModel(for descriptor: EngineDescriptor) -> String {
+        if descriptor.id == "openai" { return settings.openAIModel }
+        return settings.model(for: descriptor.id) ?? descriptor.defaultModel ?? ""
+    }
+
+    private func currentEndpoint(for descriptor: EngineDescriptor) -> String {
+        if descriptor.id == "openai" { return settings.openAIEndpoint }
+        if descriptor.id == "ollama" { return settings.ollamaEndpoint }
+        return settings.endpoint(for: descriptor.id) ?? ""
     }
 
     private var appVersion: String {
         Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "0.1.0"
+    }
+
+    private var bundleIdentifier: String {
+        Bundle.main.bundleIdentifier ?? "unknown"
+    }
+
+    private var appPath: String {
+        Bundle.main.bundleURL.path
+    }
+
+    private var sameBundleInstanceSummary: String {
+        let apps = runningSameBundleApps
+        if apps.count <= 1 { return "仅当前实例" }
+        return "\(apps.count) 个实例，URL Scheme 可能路由到旧版本"
+    }
+
+    private var hasSameBundleConflict: Bool {
+        runningSameBundleApps.count > 1
+    }
+
+    private var runningSameBundleApps: [NSRunningApplication] {
+        guard let bundleIdentifier = Bundle.main.bundleIdentifier else { return [] }
+        return NSRunningApplication.runningApplications(withBundleIdentifier: bundleIdentifier)
+            .filter { !$0.isTerminated }
     }
 
     private func openPluginsFolder() {
@@ -838,69 +926,76 @@ struct SettingsView: View {
 
     private func saveKeys() {
         let trim: (String) -> String = { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
-        saveSecret(trim(deepLKey), setter: settings.setDeepLKey)
-        saveSecret(trim(openAIKey), setter: settings.setOpenAIKey)
-        saveSecret(trim(openCodeKey), setter: settings.setOpenCodeKey)
-        saveSecret(trim(tencentCreds), setter: settings.setTencentCredentials)
-        saveSecret(trim(baiduCreds), setter: settings.setBaiduCredentials)
-        saveSecret(trim(youdaoCreds), setter: settings.setYoudaoCredentials)
-        saveSecret(trim(caiyunToken), setter: settings.setCaiyunToken)
-        saveSecret(trim(microsoftKey), setter: settings.setMicrosoftKey)
-        saveSecret(trim(deepSeekKey), setter: settings.setDeepSeekKey)
-        saveSecret(trim(geminiKey), setter: settings.setGeminiKey)
-        saveSecret(trim(groqKey), setter: settings.setGroqKey)
-        saveSecret(trim(qwenKey), setter: settings.setQwenKey)
-        saveSecret(trim(doubaoKey), setter: settings.setDoubaoKey)
-        saveSecret(trim(kimiKey), setter: settings.setKimiKey)
-        saveSecret(trim(zhipuKey), setter: settings.setZhipuKey)
-        saveSecret(trim(siliconFlowKey), setter: settings.setSiliconFlowKey)
-        settings.openAIModel = trim(openAIModelField)
-        settings.openAIEndpoint = trim(openAIEndpointField)
-        settings.setModel(trim(openCodeModelField), for: "opencode")
-        settings.setModel(trim(ollamaModelField), for: "ollama")
-        settings.ollamaEndpoint = trim(ollamaEndpointField)
-        settings.setEndpoint(trim(azureEndpointField), for: "azure-openai")
+        for descriptor in EngineCatalog.all {
+            if let credential = descriptor.credential {
+                saveSecret(trim(secretDrafts[credential.account] ?? ""), account: credential.account)
+            }
+            if descriptor.defaultModel != nil {
+                saveModel(trim(modelDrafts[descriptor.id] ?? ""), for: descriptor)
+            }
+            if descriptor.defaultEndpoint != nil {
+                saveEndpoint(trim(endpointDrafts[descriptor.id] ?? ""), for: descriptor)
+            }
+        }
         clearKeyFields()
         state.applySettings()
         savedNote = "已保存到本地 ✓"
         DispatchQueue.main.asyncAfter(deadline: .now() + 2) { savedNote = "" }
     }
 
-    private func saveSecret(_ value: String, setter: (String) -> Void) {
+    private func saveSecret(_ value: String, account: String) {
         guard !value.isEmpty else { return }
-        setter(value)
+        settings.setKey(value, account: account)
     }
 
-    private func clearSecret(_ account: String, _ text: Binding<String>) {
+    private func saveModel(_ value: String, for descriptor: EngineDescriptor) {
+        guard !value.isEmpty else { return }
+        if descriptor.id == "openai" {
+            settings.openAIModel = value
+        } else {
+            settings.setModel(value, for: descriptor.id)
+        }
+    }
+
+    private func saveEndpoint(_ value: String, for descriptor: EngineDescriptor) {
+        if descriptor.id == "openai" {
+            settings.openAIEndpoint = value
+        } else if descriptor.id == "ollama" {
+            settings.ollamaEndpoint = value
+        } else {
+            settings.setEndpoint(value, for: descriptor.id)
+        }
+    }
+
+    private func clearSecret(_ account: String) {
+        guard confirm(title: "清除这项密钥？", message: "清除后，对应服务会在下次翻译时显示为需配置。") else { return }
         settings.removeKey(account: account)
-        text.wrappedValue = ""
+        secretDrafts[account] = ""
         state.applySettings()
         savedNote = "已清除 ✓"
         DispatchQueue.main.asyncAfter(deadline: .now() + 2) { savedNote = "" }
     }
 
-    private func clearKeyFields() {
-        deepLKey = ""
-        openAIKey = ""
-        openCodeKey = ""
-        tencentCreds = ""
-        baiduCreds = ""
-        youdaoCreds = ""
-        caiyunToken = ""
-        microsoftKey = ""
-        deepSeekKey = ""
-        geminiKey = ""
-        groqKey = ""
-        qwenKey = ""
-        doubaoKey = ""
-        kimiKey = ""
-        zhipuKey = ""
-        siliconFlowKey = ""
+    private func confirm(title: String, message: String) -> Bool {
+        let alert = NSAlert()
+        alert.messageText = title
+        alert.informativeText = message
+        alert.alertStyle = .warning
+        alert.addButton(withTitle: "继续")
+        alert.addButton(withTitle: "取消")
+        return alert.runModal() == .alertFirstButtonReturn
     }
 
-    private func moveEngine(from: Int, to: Int) {
-        guard to >= 0, to < engineOrderDraft.count, from != to else { return }
-        engineOrderDraft.move(fromOffsets: IndexSet(integer: from), toOffset: to > from ? to + 1 : to)
+    private func clearKeyFields() {
+        secretDrafts = [:]
+    }
+
+    private func moveEnabledEngine(from: Int, to: Int) {
+        var enabled = orderableEngineIDs
+        guard to >= 0, to < enabled.count, from != to else { return }
+        enabled.move(fromOffsets: IndexSet(integer: from), toOffset: to > from ? to + 1 : to)
+        let disabled = engineOrderDraft.filter { !settings.isEngineEnabled($0) }
+        engineOrderDraft = enabled + disabled
         settings.setEngineOrder(engineOrderDraft)
         state.applySettings()
     }

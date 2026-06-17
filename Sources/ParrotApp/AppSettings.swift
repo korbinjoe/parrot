@@ -131,6 +131,32 @@ final class AppSettings: ObservableObject {
     var engineOrder: [String] { defaults.stringArray(forKey: "engine.order") ?? [] }
     func setEngineOrder(_ ids: [String]) { defaults.set(ids, forKey: "engine.order") }
 
+    func shortcutSpec(for action: ShortcutAction) -> HotKeySpec {
+        let key = "shortcut.\(action.rawValue)"
+        guard let data = defaults.data(forKey: key),
+              let spec = try? JSONDecoder().decode(HotKeySpec.self, from: data) else {
+            return action.defaultSpec
+        }
+        return spec
+    }
+
+    func setShortcutSpec(_ spec: HotKeySpec, for action: ShortcutAction) {
+        let key = "shortcut.\(action.rawValue)"
+        if let data = try? JSONEncoder().encode(spec) {
+            defaults.set(data, forKey: key)
+            objectWillChange.send()
+            NotificationCenter.default.post(name: .parrotShortcutsDidChange, object: nil)
+        }
+    }
+
+    func resetShortcuts() {
+        for action in ShortcutAction.allCases {
+            defaults.removeObject(forKey: "shortcut.\(action.rawValue)")
+        }
+        objectWillChange.send()
+        NotificationCenter.default.post(name: .parrotShortcutsDidChange, object: nil)
+    }
+
     func model(for engineId: String) -> String? {
         let v = defaults.string(forKey: "engine.\(engineId).model") ?? ""
         return v.isEmpty ? nil : v
