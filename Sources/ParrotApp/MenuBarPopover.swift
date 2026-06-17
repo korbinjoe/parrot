@@ -84,20 +84,20 @@ struct MenuBarPopoverView: View {
         HoverRow(action: action, disabled: disabled) {
             HStack(spacing: 9) {
                 Image(systemName: icon).frame(width: 16).foregroundStyle(Theme.Palette.label2)
-                Text(title).font(Theme.Font.body).foregroundStyle(Theme.Palette.label)
+                Text(L(title)).font(Theme.Font.body).foregroundStyle(Theme.Palette.label)
                 Spacer(minLength: 0)
-                Text(shortcut).font(Theme.Font.caption).foregroundStyle(Theme.Palette.label3)
+                Text(L(shortcut)).font(Theme.Font.caption).foregroundStyle(Theme.Palette.label3)
             }
         }
-        .accessibilityLabel(title)
-        .accessibilityHint(shortcut)
+        .accessibilityLabel(L(title))
+        .accessibilityHint(L(shortcut))
     }
 
     private func plainRow(_ title: String, icon: String, action: @escaping () -> Void) -> some View {
         HoverRow(action: action) {
             HStack(spacing: 9) {
                 Image(systemName: icon).frame(width: 16).foregroundStyle(Theme.Palette.label2)
-                Text(title).font(Theme.Font.body).foregroundStyle(Theme.Palette.accent)
+                Text(L(title)).font(Theme.Font.body).foregroundStyle(Theme.Palette.accent)
                 Spacer(minLength: 0)
             }
         }
@@ -112,7 +112,7 @@ struct MenuBarPopoverView: View {
                     .foregroundStyle(Theme.Palette.warning)
                     .frame(width: 16, height: 16)
                 VStack(alignment: .leading, spacing: 2) {
-                    Text(state.permissions.summary)
+                    Text(L(state.permissions.summary))
                         .font(.system(size: 12, weight: .semibold))
                         .foregroundStyle(Theme.Palette.label)
                     Text("部分快捷动作暂不可用")
@@ -156,7 +156,7 @@ struct MenuBarPopoverView: View {
     // MARK: - Chrome
 
     private func sectionLabel(_ t: String) -> some View {
-        Text(t).font(Theme.Font.caption).foregroundStyle(Theme.Palette.label3)
+        Text(L(t)).font(Theme.Font.caption).foregroundStyle(Theme.Palette.label3)
             .fontWeight(.semibold)
             .padding(.horizontal, 9).padding(.top, 2).padding(.bottom, 4)
     }

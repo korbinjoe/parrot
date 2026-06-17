@@ -124,7 +124,7 @@ final class FloatingPanel {
         self.hosting = hosting
         let p = NSPanel(contentViewController: hosting)
         p.styleMask = [.titled, .closable, .resizable, .fullSizeContentView]
-        p.title = "Parrot 翻译"
+        p.title = L("Parrot 翻译")
         p.titleVisibility = .hidden
         p.titlebarAppearsTransparent = true
         p.contentMinSize = Metrics.minContentSize

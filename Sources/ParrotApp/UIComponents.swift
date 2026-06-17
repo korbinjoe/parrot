@@ -27,9 +27,9 @@ struct LangPill: View {
 
     static func label(_ lang: Language, auto: String) -> String {
         switch lang {
-        case .auto: return auto
-        case .zh: return "中"
-        case .ja: return "日"
+        case .auto: return L(auto)
+        case .zh: return L("中")
+        case .ja: return L("日")
         case .ko: return "한"
         default: return (lang.code ?? auto).uppercased()
         }
@@ -49,7 +49,7 @@ struct WarningBar: View {
     var body: some View {
         HStack(spacing: 6) {
             Image(systemName: systemImage).font(.system(size: 11))
-            Text(text).font(Theme.Font.caption)
+            Text(L(text)).font(Theme.Font.caption)
             Spacer(minLength: 0)
         }
         .foregroundStyle(Theme.Palette.warning)
@@ -99,8 +99,8 @@ struct IconButton: View {
         .clipShape(RoundedRectangle(cornerRadius: Theme.Radius.control))
         .contentShape(RoundedRectangle(cornerRadius: Theme.Radius.control))
         .onHover { hovering = $0 }
-        .help(help)
-        .accessibilityLabel(help)
+        .help(L(help))
+        .accessibilityLabel(L(help))
     }
 }
 

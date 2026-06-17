@@ -101,16 +101,16 @@ enum EngineCatalog {
     ) -> EngineDescriptor {
         let credential: EngineCredential?
         if let account, let env, let placeholder {
-            credential = EngineCredential(account: account, env: env, placeholder: placeholder, missingText: missingText)
+            credential = EngineCredential(account: account, env: env, placeholder: L(placeholder), missingText: L(missingText))
         } else {
             credential = nil
         }
         return EngineDescriptor(
             id: id,
-            name: name,
+            name: L(name),
             category: category,
             credential: credential,
-            noCredentialNote: noCredentialNote,
+            noCredentialNote: noCredentialNote.map { L($0) },
             defaultModel: defaultModel,
             defaultEndpoint: defaultEndpoint,
             supportsValidation: supportsValidation

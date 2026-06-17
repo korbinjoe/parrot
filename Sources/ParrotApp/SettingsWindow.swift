@@ -30,7 +30,7 @@ final class SettingsWindow {
                 onRetryProvider: onRetryProvider
             ))
             let win = NSWindow(contentViewController: hosting)
-            win.title = "Parrot 设置"
+            win.title = L("Parrot 设置")
             win.styleMask = [.titled, .closable, .miniaturizable, .resizable]
             win.isReleasedWhenClosed = false
             win.contentMinSize = NSSize(width: 640, height: 420)
@@ -120,7 +120,7 @@ private struct NativeSearchField: NSViewRepresentable {
 
     func makeNSView(context: Context) -> NSSearchField {
         let field = NSSearchField()
-        field.placeholderString = placeholder
+        field.placeholderString = L(placeholder)
         field.controlSize = .small
         field.font = NSFont.systemFont(ofSize: 12)
         field.sendsSearchStringImmediately = true
@@ -134,8 +134,9 @@ private struct NativeSearchField: NSViewRepresentable {
         if field.stringValue != text {
             field.stringValue = text
         }
-        if field.placeholderString != placeholder {
-            field.placeholderString = placeholder
+        let localizedPlaceholder = L(placeholder)
+        if field.placeholderString != localizedPlaceholder {
+            field.placeholderString = localizedPlaceholder
         }
     }
 
@@ -171,14 +172,14 @@ struct SettingsView: View {
         var id: String { rawValue }
         var title: String {
             switch self {
-            case .general: return "通用"
-            case .engines: return "翻译"
-            case .ocr: return "识别"
-            case .tts: return "语音"
-            case .keys: return "密钥"
-            case .shortcuts: return "快捷键"
-            case .plugins: return "插件"
-            case .about: return "关于"
+            case .general: return L("通用")
+            case .engines: return L("翻译")
+            case .ocr: return L("识别")
+            case .tts: return L("语音")
+            case .keys: return L("密钥")
+            case .shortcuts: return L("快捷键")
+            case .plugins: return L("插件")
+            case .about: return L("关于")
             }
         }
         var icon: String {
@@ -216,6 +217,12 @@ struct SettingsView: View {
     private let languages: [(String, String)] = [
         ("zh", "中文"), ("en", "English"), ("ja", "日本語"), ("ko", "한국어"),
         ("fr", "Français"), ("de", "Deutsch"), ("es", "Español"), ("ru", "Русский"),
+        ("pt", "Português"), ("it", "Italiano"), ("nl", "Nederlands"), ("pl", "Polski"),
+        ("uk", "Українська"), ("tr", "Türkçe"), ("ar", "العربية"), ("hi", "हिन्दी"),
+        ("id", "Bahasa Indonesia"), ("vi", "Tiếng Việt"), ("th", "ไทย"), ("ms", "Bahasa Melayu"),
+        ("he", "עברית"), ("fa", "فارسی"), ("el", "Ελληνικά"), ("sv", "Svenska"),
+        ("da", "Dansk"), ("fi", "Suomi"), ("no", "Norsk"), ("cs", "Čeština"),
+        ("hu", "Magyar"), ("ro", "Română"),
     ]
 
     enum KeyFilter: String, CaseIterable, Identifiable {
@@ -223,10 +230,10 @@ struct SettingsView: View {
         var id: String { rawValue }
         var title: String {
             switch self {
-            case .all: return "全部"
-            case .needsAction: return "需处理"
-            case .configured: return "已配置"
-            case .environment: return "环境变量"
+            case .all: return L("全部")
+            case .needsAction: return L("需处理")
+            case .configured: return L("已配置")
+            case .environment: return L("环境变量")
             case .ocr: return "OCR"
             case .tts: return "TTS"
             case .llm: return "LLM"
@@ -243,7 +250,7 @@ struct SettingsView: View {
         var text: String {
             switch self {
             case .saved(let message), .failed(let message), .valid(let message): return message
-            case .validating: return "正在验证…"
+            case .validating: return L("正在验证…")
             }
         }
 
@@ -553,7 +560,7 @@ struct SettingsView: View {
                         .font(Theme.Font.body)
                         .foregroundStyle(Theme.Palette.label)
                     if let note = settings.engineStatusText(descriptor) {
-                        Text(note)
+                        Text(L(note))
                             .font(Theme.Font.caption)
                             .foregroundStyle(Theme.Palette.label3)
                             .lineLimit(1)
@@ -564,14 +571,14 @@ struct SettingsView: View {
                 HStack(spacing: 2) {
                     reorderButton(
                         systemName: "chevron.up",
-                        help: "上移 \(descriptor.name)",
+                        help: L("上移 %@", descriptor.name),
                         disabled: index == 0
                     ) {
                         moveEnabledEngine(from: index, to: index - 1)
                     }
                     reorderButton(
                         systemName: "chevron.down",
-                        help: "下移 \(descriptor.name)",
+                        help: L("下移 %@", descriptor.name),
                         disabled: index == count - 1
                     ) {
                         moveEnabledEngine(from: index, to: index + 1)
@@ -592,7 +599,7 @@ struct SettingsView: View {
 
     private func emptyEngineRow(_ text: String) -> some View {
         HStack {
-            Text(text)
+            Text(L(text))
                 .font(Theme.Font.callout)
                 .foregroundStyle(Theme.Palette.label3)
             Spacer()
@@ -770,7 +777,7 @@ struct SettingsView: View {
                         dirty: dirty
                     )
                     if status.fromPrimaryEnv {
-                        formHelpText("\(credential.env) 已生效并优先于本机保存。要改用本机 Key，请移除该环境变量后重启 Parrot。")
+                        formHelpText(L("%@ 已生效并优先于本机保存。要改用本机 Key，请移除该环境变量后重启 Parrot。", credential.env))
                     }
                 }
             }
@@ -851,7 +858,7 @@ struct SettingsView: View {
     }
 
     private func formRowLabel(_ label: String) -> some View {
-        Text(label)
+        Text(L(label))
             .font(Theme.Font.caption)
             .foregroundStyle(Theme.Palette.label2)
             .frame(width: 64, alignment: .leading)
@@ -861,7 +868,7 @@ struct SettingsView: View {
         HStack(alignment: .top, spacing: Theme.Spacing.s8) {
             Spacer()
                 .frame(width: 64)
-            Text(text)
+            Text(L(text))
                 .font(Theme.Font.caption)
                 .foregroundStyle(Theme.Palette.label3)
                 .fixedSize(horizontal: false, vertical: true)
@@ -873,7 +880,7 @@ struct SettingsView: View {
     }
 
     private func settingsStatusBadge(_ text: String, tone: SettingsBadgeTone) -> some View {
-        Text(text)
+        Text(L(text))
             .font(Theme.Font.tag)
             .foregroundStyle(tone == .success ? Theme.Palette.success : Theme.Palette.label2)
             .padding(.horizontal, 7)
@@ -885,7 +892,7 @@ struct SettingsView: View {
     private var shortcutsPane: some View {
         VStack(alignment: .leading, spacing: 0) {
             sectionTitle("全局快捷键")
-            Text(recordingShortcut == nil ? "点击录制后按下新的组合键。至少包含一个修饰键。" : "正在录制 \(recordingShortcut?.title ?? "")，按 Esc 取消。")
+            Text(recordingShortcut == nil ? L("点击录制后按下新的组合键。至少包含一个修饰键。") : L("正在录制 %@，按 Esc 取消。", recordingShortcut?.title ?? ""))
                 .font(Theme.Font.callout)
                 .foregroundStyle(recordingShortcut == nil ? Theme.Palette.label2 : Theme.Palette.accent)
                 .padding(.bottom, Theme.Spacing.s12)
@@ -898,7 +905,7 @@ struct SettingsView: View {
                 Button("恢复默认快捷键") {
                     stopShortcutRecording()
                     settings.resetShortcuts()
-                    savedNote = "已恢复默认快捷键"
+                    savedNote = L("已恢复默认快捷键")
                     DispatchQueue.main.asyncAfter(deadline: .now() + 2) { savedNote = "" }
                 }
                 .controlSize(.small)
@@ -936,7 +943,7 @@ struct SettingsView: View {
                     .font(.system(size: 36)).foregroundStyle(Theme.Palette.accent)
                 VStack(alignment: .leading, spacing: 2) {
                     Text("Parrot").font(.system(size: 17, weight: .semibold))
-                    Text("版本 \(appVersion)").font(Theme.Font.callout).foregroundStyle(Theme.Palette.label2)
+                    Text(L("版本 %@", appVersion)).font(Theme.Font.callout).foregroundStyle(Theme.Palette.label2)
                 }
             }
             Text("开源的 macOS 翻译 + OCR 工具 · 完全免费、无次数限制")
@@ -992,13 +999,13 @@ struct SettingsView: View {
     // MARK: - Row builders
 
     private func sectionTitle(_ t: String) -> some View {
-        Text(t).font(.system(size: 17, weight: .semibold))
+        Text(L(t)).font(.system(size: 17, weight: .semibold))
             .foregroundStyle(Theme.Palette.label)
             .padding(.bottom, Theme.Spacing.s12)
     }
 
     private func subsectionTitle(_ t: String) -> some View {
-        Text(t)
+        Text(L(t))
             .font(.system(size: 12, weight: .semibold))
             .foregroundStyle(Theme.Palette.label2)
             .padding(.bottom, Theme.Spacing.s4)
@@ -1015,7 +1022,7 @@ struct SettingsView: View {
             }
             .padding(.top, Theme.Spacing.s8)
         } label: {
-            Text(title)
+            Text(L(title))
                 .font(.system(size: 13, weight: .semibold))
                 .foregroundStyle(Theme.Palette.label)
         }
@@ -1025,7 +1032,7 @@ struct SettingsView: View {
     private func settingRow<Control: View>(_ label: String, @ViewBuilder control: () -> Control) -> some View {
         VStack(spacing: 0) {
             HStack {
-                Text(label).font(Theme.Font.body).foregroundStyle(Theme.Palette.label)
+                Text(L(label)).font(Theme.Font.body).foregroundStyle(Theme.Palette.label)
                 Spacer()
                 control()
             }
@@ -1050,10 +1057,10 @@ struct SettingsView: View {
                     .fill(granted ? Theme.Palette.success : Theme.Palette.warning)
                     .frame(width: 8, height: 8)
                 VStack(alignment: .leading, spacing: 2) {
-                    Text(name)
+                    Text(L(name))
                         .font(Theme.Font.body)
                         .foregroundStyle(Theme.Palette.label)
-                    Text(granted ? "已开启" : detail)
+                    Text(granted ? L("已开启") : L(detail))
                         .font(Theme.Font.caption)
                         .foregroundStyle(granted ? Theme.Palette.label2 : Theme.Palette.label3)
                         .lineLimit(1)
@@ -1064,7 +1071,7 @@ struct SettingsView: View {
                         .font(Theme.Font.caption)
                         .foregroundStyle(Theme.Palette.success)
                 } else {
-                    Button(actionTitle) { action() }
+                    Button(L(actionTitle)) { action() }
                         .controlSize(.small)
                 }
             }
@@ -1080,11 +1087,11 @@ struct SettingsView: View {
         VStack(spacing: 0) {
             HStack(spacing: Theme.Spacing.s8) {
                 VStack(alignment: .leading, spacing: 2) {
-                    Text(name)
+                    Text(L(name))
                         .font(Theme.Font.body)
                         .foregroundStyle(Theme.Palette.label)
                     if let note {
-                        Text(note)
+                        Text(L(note))
                             .font(Theme.Font.caption)
                             .foregroundStyle(Theme.Palette.label3)
                             .lineLimit(1)
@@ -1119,8 +1126,8 @@ struct SettingsView: View {
         .background(disabled ? Theme.Palette.bgControl.opacity(0.25) : Theme.Palette.bgControl)
         .clipShape(RoundedRectangle(cornerRadius: Theme.Radius.control))
         .disabled(disabled)
-        .help(help)
-        .accessibilityLabel(help)
+        .help(L(help))
+        .accessibilityLabel(L(help))
     }
 
     private func shortcutRow(_ action: ShortcutAction) -> some View {
@@ -1130,7 +1137,7 @@ struct SettingsView: View {
             HStack {
                 Text(action.title).font(Theme.Font.body).foregroundStyle(Theme.Palette.label)
                 Spacer()
-                Button(isRecording ? "按键中…" : key) {
+                Button(isRecording ? L("按键中…") : key) {
                     beginShortcutRecording(action)
                 }
                 .font(.system(size: 12, weight: .medium))
@@ -1150,7 +1157,7 @@ struct SettingsView: View {
     }
 
     private func callout(_ text: String) -> some View {
-        Text(text)
+        Text(L(text))
             .font(Theme.Font.callout).foregroundStyle(Theme.Palette.label2)
             .fixedSize(horizontal: false, vertical: true)
             .frame(maxWidth: .infinity, alignment: .leading)
@@ -1193,24 +1200,24 @@ struct SettingsView: View {
         for descriptor: CredentialDescriptor
     ) -> (text: String, configured: Bool, fromPrimaryEnv: Bool, fromFallback: Bool) {
         guard let credential = descriptor.credential else {
-            return (descriptor.note ?? "无需 Key", true, false, false)
+            return (descriptor.note ?? L("无需 Key"), true, false, false)
         }
 
         let primaryStatus = settings.secretStatus(account: credential.account, env: credential.env)
-        if primaryStatus.hasPrefix("环境变量") {
-            return ("环境变量 \(credential.env) 已生效", true, true, false)
+        if settings.envNonEmpty(credential.env) != nil {
+            return (L("环境变量 %@ 已生效", credential.env), true, true, false)
         }
-        if primaryStatus != "未配置" {
+        if primaryStatus != L("未配置") {
             return (primaryStatus, true, false, false)
         }
 
         if let fallback = descriptor.fallbackCredential,
            settings.hasSecret(fallback.account, env: fallback.env) {
-            let source = descriptor.fallbackLabel ?? "共享凭证"
-            return ("复用\(source)", true, false, true)
+            let source = descriptor.fallbackLabel ?? L("共享凭证")
+            return (L("复用%@", source), true, false, true)
         }
 
-        return ("未配置", false, false, false)
+        return (L("未配置"), false, false, false)
     }
 
     private func credentialPlaceholder(
@@ -1218,9 +1225,9 @@ struct SettingsView: View {
         status: (text: String, configured: Bool, fromPrimaryEnv: Bool, fromFallback: Bool)
     ) -> String {
         guard let credential = descriptor.credential else { return "" }
-        if status.fromPrimaryEnv { return "环境变量 \(credential.env) 优先" }
-        if status.fromFallback { return "输入专用 Key 覆盖复用凭证" }
-        return status.configured ? "输入新值以替换" : credential.placeholder
+        if status.fromPrimaryEnv { return L("环境变量 %@ 优先", credential.env) }
+        if status.fromFallback { return L("输入专用 Key 覆盖复用凭证") }
+        return status.configured ? L("输入新值以替换") : credential.placeholder
     }
 
     private func hasSecretDraft(for descriptor: CredentialDescriptor) -> Bool {
@@ -1284,7 +1291,7 @@ struct SettingsView: View {
 
         state.applySettings()
         if showNote {
-            credentialNotes[descriptor.id] = ok ? .saved("已保存到本机 ✓") : .failed("保存失败：检查 secrets.json 权限。")
+            credentialNotes[descriptor.id] = ok ? .saved(L("已保存到本机 ✓")) : .failed(L("保存失败：检查 secrets.json 权限。"))
             clearCredentialNote(descriptor.id)
         }
         return ok
@@ -1292,35 +1299,35 @@ struct SettingsView: View {
 
     private func saveAndRetryCredentialService(_ descriptor: CredentialDescriptor) {
         guard saveCredentialService(descriptor, showNote: false) else {
-            credentialNotes[descriptor.id] = .failed("保存失败，未重试。")
+            credentialNotes[descriptor.id] = .failed(L("保存失败，未重试。"))
             clearCredentialNote(descriptor.id)
             return
         }
         guard let providerID = descriptor.linkedEngineID else {
-            credentialNotes[descriptor.id] = .valid("已保存。当前服务无需翻译重试。")
+            credentialNotes[descriptor.id] = .valid(L("已保存。当前服务无需翻译重试。"))
             clearCredentialNote(descriptor.id)
             return
         }
-        credentialNotes[descriptor.id] = .saved("已保存，正在重试 \(descriptor.name)…")
+        credentialNotes[descriptor.id] = .saved(L("已保存，正在重试 %@…", descriptor.name))
         onRetryProvider(providerID)
         clearCredentialNote(descriptor.id, after: 3)
     }
 
     private func validateCredentialService(_ descriptor: CredentialDescriptor) {
         guard saveCredentialService(descriptor, showNote: false) else {
-            credentialNotes[descriptor.id] = .failed("保存失败，无法验证。")
+            credentialNotes[descriptor.id] = .failed(L("保存失败，无法验证。"))
             clearCredentialNote(descriptor.id)
             return
         }
 
         guard credentialDisplayStatus(for: descriptor).configured || !descriptor.requiresCredential else {
-            credentialNotes[descriptor.id] = .failed("未配置：先输入并保存 Key。")
+            credentialNotes[descriptor.id] = .failed(L("未配置：先输入并保存 Key。"))
             clearCredentialNote(descriptor.id)
             return
         }
 
         guard let engineID = descriptor.linkedEngineID, descriptor.supportsValidation else {
-            credentialNotes[descriptor.id] = .valid(descriptor.requiresCredential ? "已配置 ✓" : "此服务无需在线验证")
+            credentialNotes[descriptor.id] = .valid(descriptor.requiresCredential ? L("已配置 ✓") : L("此服务无需在线验证"))
             clearCredentialNote(descriptor.id)
             return
         }
@@ -1328,13 +1335,13 @@ struct SettingsView: View {
         credentialNotes[descriptor.id] = .validating
         Task { @MainActor in
             guard let provider = EngineValidator.makeConfiguredProvider(id: engineID, settings: settings) else {
-                credentialNotes[descriptor.id] = .failed("服务未启用或不可用。")
+                credentialNotes[descriptor.id] = .failed(L("服务未启用或不可用。"))
                 clearCredentialNote(descriptor.id)
                 return
             }
             switch await EngineValidator.validateDetailed(provider) {
             case .passed:
-                credentialNotes[descriptor.id] = .valid("验证通过 ✓")
+                credentialNotes[descriptor.id] = .valid(L("验证通过 ✓"))
             case .failed(let message):
                 credentialNotes[descriptor.id] = .failed(message)
             }
@@ -1395,16 +1402,16 @@ struct SettingsView: View {
             return
         }
         guard let spec = HotKeySpec.from(event: event) else {
-            validateNote = "请至少包含一个修饰键"
+            validateNote = L("请至少包含一个修饰键")
             return
         }
         if let conflict = ShortcutAction.allCases.first(where: { $0 != action && settings.shortcutSpec(for: $0) == spec }) {
-            validateNote = "快捷键已被「\(conflict.title)」使用"
+            validateNote = L("快捷键已被「%@」使用", conflict.title)
             return
         }
         settings.setShortcutSpec(spec, for: action)
         stopShortcutRecording()
-        savedNote = "已设置 \(action.title)：\(spec.displayText)"
+        savedNote = L("已设置 %@：%@", action.title, spec.displayText)
         DispatchQueue.main.asyncAfter(deadline: .now() + 2) { savedNote = "" }
     }
 
@@ -1475,7 +1482,7 @@ struct SettingsView: View {
 
     private func endpointPlaceholder(for descriptor: CredentialDescriptor) -> String {
         switch descriptor.id {
-        case "openai": return "可选"
+        case "openai": return L("可选")
         case "azure-openai": return "Azure deployment URL"
         default: return descriptor.defaultEndpoint ?? "Endpoint"
         }
@@ -1515,8 +1522,8 @@ struct SettingsView: View {
 
     private var sameBundleInstanceSummary: String {
         let apps = runningSameBundleApps
-        if apps.count <= 1 { return "仅当前实例" }
-        return "\(apps.count) 个实例，URL Scheme 可能路由到旧版本"
+        if apps.count <= 1 { return L("仅当前实例") }
+        return L("%d 个实例，URL Scheme 可能路由到旧版本", apps.count)
     }
 
     private var hasSameBundleConflict: Bool {
@@ -1553,7 +1560,7 @@ struct SettingsView: View {
         clearKeyFields()
         loadAdvancedDrafts()
         state.applySettings()
-        savedNote = ok ? "已保存全部更改 ✓" : "部分密钥保存失败"
+        savedNote = ok ? L("已保存全部更改 ✓") : L("部分密钥保存失败")
         DispatchQueue.main.asyncAfter(deadline: .now() + 2) { savedNote = "" }
     }
 
@@ -1583,15 +1590,15 @@ struct SettingsView: View {
     }
 
     private func clearSecret(_ account: String, serviceID: String? = nil) {
-        guard confirm(title: "清除这项密钥？", message: "清除后，对应服务会在下次翻译时显示为需配置。") else { return }
+        guard confirm(title: L("清除这项密钥？"), message: L("清除后，对应服务会在下次翻译时显示为需配置。")) else { return }
         settings.removeKey(account: account)
         secretDrafts[account] = ""
         state.applySettings()
         if let serviceID {
-            credentialNotes[serviceID] = .saved("已清除 ✓")
+            credentialNotes[serviceID] = .saved(L("已清除 ✓"))
             clearCredentialNote(serviceID)
         } else {
-            savedNote = "已清除 ✓"
+            savedNote = L("已清除 ✓")
             DispatchQueue.main.asyncAfter(deadline: .now() + 2) { savedNote = "" }
         }
     }
@@ -1601,8 +1608,8 @@ struct SettingsView: View {
         alert.messageText = title
         alert.informativeText = message
         alert.alertStyle = .warning
-        alert.addButton(withTitle: "继续")
-        alert.addButton(withTitle: "取消")
+        alert.addButton(withTitle: L("继续"))
+        alert.addButton(withTitle: L("取消"))
         return alert.runModal() == .alertFirstButtonReturn
     }
 
@@ -1623,7 +1630,7 @@ struct SettingsView: View {
     private func validateOCR() {
         let id = settings.ocrProviderId
         if id == "apple-vision" {
-            validateNote = "离线 OCR 无需 Key ✓"
+            validateNote = L("离线 OCR 无需 Key ✓")
             DispatchQueue.main.asyncAfter(deadline: .now() + 3) { validateNote = "" }
             return
         }
@@ -1635,7 +1642,7 @@ struct SettingsView: View {
         case "volcengine-ocr": settings.volcengineOCRKey()?.isEmpty == false
         default: false
         }
-        validateNote = configured ? "OCR 密钥已配置 ✓" : "OCR 密钥未配置"
+        validateNote = configured ? L("OCR 密钥已配置 ✓") : L("OCR 密钥未配置")
         DispatchQueue.main.asyncAfter(deadline: .now() + 3) { validateNote = "" }
     }
 }

@@ -15,10 +15,10 @@ enum ShortcutAction: String, CaseIterable, Identifiable {
 
     var title: String {
         switch self {
-        case .selection: return "划词翻译"
-        case .lookup: return "查词"
-        case .screenshot: return "截图翻译"
-        case .input: return "输入翻译"
+        case .selection: return L("划词翻译")
+        case .lookup: return L("查词")
+        case .screenshot: return L("截图翻译")
+        case .input: return L("输入翻译")
         }
     }
 

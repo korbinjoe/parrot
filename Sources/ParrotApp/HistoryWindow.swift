@@ -23,7 +23,7 @@ final class HistoryWindow {
             })
             let hosting = NSHostingController(rootView: root)
             let win = NSWindow(contentViewController: hosting)
-            win.title = "Parrot 历史"
+            win.title = L("Parrot 历史")
             win.styleMask = [.titled, .closable, .miniaturizable, .resizable]
             win.isReleasedWhenClosed = false
             win.setContentSize(NSSize(width: 760, height: 500))
@@ -45,7 +45,7 @@ private final class HistoryModel: ObservableObject {
     enum Scope: String, CaseIterable, Identifiable {
         case all, favorites
         var id: String { rawValue }
-        var title: String { self == .all ? "全部" : "收藏" }
+        var title: String { self == .all ? L("全部") : L("收藏") }
     }
 
     @Published var records: [TranslationRecord] = []
@@ -151,7 +151,7 @@ private struct HistoryView: View {
                                 HistoryRow(record: rec, selected: model.selectedId == rec.id)
                             }
                             .buttonStyle(.plain)
-                            .accessibilityLabel("查看历史记录")
+                            .accessibilityLabel(L("查看历史记录"))
                         }
                     }
                     .padding(Theme.Spacing.s8)
@@ -205,7 +205,7 @@ private struct HistoryView: View {
         VStack(spacing: Theme.Spacing.s8) {
             Image(systemName: model.scope == .favorites ? "star" : "clock")
                 .font(.system(size: 28)).foregroundStyle(Theme.Palette.label3)
-            Text(model.scope == .favorites ? "暂无收藏" : "暂无翻译记录")
+            Text(model.scope == .favorites ? L("暂无收藏") : L("暂无翻译记录"))
                 .font(Theme.Font.callout).foregroundStyle(Theme.Palette.label2)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -244,11 +244,11 @@ private struct HistoryView: View {
 
     private func confirmDelete(_ rec: TranslationRecord) {
         let alert = NSAlert()
-        alert.messageText = "删除这条历史记录？"
-        alert.informativeText = "删除后不会影响已复制的文本或当前翻译结果。"
+        alert.messageText = L("删除这条历史记录？")
+        alert.informativeText = L("删除后不会影响已复制的文本或当前翻译结果。")
         alert.alertStyle = .warning
-        alert.addButton(withTitle: "删除")
-        alert.addButton(withTitle: "取消")
+        alert.addButton(withTitle: L("删除"))
+        alert.addButton(withTitle: L("取消"))
         guard alert.runModal() == .alertFirstButtonReturn else { return }
         model.delete(rec)
     }
@@ -318,7 +318,7 @@ private struct HistoryDetail: View {
                 Image(systemName: record.isFavorite ? "star.fill" : "star")
                     .foregroundStyle(record.isFavorite ? Theme.Palette.star : Theme.Palette.label2)
             }
-            .buttonStyle(.borderless).help("收藏")
+            .buttonStyle(.borderless).help(L("收藏"))
             IconButton("doc.on.doc", help: "复制译文") { onCopy(record.translated) }
             IconButton("speaker.wave.2", help: "朗读译文") { onSpeak(record.translated) }
             IconButton("trash", help: "删除") { onDelete() }
@@ -362,7 +362,7 @@ private struct HistoryDetail: View {
     private func outcomeCard(_ outcome: TranslationRecordOutcome) -> some View {
         VStack(alignment: .leading, spacing: Theme.Spacing.s8) {
             HStack(spacing: Theme.Spacing.s8) {
-                outcomeTag(outcome.displayName.uppercased(), foreground: Theme.Palette.accent, background: Theme.Palette.accentSoft)
+                outcomeTag(outcome.displayName, foreground: Theme.Palette.accent, background: Theme.Palette.accentSoft)
                 if let modelName = outcome.modelName, !modelName.isEmpty {
                     outcomeTag(modelName, foreground: Theme.Palette.label2, background: Theme.Palette.bgControl)
                 }
@@ -391,7 +391,7 @@ private struct HistoryDetail: View {
     }
 
     private func outcomeTag(_ text: String, foreground: Color, background: Color) -> some View {
-        Text(text)
+        Text(L(text).uppercased())
             .font(Theme.Font.tag)
             .lineLimit(1)
             .truncationMode(.middle)

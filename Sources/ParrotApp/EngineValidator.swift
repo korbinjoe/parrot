@@ -24,13 +24,13 @@ enum EngineValidator {
             _ = try await provider.translate(TranslateRequest(text: "hi", from: .en, to: .zh))
             return .passed
         } catch ProviderError.auth {
-            return .failed("鉴权失败：检查 Key 是否正确、是否已开通该服务。")
+            return .failed(L("鉴权失败：检查 Key 是否正确、是否已开通该服务。"))
         } catch ProviderError.notConfigured {
-            return .failed("未配置：先保存 Key，再验证。")
+            return .failed(L("未配置：先保存 Key，再验证。"))
         } catch ProviderError.service(let message) {
-            return .failed("服务返回错误：\(message)")
+            return .failed(L("服务返回错误：%@", message))
         } catch ProviderError.unsupportedLanguage {
-            return .failed("不支持当前验证语言：检查服务区域或语言能力。")
+            return .failed(L("不支持当前验证语言：检查服务区域或语言能力。"))
         } catch {
             // Network/rate-limit still means credentials likely OK.
             return .passed

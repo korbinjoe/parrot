@@ -12,10 +12,10 @@ struct PermissionSnapshot: Equatable {
 
     var summary: String {
         switch (accessibilityGranted, screenRecordingGranted) {
-        case (true, true): return "权限正常"
-        case (false, true): return "辅助功能未开启"
-        case (true, false): return "屏幕录制未开启"
-        case (false, false): return "辅助功能和屏幕录制未开启"
+        case (true, true): return L("权限正常")
+        case (false, true): return L("辅助功能未开启")
+        case (true, false): return L("屏幕录制未开启")
+        case (false, false): return L("辅助功能和屏幕录制未开启")
         }
     }
 }

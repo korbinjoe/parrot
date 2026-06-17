@@ -190,8 +190,8 @@ struct ResultView: View {
             ) {
                 onTogglePinned()
             }
-            .help(panelPresentation.isPinned ? "取消常驻" : "常驻")
-            .accessibilityLabel(panelPresentation.isPinned ? "取消常驻结果面板" : "常驻结果面板")
+            .help(L(panelPresentation.isPinned ? "取消常驻" : "常驻"))
+            .accessibilityLabel(L(panelPresentation.isPinned ? "取消常驻结果面板" : "常驻结果面板"))
             Button {
                 state.toggleFavorite()
                 showFeedback(state.isFavorite ? "已收藏" : "已取消收藏")
@@ -202,7 +202,7 @@ struct ResultView: View {
             }
             .buttonStyle(.borderless)
             .disabled(state.savedRecordId == nil)
-            .help("收藏")
+            .help(L("收藏"))
             IconButton("doc.on.doc", help: "复制原文") { copy(state.actionSourceText) }
             IconButton("speaker.wave.2", help: "朗读原文") { state.speakSource() }
             IconButton("gearshape", help: "打开设置") { onConfigureProvider(nil) }
@@ -241,7 +241,7 @@ struct ResultView: View {
                     }
                 )
                     .frame(height: sourceEditorHeight)
-                    .accessibilityLabel("源文编辑器")
+                    .accessibilityLabel(L("源文编辑器"))
             }
             .frame(maxWidth: .infinity, alignment: .leading)
             HStack {
@@ -252,7 +252,7 @@ struct ResultView: View {
                 } else if state.isSourceDirty {
                     Text("已修改，⌘↩ 重新翻译")
                 } else {
-                    Text("\(state.sourceDraft.count) 个字符")
+                    Text(L("%d 个字符", state.sourceDraft.count))
                 }
                 Menu {
                     Button("删除空行") { state.removeBlankDraftLines() }
@@ -267,8 +267,8 @@ struct ResultView: View {
                 }
                 .menuStyle(.borderlessButton)
                 .disabled(!state.canTranslateDraft)
-                .help("整理源文")
-                .accessibilityLabel("整理源文")
+                .help(L("整理源文"))
+                .accessibilityLabel(L("整理源文"))
                 Button {
                     state.translateDraft()
                 } label: {
@@ -310,17 +310,17 @@ struct ResultView: View {
 
     private var sourceStatusText: String {
         if state.sourceDraftTrimmed.isEmpty {
-            return "编辑源文"
+            return L("编辑源文")
         }
         return sourceLanguageText
     }
 
     private var sourceLanguageText: String {
         if state.sourceLanguage == .auto {
-            if state.detectedSource == .auto { return "自动检测" }
-            return "自动检测 \(LangPill.label(state.detectedSource, auto: ""))"
+            if state.detectedSource == .auto { return L("自动检测") }
+            return L("自动检测 %@", LangPill.label(state.detectedSource, auto: ""))
         }
-        return "来源 \(LangPill.label(state.sourceLanguage, auto: ""))"
+        return L("来源 %@", LangPill.label(state.sourceLanguage, auto: ""))
     }
 
     private func copy(_ text: String) {
@@ -332,9 +332,10 @@ struct ResultView: View {
     }
 
     private func showFeedback(_ text: String) {
-        feedbackText = text
+        let localized = L(text)
+        feedbackText = localized
         DispatchQueue.main.asyncAfter(deadline: .now() + 1.4) {
-            if feedbackText == text { feedbackText = "" }
+            if feedbackText == localized { feedbackText = "" }
         }
     }
 
@@ -399,11 +400,11 @@ private struct WorkspaceNoticeView: View {
                 .font(.system(size: 11, weight: .semibold))
                 .foregroundStyle(tint.opacity(0.85))
                 .frame(width: 16, height: 18)
-            Text(notice.title)
+            Text(L(notice.title))
                 .font(Theme.Font.caption)
                 .foregroundStyle(Theme.Palette.label2)
                 .lineLimit(1)
-            Text(notice.detail)
+            Text(L(notice.detail))
                 .font(Theme.Font.caption)
                 .foregroundStyle(Theme.Palette.label3)
                 .lineLimit(1)
@@ -417,8 +418,8 @@ private struct WorkspaceNoticeView: View {
                     .frame(width: 18, height: 18)
             }
             .buttonStyle(.borderless)
-            .help("隐藏提示")
-            .accessibilityLabel("隐藏提示")
+            .help(L("隐藏提示"))
+            .accessibilityLabel(L("隐藏提示"))
         }
         .padding(.horizontal, 10)
         .frame(height: 30)
@@ -433,21 +434,21 @@ private struct WorkspaceNoticeView: View {
                 .foregroundStyle(tint)
                 .frame(width: 18, height: 20)
             VStack(alignment: .leading, spacing: Theme.Spacing.s4) {
-                Text(notice.title)
+                Text(L(notice.title))
                     .font(Theme.Font.body)
                     .foregroundStyle(Theme.Palette.label)
-                Text(notice.detail)
+                Text(L(notice.detail))
                     .font(Theme.Font.caption)
                     .foregroundStyle(Theme.Palette.label2)
                     .fixedSize(horizontal: false, vertical: true)
                 if notice.primaryAction != nil || notice.secondaryAction != nil {
                     HStack(spacing: Theme.Spacing.s8) {
                         if let primary = notice.primaryAction {
-                            Button(primary.title) { onAction(primary.action) }
+                            Button(L(primary.title)) { onAction(primary.action) }
                                 .controlSize(.small)
                         }
                         if let secondary = notice.secondaryAction {
-                            Button(secondary.title) { onAction(secondary.action) }
+                            Button(L(secondary.title)) { onAction(secondary.action) }
                                 .controlSize(.small)
                         }
                     }
@@ -464,8 +465,8 @@ private struct WorkspaceNoticeView: View {
                     .frame(width: 22, height: 22)
             }
             .buttonStyle(.borderless)
-            .help("隐藏提示")
-            .accessibilityLabel("隐藏提示")
+            .help(L("隐藏提示"))
+            .accessibilityLabel(L("隐藏提示"))
         }
         .padding(.horizontal, Theme.Spacing.s12)
         .padding(.vertical, 10)
@@ -492,11 +493,23 @@ private struct LanguageDirectionControl: View {
 
     private let sourceOptions: [(String, String)] = [
         ("auto", "自动"), ("zh", "中文"), ("en", "English"), ("ja", "日本語"), ("ko", "한국어"),
-        ("fr", "Français"), ("de", "Deutsch"), ("es", "Español"), ("ru", "Русский")
+        ("fr", "Français"), ("de", "Deutsch"), ("es", "Español"), ("ru", "Русский"),
+        ("pt", "Português"), ("it", "Italiano"), ("nl", "Nederlands"), ("pl", "Polski"),
+        ("uk", "Українська"), ("tr", "Türkçe"), ("ar", "العربية"), ("hi", "हिन्दी"),
+        ("id", "Bahasa Indonesia"), ("vi", "Tiếng Việt"), ("th", "ไทย"), ("ms", "Bahasa Melayu"),
+        ("he", "עברית"), ("fa", "فارسی"), ("el", "Ελληνικά"), ("sv", "Svenska"),
+        ("da", "Dansk"), ("fi", "Suomi"), ("no", "Norsk"), ("cs", "Čeština"),
+        ("hu", "Magyar"), ("ro", "Română")
     ]
     private let targetOptions: [(String, String)] = [
         ("zh", "中文"), ("en", "English"), ("ja", "日本語"), ("ko", "한국어"),
-        ("fr", "Français"), ("de", "Deutsch"), ("es", "Español"), ("ru", "Русский")
+        ("fr", "Français"), ("de", "Deutsch"), ("es", "Español"), ("ru", "Русский"),
+        ("pt", "Português"), ("it", "Italiano"), ("nl", "Nederlands"), ("pl", "Polski"),
+        ("uk", "Українська"), ("tr", "Türkçe"), ("ar", "العربية"), ("hi", "हिन्दी"),
+        ("id", "Bahasa Indonesia"), ("vi", "Tiếng Việt"), ("th", "ไทย"), ("ms", "Bahasa Melayu"),
+        ("he", "עברית"), ("fa", "فارسی"), ("el", "Ελληνικά"), ("sv", "Svenska"),
+        ("da", "Dansk"), ("fi", "Suomi"), ("no", "Norsk"), ("cs", "Čeština"),
+        ("hu", "Magyar"), ("ro", "Română")
     ]
 
     var body: some View {
@@ -510,7 +523,7 @@ private struct LanguageDirectionControl: View {
             }
             .buttonStyle(.borderless)
             .disabled(sourceCode == "auto")
-            .help(sourceCode == "auto" ? "自动检测来源语言时不可互换" : "互换来源与目标语言")
+            .help(L(sourceCode == "auto" ? "自动检测来源语言时不可互换" : "互换来源与目标语言"))
             languageMenu(title: shortLabel(targetCode, auto: "中"), options: targetOptions, action: onTargetChange)
         }
         .font(.system(size: 11, weight: .semibold))
@@ -528,10 +541,10 @@ private struct LanguageDirectionControl: View {
     ) -> some View {
         Menu {
             ForEach(options, id: \.0) { code, name in
-                Button(name) { action(code) }
+                Button(L(name)) { action(code) }
             }
         } label: {
-            Text(title)
+            Text(L(title))
                 .foregroundStyle(Theme.Palette.label2)
                 .frame(minWidth: 24)
         }
@@ -592,7 +605,7 @@ private struct SourceComposerTextView: NSViewRepresentable {
         textView.isVerticallyResizable = true
         textView.autoresizingMask = [.width]
         textView.setAccessibilityElement(true)
-        textView.setAccessibilityLabel("源文编辑器")
+        textView.setAccessibilityLabel(L("源文编辑器"))
 
         scrollView.documentView = textView
         context.coordinator.textView = textView
@@ -752,7 +765,7 @@ private struct PendingOutcomeCard: View {
                     EngineTag(modelName, tone: .secondary, preservesCase: true)
                 }
                 Spacer(minLength: 0)
-                Text(provider.softTimedOut ? "仍在生成" : (provider.isSlow ? "生成中" : "请求中"))
+                Text(L(provider.softTimedOut ? "仍在生成" : (provider.isSlow ? "生成中" : "请求中")))
                     .font(Theme.Font.caption)
                     .foregroundStyle(Theme.Palette.label3)
             }
@@ -778,12 +791,12 @@ private struct PendingOutcomeCard: View {
 
     private var message: String {
         if provider.softTimedOut {
-            return "仍在生成；其他已返回结果会按设置顺序保持在原位。"
+            return L("仍在生成；其他已返回结果会按设置顺序保持在原位。")
         }
         if provider.isSlow {
-            return "正在生成；不会改变结果列表顺序。"
+            return L("正在生成；不会改变结果列表顺序。")
         }
-        return "正在请求翻译结果。"
+        return L("正在请求翻译结果。")
     }
 }
 
@@ -835,7 +848,7 @@ private struct EngineTag: View {
     }
 
     var body: some View {
-        Text(preservesCase ? label : label.uppercased())
+        Text(preservesCase ? label : L(label).uppercased())
             .font(Theme.Font.tag)
             .lineLimit(1)
             .truncationMode(.middle)
@@ -874,16 +887,16 @@ private struct RowDivider: View {
 
 private func providerErrorText(_ e: ProviderError) -> String {
     switch e {
-    case .auth: return "鉴权失败，请检查 API Key"
-    case .rateLimited: return "请求过于频繁，请稍后重试"
-    case .network: return "网络错误"
-    case .timeout: return "请求超时"
-    case .unsupportedLanguage: return "不支持的语言"
-    case .notConfigured: return "未配置"
+    case .auth: return L("鉴权失败，请检查 API Key")
+    case .rateLimited: return L("请求过于频繁，请稍后重试")
+    case .network: return L("网络错误")
+    case .timeout: return L("请求超时")
+    case .unsupportedLanguage: return L("不支持的语言")
+    case .notConfigured: return L("未配置")
     case .service(let m):
-        if m.hasPrefix("系统翻译") { return m }
-        return "服务错误：\(m)"
-    case .plugin(let m): return "插件错误：\(m)"
+        if m.hasPrefix("系统翻译") { return L(m) }
+        return L("服务错误：%@", m)
+    case .plugin(let m): return L("插件错误：%@", m)
     }
 }
 
@@ -896,12 +909,12 @@ private func providerNeedsConfiguration(_ e: ProviderError) -> Bool {
 
 private func providerStatusText(_ e: ProviderError?) -> String {
     switch e {
-    case .notConfigured: return "需配置"
-    case .auth: return "鉴权失败"
-    case .rateLimited: return "限流"
-    case .timeout: return "超时"
+    case .notConfigured: return L("需配置")
+    case .auth: return L("鉴权失败")
+    case .rateLimited: return L("限流")
+    case .timeout: return L("超时")
     case .none: return ""
-    default: return "失败"
+    default: return L("失败")
     }
 }
 

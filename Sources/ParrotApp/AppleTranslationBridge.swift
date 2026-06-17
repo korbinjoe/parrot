@@ -155,7 +155,7 @@ final class AppAppleTranslationEngine: HTTPTranslationEngine, @unchecked Sendabl
     static var isSupported: Bool { true }
 
     init(session: URLSession = .shared) {
-        super.init(id: "apple", displayName: "系统翻译", session: session)
+        super.init(id: "apple", displayName: L("系统翻译"), session: session)
     }
 
     override func translate(_ req: TranslateRequest) async throws -> TranslateResult {

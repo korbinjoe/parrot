@@ -183,8 +183,8 @@ private struct InputView: View {
                         .frame(width: 24, height: 24)
                 }
                 .buttonStyle(.plain)
-                .help("关闭")
-                .accessibilityLabel("关闭输入翻译")
+                .help(L("关闭"))
+                .accessibilityLabel(L("关闭输入翻译"))
             }
             .padding(.horizontal, Theme.Spacing.s16)
             .frame(minHeight: 60)

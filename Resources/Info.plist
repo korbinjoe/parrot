@@ -6,6 +6,13 @@
     <string>Parrot</string>
     <key>CFBundleDisplayName</key>
     <string>Parrot</string>
+    <key>CFBundleDevelopmentRegion</key>
+    <string>en</string>
+    <key>CFBundleLocalizations</key>
+    <array>
+        <string>en</string>
+        <string>zh-Hans</string>
+    </array>
     <key>CFBundleIdentifier</key>
     <string>com.parrot.app</string>
     <key>CFBundleVersion</key>

@@ -12,21 +12,21 @@ enum CredentialCategory: String, CaseIterable, Identifiable {
 
     var title: String {
         switch self {
-        case .common: return "常用"
-        case .machine: return "国内与云厂商"
-        case .llm: return "LLM 服务"
-        case .more: return "更多服务"
-        case .ocr: return "文本识别"
-        case .tts: return "语音合成"
+        case .common: return L("常用")
+        case .machine: return L("国内与云厂商")
+        case .llm: return L("LLM 服务")
+        case .more: return L("更多服务")
+        case .ocr: return L("文本识别")
+        case .tts: return L("语音合成")
         }
     }
 
     var filterTitle: String {
         switch self {
-        case .common: return "常用"
-        case .machine: return "云厂商"
+        case .common: return L("常用")
+        case .machine: return L("云厂商")
         case .llm: return "LLM"
-        case .more: return "更多"
+        case .more: return L("更多")
         case .ocr: return "OCR"
         case .tts: return "TTS"
         }
@@ -218,23 +218,23 @@ enum CredentialCatalog {
         CredentialDescriptor(
             id: id,
             aliases: aliases,
-            name: name,
+            name: L(name),
             category: category,
             credential: EngineCredential(
                 account: account,
                 env: env,
-                placeholder: placeholder,
-                missingText: "未配置 Key"
+                placeholder: L(placeholder),
+                missingText: L("未配置 Key")
             ),
             fallbackCredential: fallback,
-            fallbackLabel: fallbackLabel,
+            fallbackLabel: fallbackLabel.map { L($0) },
             linkedEngineID: nil,
             linkedOCRProviderID: category == .ocr ? id : nil,
             linkedTTSProviderID: category == .tts ? id : nil,
             defaultModel: nil,
             defaultEndpoint: nil,
             supportsValidation: false,
-            note: fallbackLabel.map { "未填写专用 Key 时复用\($0)。" }
+            note: fallbackLabel.map { L("未填写专用 Key 时复用%@。", L($0)) }
         )
     }
 }

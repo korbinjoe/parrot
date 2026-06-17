@@ -243,8 +243,8 @@ final class AppState: ObservableObject {
         workspaceNotice = WorkspaceNotice(
             tone: .info,
             systemImage: "doc.text.viewfinder",
-            title: "正在识别截图",
-            detail: "\(providerName) 正在读取框选区域；识别完成后会进入可编辑源文区。",
+            title: L("正在识别截图"),
+            detail: L("%@ 正在读取框选区域；识别完成后会进入可编辑源文区。", L(providerName)),
             prominence: .compact,
             primaryAction: nil,
             secondaryAction: nil
@@ -272,8 +272,8 @@ final class AppState: ObservableObject {
         workspaceNotice = WorkspaceNotice(
             tone: .info,
             systemImage: "doc.text.magnifyingglass",
-            title: "OCR · \(lineCount) 行 · \(confidence)%",
-            detail: "\(providerName) 已自动翻译；可继续校对源文后按 ⌘↩ 重译。",
+            title: L("OCR · %d 行 · %d%%", lineCount, confidence),
+            detail: L("%@ 已自动翻译；可继续校对源文后按 ⌘↩ 重译。", L(providerName)),
             prominence: .compact,
             primaryAction: nil,
             secondaryAction: nil
@@ -288,11 +288,11 @@ final class AppState: ObservableObject {
         workspaceNotice = WorkspaceNotice(
             tone: .warning,
             systemImage: "text.viewfinder",
-            title: "未识别到文字",
-            detail: "\(providerName) 没有读到可翻译文本。请重新框选包含清晰文字的区域，或切换 OCR 引擎。",
+            title: L("未识别到文字"),
+            detail: L("%@ 没有读到可翻译文本。请重新框选包含清晰文字的区域，或切换 OCR 引擎。", L(providerName)),
             prominence: .card,
-            primaryAction: WorkspaceNotice.ButtonSpec(title: "重新截图", action: .retryScreenshot),
-            secondaryAction: WorkspaceNotice.ButtonSpec(title: "识别设置", action: .openOCRSettings)
+            primaryAction: WorkspaceNotice.ButtonSpec(title: L("重新截图"), action: .retryScreenshot),
+            secondaryAction: WorkspaceNotice.ButtonSpec(title: L("识别设置"), action: .openOCRSettings)
         )
     }
 
@@ -303,11 +303,11 @@ final class AppState: ObservableObject {
         workspaceNotice = WorkspaceNotice(
             tone: .error,
             systemImage: "exclamationmark.triangle",
-            title: "截图识别失败",
-            detail: "\(providerName) 无法完成识别。请重试截图，或检查 OCR 引擎配置。",
+            title: L("截图识别失败"),
+            detail: L("%@ 无法完成识别。请重试截图，或检查 OCR 引擎配置。", L(providerName)),
             prominence: .card,
-            primaryAction: WorkspaceNotice.ButtonSpec(title: "重新截图", action: .retryScreenshot),
-            secondaryAction: WorkspaceNotice.ButtonSpec(title: "识别设置", action: .openOCRSettings)
+            primaryAction: WorkspaceNotice.ButtonSpec(title: L("重新截图"), action: .retryScreenshot),
+            secondaryAction: WorkspaceNotice.ButtonSpec(title: L("识别设置"), action: .openOCRSettings)
         )
     }
 
@@ -318,11 +318,11 @@ final class AppState: ObservableObject {
         workspaceNotice = WorkspaceNotice(
             tone: .error,
             systemImage: "lock.shield",
-            title: "需要屏幕录制权限",
-            detail: "Parrot 需要屏幕录制权限才能截图识别。授权后回到这里重新截图。",
+            title: L("需要屏幕录制权限"),
+            detail: L("Parrot 需要屏幕录制权限才能截图识别。授权后回到这里重新截图。"),
             prominence: .card,
-            primaryAction: WorkspaceNotice.ButtonSpec(title: "打开设置", action: .openScreenRecordingSettings),
-            secondaryAction: WorkspaceNotice.ButtonSpec(title: "重新截图", action: .retryScreenshot)
+            primaryAction: WorkspaceNotice.ButtonSpec(title: L("打开设置"), action: .openScreenRecordingSettings),
+            secondaryAction: WorkspaceNotice.ButtonSpec(title: L("重新截图"), action: .retryScreenshot)
         )
     }
 

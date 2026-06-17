@@ -293,20 +293,20 @@ final class AppSettings: ObservableObject {
 
     func secretStatus(account: String, env: String) -> String {
         if let envValue = envNonEmpty(env) {
-            return "环境变量 \(Self.maskSecret(envValue))"
+            return L("环境变量 %@", Self.maskSecret(envValue))
         }
         if let cached = keyCache[account], !cached.isEmpty {
-            return "已配置 \(Self.maskSecret(cached))"
+            return L("已配置 %@", Self.maskSecret(cached))
         }
         if hasStoredSecret(account: account),
            let preview = defaults.string(forKey: secretPreviewKey(account)),
            !preview.isEmpty {
-            return "已配置 \(preview)"
+            return L("已配置 %@", preview)
         }
         if let value = SecretStore.get(account: account), !value.isEmpty {
-            return "已配置 \(Self.maskSecret(value))"
+            return L("已配置 %@", Self.maskSecret(value))
         }
-        return "未配置"
+        return L("未配置")
     }
 
     func envNonEmpty(_ name: String) -> String? {

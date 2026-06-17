@@ -40,13 +40,13 @@ extension OCRCoordinator {
 
     func availableProviders() -> [(id: String, name: String)] {
         [
-            ("apple-vision", "离线文本识别"),
-            ("baidu-ocr", "百度 OCR"),
-            ("tencent-ocr", "腾讯 OCR"),
+            ("apple-vision", L("离线文本识别")),
+            ("baidu-ocr", L("百度 OCR")),
+            ("tencent-ocr", L("腾讯 OCR")),
             ("google-ocr", "Google OCR"),
-            ("youdao-ocr", "有道 OCR"),
-            ("tencent-image-translate", "腾讯图片翻译"),
-            ("volcengine-ocr", "火山 OCR")
+            ("youdao-ocr", L("有道 OCR")),
+            ("tencent-image-translate", L("腾讯图片翻译")),
+            ("volcengine-ocr", L("火山 OCR"))
         ]
     }
 }
@@ -81,11 +81,11 @@ extension TTSCoordinator {
 
     func availableProviders() -> [(id: String, name: String)] {
         [
-            ("system", "离线语音合成"),
-            ("tencent-tts", "腾讯语音合成"),
-            ("google-tts", "Google 语音合成"),
-            ("microsoft-tts", "Microsoft 语音合成"),
-            ("volcengine-tts", "火山语音合成")
+            ("system", L("离线语音合成")),
+            ("tencent-tts", L("腾讯语音合成")),
+            ("google-tts", L("Google 语音合成")),
+            ("microsoft-tts", L("Microsoft 语音合成")),
+            ("volcengine-tts", L("火山语音合成"))
         ]
     }
 }

@@ -72,12 +72,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         appMenu.addItem(appCommand("查看历史", action: #selector(showHistory), key: ""))
         appMenu.addItem(appCommand("设置…", action: #selector(showSettings), key: ","))
         appMenu.addItem(.separator())
-        appMenu.addItem(NSMenuItem(title: "退出 Parrot", action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q"))
+        appMenu.addItem(NSMenuItem(title: L("退出 Parrot"), action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q"))
         appMenuItem.submenu = appMenu
         mainMenu.addItem(appMenuItem)
 
         let editMenuItem = NSMenuItem()
-        let editMenu = NSMenu(title: "编辑")
+        let editMenu = NSMenu(title: L("编辑"))
         editMenu.addItem(command("撤销", action: Selector(("undo:")), key: "z"))
         editMenu.addItem(command("重做", action: Selector(("redo:")), key: "Z"))
         editMenu.addItem(.separator())
@@ -100,7 +100,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     private func command(_ title: String, action: Selector, key: String) -> NSMenuItem {
-        let item = NSMenuItem(title: title, action: action, keyEquivalent: key)
+        let item = NSMenuItem(title: L(title), action: action, keyEquivalent: key)
         item.keyEquivalentModifierMask = key.isEmpty ? [] : [.command]
         item.target = nil
         return item
@@ -164,8 +164,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private func makeStatusItemImage() -> NSImage? {
         if let url = Bundle.main.url(forResource: "MenuBarIconTemplate", withExtension: "png"),
            let image = NSImage(contentsOf: url) {
-            image.isTemplate = true
-            image.size = NSSize(width: 18, height: 18)
+            image.isTemplate = false
+            image.size = NSSize(width: 21, height: 21)
             return image
         }
 
@@ -362,8 +362,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         let alert = NSAlert()
         alert.messageText = permission.title
         alert.informativeText = permission.detail
-        alert.addButton(withTitle: "打开设置")
-        alert.addButton(withTitle: "取消")
+        alert.addButton(withTitle: L("打开设置"))
+        alert.addButton(withTitle: L("取消"))
         if alert.runModal() == .alertFirstButtonReturn {
             permission.openSettings()
         }
@@ -422,17 +422,17 @@ private enum RequiredPermission {
 
     var title: String {
         switch self {
-        case .accessibility: return "Parrot 需要「辅助功能」权限"
-        case .screenRecording: return "Parrot 需要「屏幕录制」权限"
+        case .accessibility: return L("Parrot 需要「辅助功能」权限")
+        case .screenRecording: return L("Parrot 需要「屏幕录制」权限")
         }
     }
 
     var detail: String {
         switch self {
         case .accessibility:
-            return "无法读取选中的文字。请在系统设置中允许 Parrot 使用辅助功能，然后重试划词翻译。"
+            return L("无法读取选中的文字。请在系统设置中允许 Parrot 使用辅助功能，然后重试划词翻译。")
         case .screenRecording:
-            return "无法进行截图识别。请在系统设置中允许 Parrot 录制屏幕，然后重试截图翻译。"
+            return L("无法进行截图识别。请在系统设置中允许 Parrot 录制屏幕，然后重试截图翻译。")
         }
     }
 

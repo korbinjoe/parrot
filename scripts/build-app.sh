@@ -26,6 +26,9 @@ fi
 if [[ -f "$ROOT/Resources/MenuBarIconTemplate.png" ]]; then
     cp "$ROOT/Resources/MenuBarIconTemplate.png" "$RES/MenuBarIconTemplate.png"
 fi
+while IFS= read -r -d '' lproj; do
+    cp -R "$lproj" "$RES/"
+done < <(find "$ROOT/Resources" -maxdepth 1 -type d -name "*.lproj" -print0)
 
 BUNDLE_ID="${PARROT_BUNDLE_ID:-com.parrot.app}"
 DISPLAY_NAME="${PARROT_DISPLAY_NAME:-Parrot}"
