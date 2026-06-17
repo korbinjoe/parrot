@@ -138,8 +138,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     // MARK: - Status item
 
     private func setupStatusItem() {
-        let item = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
-        item.button?.image = NSImage(systemSymbolName: "character.bubble", accessibilityDescription: "Parrot")
+        let item = NSStatusBar.system.statusItem(withLength: NSStatusItem.squareLength)
+        item.button?.image = makeStatusItemImage()
+        item.button?.imagePosition = .imageOnly
+        item.button?.toolTip = "Parrot"
         item.button?.action = #selector(togglePopover)
         item.button?.target = self
         self.statusItem = item
@@ -157,6 +159,19 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         )
         popover.contentViewController = NSHostingController(rootView: content)
         popover.behavior = .transient
+    }
+
+    private func makeStatusItemImage() -> NSImage? {
+        if let url = Bundle.main.url(forResource: "MenuBarIconTemplate", withExtension: "png"),
+           let image = NSImage(contentsOf: url) {
+            image.isTemplate = true
+            image.size = NSSize(width: 18, height: 18)
+            return image
+        }
+
+        let fallback = NSImage(systemSymbolName: "character.bubble", accessibilityDescription: "Parrot")
+        fallback?.isTemplate = true
+        return fallback
     }
 
     @objc private func togglePopover() {
@@ -243,7 +258,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         floating.prepareForExternalCapture()
         let text = SelectionCapture.selectedText()
         DebugLog.log("translateSelection: captured=\(text.map { "\"\($0.prefix(40))\" len=\($0.count)" } ?? "nil")")
-        guard let text, !text.isEmpty else { warnIfNoAccessibility(); return }
+        guard let text, !text.isEmpty else {
+            showPreviousWorkspaceOrWarnIfNeeded()
+            return
+        }
+        if shouldRestorePreviousWorkspace(forCapturedText: text) {
+            restorePreviousWorkspace(reason: "selection unchanged")
+            return
+        }
         runTranslation(text)
     }
 
@@ -264,6 +286,26 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private func warnIfNoAccessibility() {
         guard !SelectionCapture.hasAccessibilityPermission(prompt: false) else { return }
         showPermissionNotice(.accessibility)
+    }
+
+    private func showPreviousWorkspaceOrWarnIfNeeded() {
+        guard SelectionCapture.hasAccessibilityPermission(prompt: false) else {
+            showPermissionNotice(.accessibility)
+            return
+        }
+        restorePreviousWorkspace(reason: "no new selection")
+    }
+
+    private func shouldRestorePreviousWorkspace(forCapturedText text: String) -> Bool {
+        guard state.hasRestorableWorkspace else { return false }
+        let captured = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        return !captured.isEmpty && captured == state.committedSourceTrimmed
+    }
+
+    private func restorePreviousWorkspace(reason: String) {
+        guard state.hasRestorableWorkspace else { return }
+        DebugLog.log("translateSelection: \(reason); restoring previous workspace")
+        floating.show()
     }
 
     @objc private func showSettings() {

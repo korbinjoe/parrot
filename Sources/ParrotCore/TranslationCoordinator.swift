@@ -4,6 +4,7 @@ import Foundation
 public struct AggregatedOutcome: Sendable {
     public let providerId: String
     public let displayName: String
+    public let modelName: String?
     public let result: TranslateResult?
     public let error: ProviderError?
     public let latencyMs: Int
@@ -11,12 +12,14 @@ public struct AggregatedOutcome: Sendable {
     public init(
         providerId: String,
         displayName: String,
+        modelName: String? = nil,
         result: TranslateResult?,
         error: ProviderError?,
         latencyMs: Int
     ) {
         self.providerId = providerId
         self.displayName = displayName
+        self.modelName = modelName
         self.result = result
         self.error = error
         self.latencyMs = latencyMs
@@ -67,6 +70,7 @@ public actor TranslationCoordinator {
                         return AggregatedOutcome(
                             providerId: provider.id,
                             displayName: provider.displayName,
+                            modelName: provider.modelName,
                             result: result,
                             error: nil,
                             latencyMs: Int(Date().timeIntervalSince(start) * 1000)
@@ -76,6 +80,7 @@ public actor TranslationCoordinator {
                         return AggregatedOutcome(
                             providerId: provider.id,
                             displayName: provider.displayName,
+                            modelName: provider.modelName,
                             result: nil,
                             error: pErr,
                             latencyMs: Int(Date().timeIntervalSince(start) * 1000)
@@ -138,6 +143,7 @@ public actor TranslationCoordinator {
             return AggregatedOutcome(
                 providerId: provider.id,
                 displayName: provider.displayName,
+                modelName: provider.modelName,
                 result: result,
                 error: nil,
                 latencyMs: Int(Date().timeIntervalSince(start) * 1000)
@@ -147,6 +153,7 @@ public actor TranslationCoordinator {
             return AggregatedOutcome(
                 providerId: provider.id,
                 displayName: provider.displayName,
+                modelName: provider.modelName,
                 result: nil,
                 error: pErr,
                 latencyMs: Int(Date().timeIntervalSince(start) * 1000)

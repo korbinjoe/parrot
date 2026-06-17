@@ -22,6 +22,17 @@ import Testing
     #expect(outcomes[0].isSuccess)
 }
 
+@Test func coordinatorIncludesProviderModelName() async {
+    let registry = ProviderRegistry()
+    registry.register(ModelEngine())
+    let coordinator = TranslationCoordinator(registry: registry)
+    let outcomes = await coordinator.translateAll(
+        TranslateRequest(text: "world", to: .zh)
+    )
+    #expect(outcomes.first?.displayName == "Model Engine")
+    #expect(outcomes.first?.modelName == "test-model")
+}
+
 @Test func disabledProviderIsExcluded() async {
     let registry = ProviderRegistry()
     registry.register(MockEngine(), enabled: false)
@@ -137,5 +148,17 @@ struct DirectionEchoEngine: TranslationProvider {
         let from = req.from.code ?? "auto"
         let to = req.to.code ?? "auto"
         return TranslateResult(providerId: id, translated: "\(from)->\(to)", detectedFrom: req.from)
+    }
+}
+
+struct ModelEngine: TranslationProvider {
+    let id = "model-engine"
+    let displayName = "Model Engine"
+    let modelName: String? = "test-model"
+    var supportedLanguages: [Language] { [.auto, .zh] }
+    var capabilities: ProviderCapabilities { ProviderCapabilities() }
+
+    func translate(_ req: TranslateRequest) async throws -> TranslateResult {
+        TranslateResult(providerId: id, translated: "ok")
     }
 }

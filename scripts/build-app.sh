@@ -20,6 +20,12 @@ rm -rf "$APP"
 mkdir -p "$MACOS" "$RES"
 cp "$BIN" "$MACOS/Parrot"
 cp "$ROOT/Resources/Info.plist" "$APP/Contents/Info.plist"
+if [[ -f "$ROOT/Resources/AppIcon.icns" ]]; then
+    cp "$ROOT/Resources/AppIcon.icns" "$RES/AppIcon.icns"
+fi
+if [[ -f "$ROOT/Resources/MenuBarIconTemplate.png" ]]; then
+    cp "$ROOT/Resources/MenuBarIconTemplate.png" "$RES/MenuBarIconTemplate.png"
+fi
 
 BUNDLE_ID="${PARROT_BUNDLE_ID:-com.parrot.app}"
 DISPLAY_NAME="${PARROT_DISPLAY_NAME:-Parrot}"

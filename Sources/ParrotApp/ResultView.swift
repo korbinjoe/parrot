@@ -700,6 +700,9 @@ private struct TranslationOutcomeCard: View {
     private var head: some View {
         HStack(spacing: Theme.Spacing.s8) {
             EngineTag(outcome.displayName, tone: outcome.error == nil ? .accent : .danger)
+            if let modelName = outcome.modelName, !modelName.isEmpty {
+                EngineTag(modelName, tone: .secondary, preservesCase: true)
+            }
             if isSlow {
                 Text("较慢生成")
                     .font(Theme.Font.caption)
@@ -745,6 +748,9 @@ private struct PendingOutcomeCard: View {
         VStack(alignment: .leading, spacing: Theme.Spacing.s8) {
             HStack(spacing: Theme.Spacing.s8) {
                 EngineTag(provider.displayName, tone: .secondary)
+                if let modelName = provider.modelName, !modelName.isEmpty {
+                    EngineTag(modelName, tone: .secondary, preservesCase: true)
+                }
                 Spacer(minLength: 0)
                 Text(provider.softTimedOut ? "仍在生成" : (provider.isSlow ? "生成中" : "请求中"))
                     .font(Theme.Font.caption)
@@ -820,15 +826,19 @@ private struct EngineTag: View {
 
     let label: String
     let tone: Tone
+    let preservesCase: Bool
 
-    init(_ label: String, tone: Tone) {
+    init(_ label: String, tone: Tone, preservesCase: Bool = false) {
         self.label = label
         self.tone = tone
+        self.preservesCase = preservesCase
     }
 
     var body: some View {
-        Text(label.uppercased())
+        Text(preservesCase ? label : label.uppercased())
             .font(Theme.Font.tag)
+            .lineLimit(1)
+            .truncationMode(.middle)
             .foregroundStyle(foreground)
             .padding(.horizontal, 6)
             .padding(.vertical, 2)

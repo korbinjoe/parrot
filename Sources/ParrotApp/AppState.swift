@@ -8,6 +8,7 @@ import Network
 struct PendingProviderViewState: Identifiable, Equatable {
     let id: String
     let displayName: String
+    let modelName: String?
     let isSlow: Bool
     var softTimedOut: Bool = false
 }
@@ -104,6 +105,13 @@ final class AppState: ObservableObject {
 
     var shouldKeepWorkspaceVisible: Bool {
         isComposerFocused || isSourceDirty || isRecognizingOCR
+    }
+
+    var hasRestorableWorkspace: Bool {
+        !committedSourceTrimmed.isEmpty
+            || !outcomes.isEmpty
+            || !pendingProviders.isEmpty
+            || workspaceNotice != nil
     }
 
     init() {
@@ -366,6 +374,7 @@ final class AppState: ObservableObject {
             AggregatedOutcome(
                 providerId: $0.id,
                 displayName: $0.name,
+                modelName: configuredModelName(for: $0),
                 result: nil,
                 error: .notConfigured,
                 latencyMs: 0
@@ -376,6 +385,7 @@ final class AppState: ObservableObject {
             PendingProviderViewState(
                 id: $0.id,
                 displayName: $0.displayName,
+                modelName: $0.modelName,
                 isSlow: Self.isSlowProvider($0)
             )
         }
@@ -417,6 +427,14 @@ final class AppState: ObservableObject {
 
     private static func isSlowProvider(_ provider: TranslationProvider) -> Bool {
         provider.id == "opencode" || provider.capabilities.supportsStream
+    }
+
+    private func configuredModelName(for descriptor: EngineDescriptor) -> String? {
+        let model = descriptor.id == "openai"
+            ? settings.openAIModel
+            : (settings.model(for: descriptor.id) ?? descriptor.defaultModel ?? "")
+        let trimmed = model.trimmingCharacters(in: .whitespacesAndNewlines)
+        return trimmed.isEmpty ? nil : trimmed
     }
 
     private func scheduleSlowProviderHints(runID: UUID) {
@@ -470,6 +488,7 @@ final class AppState: ObservableObject {
             return TranslationRecordOutcome(
                 providerId: outcome.providerId,
                 displayName: outcome.displayName,
+                modelName: outcome.modelName,
                 translated: result.translated,
                 latencyMs: outcome.latencyMs
             )
@@ -525,7 +544,14 @@ final class AppState: ObservableObject {
 
         guard let provider = registry.activeProviders().first(where: { $0.id == id }) else {
             if let descriptor = EngineCatalog.descriptor(for: id) {
-                upsertOutcome(AggregatedOutcome(providerId: id, displayName: descriptor.name, result: nil, error: .notConfigured, latencyMs: 0))
+                upsertOutcome(AggregatedOutcome(
+                    providerId: id,
+                    displayName: descriptor.name,
+                    modelName: configuredModelName(for: descriptor),
+                    result: nil,
+                    error: .notConfigured,
+                    latencyMs: 0
+                ))
             }
             return
         }
@@ -533,7 +559,12 @@ final class AppState: ObservableObject {
         let runID = currentTranslationID
         outcomes.removeAll { $0.providerId == id }
         pendingProviders.removeAll { $0.id == id }
-        pendingProviders.append(PendingProviderViewState(id: provider.id, displayName: provider.displayName, isSlow: Self.isSlowProvider(provider)))
+        pendingProviders.append(PendingProviderViewState(
+            id: provider.id,
+            displayName: provider.displayName,
+            modelName: provider.modelName,
+            isSlow: Self.isSlowProvider(provider)
+        ))
         isTranslating = true
 
         Task { [weak self, provider] in
@@ -544,6 +575,7 @@ final class AppState: ObservableObject {
                 outcome = AggregatedOutcome(
                     providerId: provider.id,
                     displayName: provider.displayName,
+                    modelName: provider.modelName,
                     result: result,
                     error: nil,
                     latencyMs: Int(Date().timeIntervalSince(start) * 1000)
@@ -552,6 +584,7 @@ final class AppState: ObservableObject {
                 outcome = AggregatedOutcome(
                     providerId: provider.id,
                     displayName: provider.displayName,
+                    modelName: provider.modelName,
                     result: nil,
                     error: (error as? ProviderError) ?? .network,
                     latencyMs: Int(Date().timeIntervalSince(start) * 1000)

@@ -18,6 +18,8 @@ public final class GeminiEngine: TranslationProvider, @unchecked Sendable {
 
     public init(session: URLSession = .shared) { self.session = session }
 
+    public var modelName: String? { model }
+
     public func configure(_ config: ProviderConfig) throws {
         apiKey = config.extra["apiKey"]
         if let m = config.extra["model"], !m.isEmpty { model = m }

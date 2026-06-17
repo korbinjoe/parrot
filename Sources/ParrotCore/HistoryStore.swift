@@ -5,12 +5,14 @@ public struct TranslationRecordOutcome: Codable, Sendable, Identifiable, Equatab
     public var id: String { providerId }
     public var providerId: String
     public var displayName: String
+    public var modelName: String?
     public var translated: String
     public var latencyMs: Int?
 
-    public init(providerId: String, displayName: String, translated: String, latencyMs: Int? = nil) {
+    public init(providerId: String, displayName: String, modelName: String? = nil, translated: String, latencyMs: Int? = nil) {
         self.providerId = providerId
         self.displayName = displayName
+        self.modelName = modelName
         self.translated = translated
         self.latencyMs = latencyMs
     }

@@ -33,6 +33,7 @@ final class FloatingPanel {
     private var isProgrammaticMove = false
     private var userPositionedPanel = false
     private var lastStableFrame: NSRect?
+    private var suppressFocusLossHideUntil: Date?
 
     init(
         state: AppState,
@@ -48,6 +49,7 @@ final class FloatingPanel {
         if panel == nil { build() }
         if focusComposer {
             NSApp.activate(ignoringOtherApps: true)
+            suppressFocusLossHideUntil = Date().addingTimeInterval(0.8)
         }
         let wasVisible = panel?.isVisible == true
         if !wasVisible {
@@ -91,6 +93,7 @@ final class FloatingPanel {
         panel?.orderOut(nil)
         panel?.alphaValue = 1
         isHiding = false
+        suppressFocusLossHideUntil = nil
         userPositionedPanel = false
         lastStableFrame = nil
     }
@@ -214,13 +217,16 @@ final class FloatingPanel {
     private func hideAfterOutsideClickIfNeeded(at point: NSPoint) {
         guard let panel, panel.isVisible else { return }
         guard !panel.frame.insetBy(dx: -6, dy: -6).contains(point) else { return }
-        hideTransientPanelIfNeeded()
+        hideTransientPanelIfNeeded(respectingActiveWorkspace: false)
     }
 
-    private func hideTransientPanelIfNeeded() {
+    private func hideTransientPanelIfNeeded(respectingActiveWorkspace: Bool = true) {
         guard !presentation.isPinned else { return }
         guard let panel, panel.isVisible else { return }
-        guard !state.shouldKeepWorkspaceVisible else { return }
+        if respectingActiveWorkspace {
+            if let suppressFocusLossHideUntil, Date() < suppressFocusLossHideUntil { return }
+            guard !state.shouldKeepWorkspaceVisible else { return }
+        }
         guard !isHiding else { return }
         isHiding = true
         NSAnimationContext.runAnimationGroup { ctx in

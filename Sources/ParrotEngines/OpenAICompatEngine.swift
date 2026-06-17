@@ -46,6 +46,8 @@ open class OpenAICompatEngine: TranslationProvider, @unchecked Sendable {
         self.session = session
     }
 
+    public var modelName: String? { model }
+
     open func configure(_ config: ProviderConfig) throws {
         apiKey = config.extra["apiKey"]
         if let m = config.extra["model"], !m.isEmpty { model = m }

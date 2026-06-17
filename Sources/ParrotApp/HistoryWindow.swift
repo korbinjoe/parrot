@@ -362,12 +362,10 @@ private struct HistoryDetail: View {
     private func outcomeCard(_ outcome: TranslationRecordOutcome) -> some View {
         VStack(alignment: .leading, spacing: Theme.Spacing.s8) {
             HStack(spacing: Theme.Spacing.s8) {
-                Text(outcome.displayName.uppercased())
-                    .font(Theme.Font.tag)
-                    .foregroundStyle(Theme.Palette.accent)
-                    .padding(.horizontal, 6).padding(.vertical, 2)
-                    .background(Theme.Palette.accentSoft)
-                    .clipShape(RoundedRectangle(cornerRadius: 5))
+                outcomeTag(outcome.displayName.uppercased(), foreground: Theme.Palette.accent, background: Theme.Palette.accentSoft)
+                if let modelName = outcome.modelName, !modelName.isEmpty {
+                    outcomeTag(modelName, foreground: Theme.Palette.label2, background: Theme.Palette.bgControl)
+                }
                 Spacer(minLength: 0)
                 if let latency = outcome.latencyMs {
                     Text("\(latency)ms")
@@ -390,6 +388,18 @@ private struct HistoryDetail: View {
                 Divider()
             }
         }
+    }
+
+    private func outcomeTag(_ text: String, foreground: Color, background: Color) -> some View {
+        Text(text)
+            .font(Theme.Font.tag)
+            .lineLimit(1)
+            .truncationMode(.middle)
+            .foregroundStyle(foreground)
+            .padding(.horizontal, 6)
+            .padding(.vertical, 2)
+            .background(background)
+            .clipShape(RoundedRectangle(cornerRadius: 5))
     }
 
     private var dateLine: some View {

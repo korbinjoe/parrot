@@ -6,6 +6,7 @@ import Foundation
 public protocol TranslationProvider: Sendable {
     var id: String { get }
     var displayName: String { get }
+    var modelName: String? { get }
     var supportedLanguages: [Language] { get }
     var capabilities: ProviderCapabilities { get }
 
@@ -16,6 +17,8 @@ public protocol TranslationProvider: Sendable {
 }
 
 public extension TranslationProvider {
+    var modelName: String? { nil }
+
     func configure(_ config: ProviderConfig) throws {}
 
     func stream(_ req: TranslateRequest) -> AsyncThrowingStream<String, Error> {
