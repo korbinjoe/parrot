@@ -100,6 +100,7 @@ struct IconButton: View {
         .contentShape(RoundedRectangle(cornerRadius: Theme.Radius.control))
         .onHover { hovering = $0 }
         .help(help)
+        .accessibilityLabel(help)
     }
 }
 

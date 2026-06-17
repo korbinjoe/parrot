@@ -19,7 +19,7 @@ final class FloatingPanel {
     private var panel: NSPanel?
     private var hosting: NSHostingController<ResultView>?
     private let state: AppState
-    private let onConfigureProvider: () -> Void
+    private let onConfigureProvider: (String?) -> Void
     private let onWorkspaceNoticeAction: (WorkspaceNotice.Action) -> Void
     private let presentation = FloatingPanelPresentation()
     private var anchorPoint: NSPoint?
@@ -36,7 +36,7 @@ final class FloatingPanel {
 
     init(
         state: AppState,
-        onConfigureProvider: @escaping () -> Void = {},
+        onConfigureProvider: @escaping (String?) -> Void = { _ in },
         onWorkspaceNoticeAction: @escaping (WorkspaceNotice.Action) -> Void = { _ in }
     ) {
         self.state = state

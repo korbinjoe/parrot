@@ -17,7 +17,7 @@ struct ResultView: View {
     @ObservedObject var state: AppState
     @ObservedObject var panelPresentation: FloatingPanelPresentation
     let onTogglePinned: () -> Void
-    let onConfigureProvider: () -> Void
+    let onConfigureProvider: (String?) -> Void
     let onWorkspaceNoticeAction: (WorkspaceNotice.Action) -> Void
     let onClose: () -> Void
 
@@ -29,7 +29,7 @@ struct ResultView: View {
         state: AppState,
         panelPresentation: FloatingPanelPresentation = FloatingPanelPresentation(),
         onTogglePinned: @escaping () -> Void = {},
-        onConfigureProvider: @escaping () -> Void = {},
+        onConfigureProvider: @escaping (String?) -> Void = { _ in },
         onWorkspaceNoticeAction: @escaping (WorkspaceNotice.Action) -> Void = { _ in },
         onClose: @escaping () -> Void = {}
     ) {
@@ -74,7 +74,7 @@ struct ResultView: View {
                                                            onSpeak: { state.speakTranslation($0) },
                                                            onCopy: { copy($0) },
                                                            onRetry: { state.retryProvider(outcome.providerId) },
-                                                           onConfigure: onConfigureProvider)
+                                                           onConfigure: { onConfigureProvider(outcome.providerId) })
                                 case .pending(let provider):
                                     PendingOutcomeCard(provider: provider)
                                 }
@@ -205,6 +205,7 @@ struct ResultView: View {
             .help("收藏")
             IconButton("doc.on.doc", help: "复制原文") { copy(state.actionSourceText) }
             IconButton("speaker.wave.2", help: "朗读原文") { state.speakSource() }
+            IconButton("gearshape", help: "打开设置") { onConfigureProvider(nil) }
             IconButton("xmark", help: "关闭面板") { onClose() }
         }
         .frame(height: 28)

@@ -11,10 +11,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var statusItem: NSStatusItem?
     private lazy var floating = FloatingPanel(
         state: state,
-        onConfigureProvider: { [weak self] in self?.showSettings() },
+        onConfigureProvider: { [weak self] providerID in self?.showSettingsForProvider(providerID) },
         onWorkspaceNoticeAction: { [weak self] action in self?.handleWorkspaceNoticeAction(action) }
     )
-    private lazy var settingsWindow = SettingsWindow(state: state)
+    private lazy var settingsWindow = SettingsWindow(state: state) { [weak self] providerID in
+        self?.state.retryProvider(providerID)
+        self?.floating.show()
+    }
     private lazy var historyWindow = HistoryWindow(state: state) { [weak self] text in
         self?.runTranslation(text)
     }
@@ -265,6 +268,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     @objc private func showSettings() {
         settingsWindow.show()
+    }
+
+    private func showSettingsForProvider(_ providerID: String?) {
+        guard let providerID,
+              let serviceID = CredentialCatalog.normalizedServiceID(providerID) else {
+            settingsWindow.show()
+            return
+        }
+        settingsWindow.show(pane: .keys, focusServiceID: serviceID, retryProviderID: providerID)
     }
 
     @objc private func showHistory() {

@@ -78,6 +78,18 @@ func value(_ element: AXUIElement) -> String {
     (attr(element, kAXValueAttribute) as? String) ?? ""
 }
 
+func description(_ element: AXUIElement) -> String {
+    (attr(element, kAXDescriptionAttribute) as? String) ?? ""
+}
+
+func help(_ element: AXUIElement) -> String {
+    (attr(element, kAXHelpAttribute) as? String) ?? ""
+}
+
+func accessibleNames(_ element: AXUIElement) -> [String] {
+    [title(element), value(element), description(element), help(element)].filter { !$0.isEmpty }
+}
+
 func pointValue(_ element: AXUIElement, _ name: String) -> CGPoint? {
     guard let value = attr(element, name) else { return nil }
     var point = CGPoint.zero
@@ -126,6 +138,12 @@ func walk(_ element: AXUIElement, visit: (AXUIElement) -> Bool) -> AXUIElement? 
 
 func menuItem(named name: String, in app: AXUIElement) -> AXUIElement? {
     walk(app) { role($0) == "AXMenuItem" && title($0) == name }
+}
+
+func button(named name: String, in root: AXUIElement) -> AXUIElement? {
+    walk(root) { element in
+        role(element) == "AXButton" && accessibleNames(element).contains(name)
+    }
 }
 
 func windowTitles(in app: AXUIElement) -> [String] {
@@ -253,6 +271,12 @@ if let input = menuItem(named: "输入翻译", in: app) {
         fail("translation workspace did not appear; windows=\(windowTitles(in: app))")
     }
     assertEditableComposer(in: workspace)
+    guard let settingsButton = button(named: "打开设置", in: workspace) else {
+        fail("translation workspace missing settings button in window controls")
+    }
+    press(settingsButton, name: "打开设置")
+    usleep(800_000)
+    assertWindowTitle("Parrot 设置", in: app)
 }
 
 openURL("parrot://ocr-fixture?text=OCR%20fixture%20line%201%0AOCR%20fixture%20line%202&confidence=0.62&provider=Fixture%20OCR", appURL: appURL)
@@ -272,14 +296,17 @@ if let workspace = window(named: "Parrot 翻译", in: app),
     guard let sizeBeforeResize = sizeValue(workspace, kAXSizeAttribute as String) else {
         fail("could not read workspace size")
     }
-    let targetSize = CGSize(width: sizeBeforeResize.width + 80, height: sizeBeforeResize.height + 80)
+    let targetSize = CGSize(
+        width: sizeBeforeResize.width + 80,
+        height: max(sizeBeforeResize.height - 72, 360)
+    )
     setSize(workspace, targetSize)
     usleep(350_000)
     guard let sizeAfterManualResize = sizeValue(workspace, kAXSizeAttribute as String) else {
         fail("could not read manually resized workspace size")
     }
     guard sizeAfterManualResize.width >= sizeBeforeResize.width + 32,
-          sizeAfterManualResize.height >= sizeBeforeResize.height + 32 else {
+          abs(sizeAfterManualResize.height - sizeBeforeResize.height) >= 32 else {
         fail("workspace did not accept manual resize; before=\(sizeBeforeResize) after=\(sizeAfterManualResize)")
     }
     guard let positionBeforeTranslate = pointValue(workspace, kAXPositionAttribute as String) else {

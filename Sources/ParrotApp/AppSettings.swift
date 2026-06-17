@@ -262,18 +262,19 @@ final class AppSettings: ObservableObject {
         return value
     }
 
-    func setKey(_ value: String, account: String) {
-        if SecretStore.set(value, account: account) {
-            if value.isEmpty {
-                keyCache.removeValue(forKey: account)
-                missingKeyCache.insert(account)
-            } else {
-                keyCache[account] = value
-                missingKeyCache.remove(account)
-            }
-            updateSecretMetadata(account: account, value: value)
-            objectWillChange.send()
+    @discardableResult
+    func setKey(_ value: String, account: String) -> Bool {
+        guard SecretStore.set(value, account: account) else { return false }
+        if value.isEmpty {
+            keyCache.removeValue(forKey: account)
+            missingKeyCache.insert(account)
+        } else {
+            keyCache[account] = value
+            missingKeyCache.remove(account)
         }
+        updateSecretMetadata(account: account, value: value)
+        objectWillChange.send()
+        return true
     }
 
     func removeKey(account: String) {
