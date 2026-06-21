@@ -19,7 +19,7 @@ public final class YoudaoOCRProvider: OCRProvider, @unchecked Sendable {
         guard let creds = TencentCloudSigner.splitCredentials(credentials) else {
             throw ProviderError.notConfigured
         }
-        guard let b64 = image.jpegBase64() else { throw ProviderError.network }
+        guard let b64 = image.parrotJPEGBase64() else { throw ProviderError.network }
         let salt = UUID().uuidString
         let curtime = String(Int(Date().timeIntervalSince1970))
         let signStr = creds.id + truncate(b64) + salt + curtime + creds.secret
@@ -56,12 +56,3 @@ public final class YoudaoOCRProvider: OCRProvider, @unchecked Sendable {
         return String(s.prefix(10)) + String(s.count) + String(s.suffix(10))
     }
 }
-
-private extension CGImage {
-    func jpegBase64() -> String? {
-        let rep = NSBitmapImageRep(cgImage: self)
-        return rep.representation(using: .jpeg, properties: [.compressionFactor: 0.8])?.base64EncodedString()
-    }
-}
-
-import AppKit

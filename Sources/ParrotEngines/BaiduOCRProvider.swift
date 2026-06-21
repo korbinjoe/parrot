@@ -1,4 +1,3 @@
-import AppKit
 import Foundation
 import CoreGraphics
 import ParrotCore
@@ -26,7 +25,7 @@ public final class BaiduOCRProvider: OCRProvider, @unchecked Sendable {
             throw ProviderError.notConfigured
         }
         let token = try await fetchToken(apiKey: creds.id, secret: creds.secret)
-        guard let png = image.pngData()?.base64EncodedString() else { throw ProviderError.network }
+        guard let png = image.parrotPNGData()?.base64EncodedString() else { throw ProviderError.network }
         var request = URLRequest(url: URL(string: "https://aip.baidubce.com/rest/2.0/ocr/v1/general_basic?access_token=\(token)")!)
         request.httpMethod = "POST"
         request.setValue("application/x-www-form-urlencoded", forHTTPHeaderField: "Content-Type")
@@ -62,12 +61,5 @@ public final class BaiduOCRProvider: OCRProvider, @unchecked Sendable {
             throw ProviderError.auth
         }
         return token
-    }
-}
-
-private extension CGImage {
-    func pngData() -> Data? {
-        let rep = NSBitmapImageRep(cgImage: self)
-        return rep.representation(using: .png, properties: [:])
     }
 }

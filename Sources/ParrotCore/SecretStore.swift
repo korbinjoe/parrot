@@ -65,10 +65,18 @@ public enum SecretStore {
     private static func fileURLUnlocked() -> URL {
         if let testFileURL { return testFileURL }
         let base = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first
-            ?? FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent("Library/Application Support")
+            ?? applicationSupportFallbackURL()
         return base
             .appendingPathComponent("Parrot", isDirectory: true)
             .appendingPathComponent("secrets.json")
+    }
+
+    private static func applicationSupportFallbackURL() -> URL {
+        #if os(macOS)
+        FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent("Library/Application Support")
+        #else
+        URL(fileURLWithPath: NSHomeDirectory()).appendingPathComponent("Library/Application Support")
+        #endif
     }
 
     private static func readAll(from url: URL) -> [String: String] {

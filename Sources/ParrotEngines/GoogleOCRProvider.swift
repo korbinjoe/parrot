@@ -16,7 +16,7 @@ public final class GoogleOCRProvider: OCRProvider, @unchecked Sendable {
 
     public func recognize(_ image: CGImage, languageHints: [Language]) async throws -> OCRResult {
         guard let key = apiKey, !key.isEmpty else { throw ProviderError.notConfigured }
-        guard let b64 = image.jpegBase64() else { throw ProviderError.network }
+        guard let b64 = image.parrotJPEGBase64() else { throw ProviderError.network }
         let url = URL(string: "https://vision.googleapis.com/v1/images:annotate?key=\(key)")!
         let body: [String: Any] = [
             "requests": [[
@@ -43,12 +43,3 @@ public final class GoogleOCRProvider: OCRProvider, @unchecked Sendable {
         return OCRResult(fullText: text, blocks: [OCRBlock(text: text, boundingBox: .zero, confidence: 1)], confidence: 0.9)
     }
 }
-
-private extension CGImage {
-    func jpegBase64() -> String? {
-        let rep = NSBitmapImageRep(cgImage: self)
-        return rep.representation(using: .jpeg, properties: [.compressionFactor: 0.8])?.base64EncodedString()
-    }
-}
-
-import AppKit

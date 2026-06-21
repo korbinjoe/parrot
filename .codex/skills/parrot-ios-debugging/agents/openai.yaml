@@ -1,0 +1,4 @@
+interface:
+  display_name: "Parrot iOS Debugging"
+  short_description: "Build, test, and inspect Parrot iOS locally"
+  default_prompt: "Use $parrot-ios-debugging to build, launch, screenshot, and troubleshoot the Parrot iOS simulator app."
