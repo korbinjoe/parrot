@@ -3,7 +3,7 @@ import SwiftUI
 
 struct SettingsView: View {
     @EnvironmentObject private var state: IOSAppState
-    @State private var pane: SettingsPane = .engines
+    @State private var pane: SettingsPane
     @State private var enabledEngines = ["Google 翻译", "DeepL", "OpenAI"]
     @State private var openAIKey = ""
     @State private var openAIModel = "gpt-4o-mini"
@@ -15,6 +15,10 @@ struct SettingsView: View {
 
     private let store = IOSKeychainSecretStore()
     private let openAIAccount = "openai-compatible-api-key"
+
+    init() {
+        _pane = State(initialValue: ProcessInfo.processInfo.arguments.contains("--ui-test-keys") ? .keys : .engines)
+    }
 
     var body: some View {
         VStack(spacing: 0) {
