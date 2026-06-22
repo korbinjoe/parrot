@@ -2,7 +2,7 @@ import Foundation
 
 extension AppSettings {
     func isEngineEnabled(_ id: String) -> Bool {
-        switch id {
+        switch EngineModelConfig.baseEngineID(forProviderID: id) {
         case "google": return googleEnabled
         case "deepl": return deepLEnabled
         case "openai": return openAIEnabled
@@ -35,7 +35,7 @@ extension AppSettings {
     }
 
     func setEngineEnabled(_ id: String, _ value: Bool) {
-        switch id {
+        switch EngineModelConfig.baseEngineID(forProviderID: id) {
         case "google": googleEnabled = value
         case "deepl": deepLEnabled = value
         case "openai": openAIEnabled = value

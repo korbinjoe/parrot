@@ -40,7 +40,7 @@ enum EngineValidator {
     @MainActor
     static func makeConfiguredProvider(id: String, settings: AppSettings) -> TranslationProvider? {
         let registry = ProviderRegistry()
-        EngineBootstrap.registerAll(into: registry, settings: settings)
+        EngineBootstrap.registerAll(into: registry, settings: settings, configureDisabledProviders: true)
         return registry.provider(id: id)
     }
 }

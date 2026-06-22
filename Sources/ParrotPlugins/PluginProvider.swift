@@ -19,17 +19,29 @@ public final class PluginProvider: TranslationProvider, @unchecked Sendable {
         self.capabilities = ProviderCapabilities(
             supportsLookup: caps.contains("lookup"),
             supportsStream: false,
-            supportsPolish: caps.contains("polish")
+            supportsPolish: caps.contains("polish"),
+            terminology: manifest.supportsTerminology == true ? .prompt : .placeholder
         )
     }
 
     public func translate(_ req: TranslateRequest) async throws -> TranslateResult {
-        let query: [String: Any] = [
+        var query: [String: Any] = [
             "text": req.text,
             "from": req.from.code ?? "auto",
             "to": req.to.code ?? "en",
             "mode": modeString(req.mode)
         ]
+        let terminology = TerminologyProcessor.promptConstraints(for: req)
+        if !terminology.isEmpty {
+            query["terminology"] = terminology.map {
+                [
+                    "source": $0.source,
+                    "target": $0.target,
+                    "from": req.from.code ?? "auto",
+                    "to": req.to.code ?? "en"
+                ]
+            }
+        }
         let payload: [String: Any]
         do {
             payload = try await runtime.callTranslate(query: query)

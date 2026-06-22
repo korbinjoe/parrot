@@ -394,7 +394,13 @@ final class AppState: ObservableObject {
 
         scheduleSlowProviderHints(runID: runID)
 
-        let req = TranslateRequest(text: trimmed, from: direction.from, to: direction.to, mode: mode)
+        let req = TranslateRequest(
+            text: trimmed,
+            from: direction.from,
+            to: direction.to,
+            mode: mode,
+            terminology: settings.terminologySnapshot()
+        )
         let coordinator = coordinator
         translationTask = Task { [weak self, coordinator] in
             let stream = await coordinator.translateIncrementally(req)
@@ -430,11 +436,21 @@ final class AppState: ObservableObject {
     }
 
     private func configuredModelName(for descriptor: EngineDescriptor) -> String? {
-        let model = descriptor.id == "openai"
-            ? settings.openAIModel
-            : (settings.model(for: descriptor.id) ?? descriptor.defaultModel ?? "")
+        let model = settings.model(for: descriptor.id) ?? descriptor.defaultModel ?? ""
         let trimmed = model.trimmingCharacters(in: .whitespacesAndNewlines)
         return trimmed.isEmpty ? nil : trimmed
+    }
+
+    private func configuredModelName(forProviderID providerID: String) -> String? {
+        let engineID = EngineModelConfig.baseEngineID(forProviderID: providerID)
+        guard let descriptor = EngineCatalog.descriptor(for: engineID),
+              let defaultModel = descriptor.defaultModel else {
+            return nil
+        }
+        let model = settings.modelConfigs(for: engineID, defaultModel: defaultModel)
+            .first { $0.providerID(engineID: engineID) == providerID }?
+            .trimmedName
+        return model?.isEmpty == false ? model : configuredModelName(for: descriptor)
     }
 
     private func scheduleSlowProviderHints(runID: UUID) {
@@ -490,7 +506,8 @@ final class AppState: ObservableObject {
                 displayName: outcome.displayName,
                 modelName: outcome.modelName,
                 translated: result.translated,
-                latencyMs: outcome.latencyMs
+                latencyMs: outcome.latencyMs,
+                terminologyApplication: result.terminologyApplication
             )
         }
         guard let primary = successes.first else { return }
@@ -540,14 +557,20 @@ final class AppState: ObservableObject {
             from: settings.sourceLanguage,
             to: settings.targetLanguage
         )
-        let req = TranslateRequest(text: trimmed, from: direction.from, to: direction.to, mode: currentMode)
+        let req = TranslateRequest(
+            text: trimmed,
+            from: direction.from,
+            to: direction.to,
+            mode: currentMode,
+            terminology: settings.terminologySnapshot()
+        )
 
         guard let provider = registry.activeProviders().first(where: { $0.id == id }) else {
             if let descriptor = EngineCatalog.descriptor(for: id) {
                 upsertOutcome(AggregatedOutcome(
                     providerId: id,
                     displayName: descriptor.name,
-                    modelName: configuredModelName(for: descriptor),
+                    modelName: configuredModelName(forProviderID: id) ?? configuredModelName(for: descriptor),
                     result: nil,
                     error: .notConfigured,
                     latencyMs: 0
@@ -568,28 +591,7 @@ final class AppState: ObservableObject {
         isTranslating = true
 
         Task { [weak self, provider] in
-            let start = Date()
-            let outcome: AggregatedOutcome
-            do {
-                let result = try await provider.translate(req)
-                outcome = AggregatedOutcome(
-                    providerId: provider.id,
-                    displayName: provider.displayName,
-                    modelName: provider.modelName,
-                    result: result,
-                    error: nil,
-                    latencyMs: Int(Date().timeIntervalSince(start) * 1000)
-                )
-            } catch {
-                outcome = AggregatedOutcome(
-                    providerId: provider.id,
-                    displayName: provider.displayName,
-                    modelName: provider.modelName,
-                    result: nil,
-                    error: (error as? ProviderError) ?? .network,
-                    latencyMs: Int(Date().timeIntervalSince(start) * 1000)
-                )
-            }
+            let outcome = await TranslationCoordinator.runProvider(provider, req: req, baseTimeout: 15)
             await self?.handleIncrementalOutcome(outcome, runID: runID)
             await MainActor.run {
                 guard let self else { return }

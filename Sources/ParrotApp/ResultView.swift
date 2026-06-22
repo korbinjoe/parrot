@@ -353,8 +353,8 @@ struct ResultView: View {
         var pendingByID: [String: PendingProviderViewState] = [:]
         for provider in state.pendingProviders { pendingByID[provider.id] = provider }
         let observedIDs = state.outcomes.map(\.providerId) + state.pendingProviders.map(\.id)
-        let orderedIDs = EngineBootstrap.resolvedOrder(state.settings.engineOrder)
-            + observedIDs.filter { !EngineBootstrap.defaultOrder.contains($0) }
+        let configuredIDs = EngineBootstrap.resolvedProviderOrder(settings: state.settings)
+        let orderedIDs = configuredIDs + observedIDs.filter { !configuredIDs.contains($0) }
 
         var seen: Set<String> = []
         var slots: [TranslationSlot] = []
@@ -684,11 +684,13 @@ private struct TranslationOutcomeCard: View {
     let onCopy: (String) -> Void
     let onRetry: () -> Void
     let onConfigure: () -> Void
+    @State private var showTerminologyDetails = false
 
     var body: some View {
         VStack(alignment: .leading, spacing: Theme.Spacing.s8) {
             head
             content
+            terminologyDetails
             if let result = outcome.result {
                 HStack(spacing: 2) {
                     Spacer(minLength: 0)
@@ -715,6 +717,12 @@ private struct TranslationOutcomeCard: View {
             EngineTag(outcome.displayName, tone: outcome.error == nil ? .accent : .danger)
             if let modelName = outcome.modelName, !modelName.isEmpty {
                 EngineTag(modelName, tone: .secondary, preservesCase: true)
+            }
+            if let application = outcome.result?.terminologyApplication {
+                TerminologyStatusButton(
+                    application: application,
+                    isExpanded: $showTerminologyDetails
+                )
             }
             if isSlow {
                 Text("较慢生成")
@@ -750,6 +758,26 @@ private struct TranslationOutcomeCard: View {
                     .controlSize(.small)
                 }
             }
+        }
+    }
+
+    @ViewBuilder
+    private var terminologyDetails: some View {
+        if showTerminologyDetails,
+           let matches = outcome.result?.terminologyApplication?.matches,
+           !matches.isEmpty {
+            VStack(alignment: .leading, spacing: 3) {
+                ForEach(matches) { match in
+                    Text("\(match.source) -> \(match.target)")
+                        .font(Theme.Font.caption)
+                        .foregroundStyle(Theme.Palette.label2)
+                }
+            }
+            .padding(.horizontal, Theme.Spacing.s8)
+            .padding(.vertical, Theme.Spacing.s4)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(Theme.Palette.bgControl)
+            .clipShape(RoundedRectangle(cornerRadius: Theme.Radius.control))
         }
     }
 }
@@ -873,6 +901,61 @@ private struct EngineTag: View {
         case .secondary: return Theme.Palette.bgControl
         case .danger: return Theme.Palette.danger.opacity(0.12)
         }
+    }
+}
+
+private struct TerminologyStatusButton: View {
+    let application: TerminologyApplication
+    @Binding var isExpanded: Bool
+
+    var body: some View {
+        Button {
+            if application.matchCount > 0 {
+                isExpanded.toggle()
+            }
+        } label: {
+            HStack(spacing: 3) {
+                Text(label)
+                if application.matchCount > 0 {
+                    Image(systemName: isExpanded ? "chevron.up" : "chevron.down")
+                        .font(.system(size: 8, weight: .semibold))
+                }
+            }
+            .font(Theme.Font.tag)
+            .foregroundStyle(foreground)
+            .padding(.horizontal, 7)
+            .frame(height: 20)
+            .background(background)
+            .clipShape(RoundedRectangle(cornerRadius: Theme.Radius.control))
+        }
+        .buttonStyle(.plain)
+        .disabled(application.matchCount == 0)
+        .help(label)
+    }
+
+    private var label: String {
+        if !application.restorationSucceeded { return "术语恢复失败" }
+        if application.matchCount == 0 { return "术语未命中" }
+        switch application.strategy {
+        case .placeholder, .promptAndPlaceholder, .nativeGlossary:
+            return "术语已应用 · \(application.matchCount)"
+        case .prompt:
+            return "术语约束 · \(application.matchCount)"
+        case .unsupported:
+            return "不支持术语"
+        }
+    }
+
+    private var foreground: Color {
+        if !application.restorationSucceeded { return Theme.Palette.danger }
+        if application.matchCount == 0 { return Theme.Palette.label3 }
+        return Theme.Palette.label2
+    }
+
+    private var background: Color {
+        if !application.restorationSucceeded { return Theme.Palette.danger.opacity(0.12) }
+        if application.matchCount == 0 { return Theme.Palette.bgControl }
+        return Theme.Palette.accentSoft
     }
 }
 

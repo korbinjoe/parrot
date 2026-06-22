@@ -372,6 +372,9 @@ private struct HistoryDetail: View {
                         .font(Theme.Font.caption.monospacedDigit())
                         .foregroundStyle(Theme.Palette.label3)
                 }
+                if let application = outcome.terminologyApplication, application.matchCount > 0 {
+                    outcomeTag(terminologyHistoryLabel(application), foreground: Theme.Palette.label2, background: Theme.Palette.accentSoft)
+                }
                 IconButton("doc.on.doc", help: "复制此结果", size: 11) { onCopy(outcome.translated) }
                 IconButton("speaker.wave.2", help: "朗读此结果", size: 11) { onSpeak(outcome.translated) }
             }
@@ -411,5 +414,15 @@ private struct HistoryDetail: View {
         let f = DateFormatter()
         f.dateFormat = "yyyy-MM-dd HH:mm"
         return f.string(from: date)
+    }
+
+    private func terminologyHistoryLabel(_ application: TerminologyApplication) -> String {
+        if !application.restorationSucceeded { return "术语恢复失败" }
+        switch application.strategy {
+        case .prompt:
+            return "术语约束 · \(application.matchCount)"
+        default:
+            return "术语已应用 · \(application.matchCount)"
+        }
     }
 }

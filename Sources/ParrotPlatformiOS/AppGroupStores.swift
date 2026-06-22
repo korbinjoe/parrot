@@ -1,4 +1,5 @@
 import Foundation
+import ParrotCore
 import ParrotPlatform
 
 public struct AppGroupContainer: Sendable {
@@ -43,5 +44,9 @@ public enum AppGroupStoreFactory {
 
     public static func handoffStore(container: AppGroupContainer) -> FileHandoffStore {
         FileHandoffStore(fileURL: container.url.appendingPathComponent("latest-handoff.json"))
+    }
+
+    public static func terminologyStore(container: AppGroupContainer) -> TerminologyStore {
+        TerminologyStore(fileURL: container.url.appendingPathComponent("terminology.json"))
     }
 }

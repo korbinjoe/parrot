@@ -17,45 +17,65 @@ enum EngineBootstrap {
     }
 
     @MainActor
-    static func registerAll(into registry: ProviderRegistry, settings: AppSettings) {
+    static func resolvedProviderOrder(settings: AppSettings) -> [String] {
+        resolvedOrder(settings.engineOrder).flatMap { engineID -> [String] in
+            guard let descriptor = EngineCatalog.descriptor(for: engineID),
+                  descriptor.defaultModel != nil else {
+                return [engineID]
+            }
+            let models = settings.modelConfigs(for: engineID, defaultModel: descriptor.defaultModel)
+            return models.map { $0.providerID(engineID: engineID) }
+        }
+    }
+
+    @MainActor
+    static func registerAll(
+        into registry: ProviderRegistry,
+        settings: AppSettings,
+        configureDisabledProviders: Bool = false
+    ) {
+        let keyIfNeeded: (Bool, () -> String?) -> String? = { enabled, loadKey in
+            (enabled || configureDisabledProviders) ? loadKey() : nil
+        }
+
         registry.register(GoogleEngine(), enabled: settings.googleEnabled)
-        registerKeyed(registry, DeepLEngine(), key: settings.deepLEnabled ? settings.deepLKey() : nil, enabled: settings.deepLEnabled)
-        registerKeyed(registry, TencentEngine(), key: settings.tencentEnabled ? settings.tencentCredentials() : nil, enabled: settings.tencentEnabled)
-        registerKeyed(registry, BaiduEngine(), key: settings.baiduEnabled ? settings.baiduCredentials() : nil, enabled: settings.baiduEnabled)
-        registerKeyed(registry, YoudaoEngine(), key: settings.youdaoEnabled ? settings.youdaoCredentials() : nil, enabled: settings.youdaoEnabled)
-        registerKeyed(registry, CaiyunEngine(), key: settings.caiyunEnabled ? settings.caiyunToken() : nil, enabled: settings.caiyunEnabled)
-        registerMicrosoft(registry, settings)
+        registerKeyed(registry, DeepLEngine(), key: keyIfNeeded(settings.deepLEnabled, settings.deepLKey), enabled: settings.deepLEnabled)
+        registerKeyed(registry, TencentEngine(), key: keyIfNeeded(settings.tencentEnabled, settings.tencentCredentials), enabled: settings.tencentEnabled)
+        registerKeyed(registry, BaiduEngine(), key: keyIfNeeded(settings.baiduEnabled, settings.baiduCredentials), enabled: settings.baiduEnabled)
+        registerKeyed(registry, YoudaoEngine(), key: keyIfNeeded(settings.youdaoEnabled, settings.youdaoCredentials), enabled: settings.youdaoEnabled)
+        registerKeyed(registry, CaiyunEngine(), key: keyIfNeeded(settings.caiyunEnabled, settings.caiyunToken), enabled: settings.caiyunEnabled)
+        registerMicrosoft(registry, settings, configureWhenDisabled: configureDisabledProviders)
 
         if #available(macOS 15.0, *), AppleTranslationEngine.isSupported {
             registry.register(AppAppleTranslationEngine(), enabled: settings.appleEnabled)
         }
 
-        registerLLM(registry, OpenAIEngine(), key: settings.openAIEnabled ? settings.openAIKey() : nil, enabled: settings.openAIEnabled, settings: settings, model: settings.openAIModel, endpoint: settings.openAIEndpoint)
-        registerLLM(registry, OpenCodeGoEngine(), key: settings.openCodeEnabled ? settings.openCodeKey() : nil, enabled: settings.openCodeEnabled, settings: settings, model: settings.model(for: "opencode"))
-        registerLLM(registry, DeepSeekEngine(), key: settings.deepSeekEnabled ? settings.deepSeekKey() : nil, enabled: settings.deepSeekEnabled, settings: settings, model: settings.model(for: "deepseek"))
-        registerLLM(registry, GeminiEngine(), key: settings.geminiEnabled ? settings.geminiKey() : nil, enabled: settings.geminiEnabled, settings: settings, model: settings.model(for: "gemini"))
-        registerLLM(registry, GroqEngine(), key: settings.groqEnabled ? settings.groqKey() : nil, enabled: settings.groqEnabled, settings: settings, model: settings.model(for: "groq"))
-        registerLLM(registry, OllamaEngine(), key: settings.ollamaEnabled ? settings.ollamaKey() : nil, enabled: settings.ollamaEnabled, settings: settings, model: settings.model(for: "ollama"), endpoint: settings.ollamaEndpoint.isEmpty ? nil : settings.ollamaEndpoint)
-        registerLLM(registry, QwenEngine(), key: settings.qwenEnabled ? settings.qwenKey() : nil, enabled: settings.qwenEnabled, settings: settings, model: settings.model(for: "qwen"))
-        registerLLM(registry, DoubaoEngine(), key: settings.doubaoEnabled ? settings.doubaoKey() : nil, enabled: settings.doubaoEnabled, settings: settings, model: settings.model(for: "doubao"))
-        registerLLM(registry, KimiEngine(), key: settings.kimiEnabled ? settings.kimiKey() : nil, enabled: settings.kimiEnabled, settings: settings, model: settings.model(for: "kimi"))
-        registerLLM(registry, ZhipuEngine(), key: settings.zhipuEnabled ? settings.zhipuKey() : nil, enabled: settings.zhipuEnabled, settings: settings, model: settings.model(for: "zhipu"))
-        registerLLM(registry, SiliconFlowEngine(), key: settings.siliconFlowEnabled ? settings.siliconFlowKey() : nil, enabled: settings.siliconFlowEnabled, settings: settings, model: settings.model(for: "siliconflow"))
+        registerLLMModels(registry, makeProvider: { OpenAIEngine() }, key: keyIfNeeded(settings.openAIEnabled, settings.openAIKey), enabled: settings.openAIEnabled, settings: settings, engineID: "openai", defaultModel: "gpt-4o-mini", endpoint: settings.openAIEndpoint)
+        registerLLMModels(registry, makeProvider: { OpenCodeGoEngine() }, key: keyIfNeeded(settings.openCodeEnabled, settings.openCodeKey), enabled: settings.openCodeEnabled, settings: settings, engineID: "opencode", defaultModel: "glm-5.1")
+        registerLLMModels(registry, makeProvider: { DeepSeekEngine() }, key: keyIfNeeded(settings.deepSeekEnabled, settings.deepSeekKey), enabled: settings.deepSeekEnabled, settings: settings, engineID: "deepseek", defaultModel: "deepseek-chat")
+        registerLLMModels(registry, makeProvider: { GeminiEngine() }, key: keyIfNeeded(settings.geminiEnabled, settings.geminiKey), enabled: settings.geminiEnabled, settings: settings, engineID: "gemini", defaultModel: "gemini-2.0-flash")
+        registerLLMModels(registry, makeProvider: { GroqEngine() }, key: keyIfNeeded(settings.groqEnabled, settings.groqKey), enabled: settings.groqEnabled, settings: settings, engineID: "groq", defaultModel: "llama-3.3-70b-versatile")
+        registerLLMModels(registry, makeProvider: { OllamaEngine() }, key: keyIfNeeded(settings.ollamaEnabled, settings.ollamaKey), enabled: settings.ollamaEnabled, settings: settings, engineID: "ollama", defaultModel: "glm-5:cloud", endpoint: settings.ollamaEndpoint.isEmpty ? nil : settings.ollamaEndpoint)
+        registerLLMModels(registry, makeProvider: { QwenEngine() }, key: keyIfNeeded(settings.qwenEnabled, settings.qwenKey), enabled: settings.qwenEnabled, settings: settings, engineID: "qwen", defaultModel: "qwen-turbo")
+        registerLLMModels(registry, makeProvider: { DoubaoEngine() }, key: keyIfNeeded(settings.doubaoEnabled, settings.doubaoKey), enabled: settings.doubaoEnabled, settings: settings, engineID: "doubao", defaultModel: "doubao-lite-32k")
+        registerLLMModels(registry, makeProvider: { KimiEngine() }, key: keyIfNeeded(settings.kimiEnabled, settings.kimiKey), enabled: settings.kimiEnabled, settings: settings, engineID: "kimi", defaultModel: "moonshot-v1-8k")
+        registerLLMModels(registry, makeProvider: { ZhipuEngine() }, key: keyIfNeeded(settings.zhipuEnabled, settings.zhipuKey), enabled: settings.zhipuEnabled, settings: settings, engineID: "zhipu", defaultModel: "glm-4.7-flash")
+        registerLLMModels(registry, makeProvider: { SiliconFlowEngine() }, key: keyIfNeeded(settings.siliconFlowEnabled, settings.siliconFlowKey), enabled: settings.siliconFlowEnabled, settings: settings, engineID: "siliconflow", defaultModel: "Qwen/Qwen2.5-7B-Instruct")
 
-        registerLLM(registry, ErnieEngine(), key: settings.ernieEnabled ? settings.ernieKey() : nil, enabled: settings.ernieEnabled, settings: settings, model: settings.model(for: "ernie"))
-        registerLLM(registry, HunyuanEngine(), key: settings.hunyuanEnabled ? settings.hunyuanKey() : nil, enabled: settings.hunyuanEnabled, settings: settings, model: settings.model(for: "hunyuan"))
-        registerLLM(registry, YiEngine(), key: settings.yiEnabled ? settings.yiKey() : nil, enabled: settings.yiEnabled, settings: settings, model: settings.model(for: "yi"))
-        registerLLM(registry, AzureOpenAIEngine(), key: settings.azureOpenAIEnabled ? settings.azureOpenAIKey() : nil, enabled: settings.azureOpenAIEnabled, settings: settings, model: settings.model(for: "azure-openai"), endpoint: settings.endpoint(for: "azure-openai"))
+        registerLLMModels(registry, makeProvider: { ErnieEngine() }, key: keyIfNeeded(settings.ernieEnabled, settings.ernieKey), enabled: settings.ernieEnabled, settings: settings, engineID: "ernie", defaultModel: "ernie-lite-8k")
+        registerLLMModels(registry, makeProvider: { HunyuanEngine() }, key: keyIfNeeded(settings.hunyuanEnabled, settings.hunyuanKey), enabled: settings.hunyuanEnabled, settings: settings, engineID: "hunyuan", defaultModel: "hunyuan-lite")
+        registerLLMModels(registry, makeProvider: { YiEngine() }, key: keyIfNeeded(settings.yiEnabled, settings.yiKey), enabled: settings.yiEnabled, settings: settings, engineID: "yi", defaultModel: "yi-lightning")
+        registerLLMModels(registry, makeProvider: { AzureOpenAIEngine() }, key: keyIfNeeded(settings.azureOpenAIEnabled, settings.azureOpenAIKey), enabled: settings.azureOpenAIEnabled, settings: settings, engineID: "azure-openai", defaultModel: "gpt-4o-mini", endpoint: settings.endpoint(for: "azure-openai"))
 
-        registerKeyed(registry, VolcengineEngine(), key: settings.volcengineEnabled ? settings.volcengineKey() : nil, enabled: settings.volcengineEnabled)
-        registerKeyed(registry, AliyunEngine(), key: settings.aliyunEnabled ? settings.aliyunCredentials() : nil, enabled: settings.aliyunEnabled)
-        registerKeyed(registry, NiutransEngine(), key: settings.niutransEnabled ? settings.niutransKey() : nil, enabled: settings.niutransEnabled)
-        registerKeyed(registry, AmazonTranslateEngine(), key: settings.amazonEnabled ? settings.amazonCredentials() : nil, enabled: settings.amazonEnabled) { engine, key in
+        registerKeyed(registry, VolcengineEngine(), key: keyIfNeeded(settings.volcengineEnabled, settings.volcengineKey), enabled: settings.volcengineEnabled)
+        registerKeyed(registry, AliyunEngine(), key: keyIfNeeded(settings.aliyunEnabled, settings.aliyunCredentials), enabled: settings.aliyunEnabled)
+        registerKeyed(registry, NiutransEngine(), key: keyIfNeeded(settings.niutransEnabled, settings.niutransKey), enabled: settings.niutransEnabled)
+        registerKeyed(registry, AmazonTranslateEngine(), key: keyIfNeeded(settings.amazonEnabled, settings.amazonCredentials), enabled: settings.amazonEnabled) { engine, key in
             try? engine.configure(ProviderConfig(extra: ["apiKey": key, "region": settings.amazonRegion]))
         }
 
         registry.register(MockEngine(), enabled: false)
-        registry.setOrder(resolvedOrder(settings.engineOrder))
+        registry.setOrder(resolvedProviderOrder(settings: settings))
     }
 
     @MainActor
@@ -76,8 +96,12 @@ enum EngineBootstrap {
     }
 
     @MainActor
-    private static func registerMicrosoft(_ registry: ProviderRegistry, _ settings: AppSettings) {
-        guard settings.microsoftEnabled else {
+    private static func registerMicrosoft(
+        _ registry: ProviderRegistry,
+        _ settings: AppSettings,
+        configureWhenDisabled: Bool
+    ) {
+        guard settings.microsoftEnabled || configureWhenDisabled else {
             registry.register(MicrosoftEngine(), enabled: false)
             return
         }
@@ -98,16 +122,82 @@ enum EngineBootstrap {
         enabled: Bool,
         settings: AppSettings,
         model: String? = nil,
-        endpoint: String? = nil
+        endpoint: String? = nil,
+        providerID: String? = nil
     ) {
+        let exposedProvider = ModelVariantProvider(
+            id: providerID ?? provider.id,
+            displayName: provider.displayName,
+            modelName: model,
+            provider: provider
+        )
         let ollamaNoKey = provider.id == "ollama"
         guard ollamaNoKey || (key?.isEmpty == false) else {
-            registry.register(provider, enabled: false)
+            registry.register(exposedProvider, enabled: false)
             return
         }
         var extra = settings.llmExtra(apiKey: key, model: model, endpoint: endpoint)
         if ollamaNoKey && key == nil { extra.removeValue(forKey: "apiKey") }
         try? provider.configure(ProviderConfig(extra: extra))
-        registry.register(provider, enabled: enabled)
+        registry.register(exposedProvider, enabled: enabled)
+    }
+
+    @MainActor
+    private static func registerLLMModels(
+        _ registry: ProviderRegistry,
+        makeProvider: () -> TranslationProvider,
+        key: String?,
+        enabled: Bool,
+        settings: AppSettings,
+        engineID: String,
+        defaultModel: String,
+        endpoint: String? = nil
+    ) {
+        let models = settings.modelConfigs(for: engineID, defaultModel: defaultModel)
+        for model in models {
+            registerLLM(
+                registry,
+                makeProvider(),
+                key: key,
+                enabled: enabled && model.enabled,
+                settings: settings,
+                model: model.trimmedName.isEmpty ? defaultModel : model.trimmedName,
+                endpoint: endpoint,
+                providerID: model.providerID(engineID: engineID)
+            )
+        }
+    }
+}
+
+private final class ModelVariantProvider: TranslationProvider, @unchecked Sendable {
+    let id: String
+    let displayName: String
+    let modelName: String?
+    let provider: TranslationProvider
+
+    var supportedLanguages: [Language] { provider.supportedLanguages }
+    var capabilities: ProviderCapabilities { provider.capabilities }
+
+    init(id: String, displayName: String, modelName: String?, provider: TranslationProvider) {
+        self.id = id
+        self.displayName = displayName
+        self.modelName = modelName
+        self.provider = provider
+    }
+
+    func configure(_ config: ProviderConfig) throws {
+        try provider.configure(config)
+    }
+
+    func translate(_ req: TranslateRequest) async throws -> TranslateResult {
+        let result = try await provider.translate(req)
+        return TranslateResult(
+            providerId: id,
+            translated: result.translated,
+            detectedFrom: result.detectedFrom,
+            phonetics: result.phonetics,
+            definitions: result.definitions,
+            terminologyApplication: result.terminologyApplication
+        )
     }
 }

@@ -4,101 +4,172 @@ struct TodayView: View {
     @EnvironmentObject private var state: IOSAppState
 
     var body: some View {
-        NavigationStack {
+        VStack(spacing: 0) {
+            AppHeader(title: "Parrot") {
+                Button("Settings") {
+                    state.selectedTab = .engines
+                }
+                .font(.system(size: 12, weight: .bold))
+                .foregroundStyle(IOSTheme.cyan)
+            }
+
             ScrollView {
-                VStack(alignment: .leading, spacing: 16) {
-                    header
-                    if let clipboard = state.clipboardSuggestionText {
-                        clipboardCard(clipboard)
-                    } else {
+                VStack(alignment: .leading, spacing: 8) {
+                    Text("New session")
+                        .font(.system(size: 18, weight: .heavy, design: .rounded))
+                        .foregroundStyle(IOSTheme.ink)
+
+                    HStack {
+                        StatusPill(text: "Ready", tone: .good)
+                        Spacer()
+                        StatusPill(text: "Editable draft")
+                    }
+                    .padding(.bottom, 6)
+
+                    VStack(spacing: 8) {
                         Button {
-                            state.refreshClipboardSuggestion()
+                            state.openManualSession()
                         } label: {
-                            Label("Check clipboard", systemImage: "doc.on.clipboard")
-                                .frame(maxWidth: .infinity)
+                            HStack(spacing: 8) {
+                                IconTile(systemName: "pencil.line")
+                                VStack(alignment: .leading, spacing: 2) {
+                                    Text("Manual input")
+                                        .font(.system(size: 13, weight: .heavy, design: .rounded))
+                                        .foregroundStyle(IOSTheme.ink)
+                                    Text("Source editor")
+                                        .font(.system(size: 10, weight: .heavy, design: .rounded))
+                                        .foregroundStyle(IOSTheme.greenDeep)
+                                }
+                                Spacer()
+                                Image(systemName: "arrow.right")
+                                    .font(.system(size: 16, weight: .heavy))
+                                    .foregroundStyle(Color(red: 0.02, green: 0.25, blue: 0.13))
+                            }
+                            .padding(8)
+                            .frame(minHeight: 52)
+                            .background(
+                                LinearGradient(
+                                    colors: [IOSTheme.green.opacity(0.24), IOSTheme.cyan.opacity(0.10)],
+                                    startPoint: .topLeading,
+                                    endPoint: .bottomTrailing
+                                )
+                            )
+                            .clipShape(RoundedRectangle(cornerRadius: IOSTheme.cardRadius, style: .continuous))
+                            .overlay(
+                                RoundedRectangle(cornerRadius: IOSTheme.cardRadius, style: .continuous)
+                                    .stroke(IOSTheme.green.opacity(0.24), lineWidth: 1)
+                            )
                         }
-                        .buttonStyle(.bordered)
-                    }
-                    Button {
-                        Task { await state.openQuickLensFromLatestScreenshot() }
-                    } label: {
-                        Label("Quick Lens", systemImage: "viewfinder")
-                            .frame(maxWidth: .infinity)
-                    }
-                    .buttonStyle(.borderedProminent)
-                    .tint(IOSTheme.cyan)
-                    .accessibilityIdentifier("QuickLensButton")
+                        .buttonStyle(.plain)
 
-                    Button {
-                        state.openDemoSession()
-                    } label: {
-                        Label("Open demo social post", systemImage: "play.circle.fill")
-                            .frame(maxWidth: .infinity)
-                    }
-                    .buttonStyle(.borderedProminent)
-                    .tint(IOSTheme.green)
+                        HStack(spacing: 8) {
+                            quickTile(
+                                title: "Screenshot OCR",
+                                subtitle: "Quick Lens",
+                                icon: "viewfinder"
+                            ) {
+                                Task { await state.openQuickLensFromLatestScreenshot() }
+                            }
+                            .accessibilityIdentifier("QuickLensButton")
 
-                    recentList
+                            quickTile(
+                                title: "Clipboard",
+                                subtitle: state.clipboardSuggestionText == nil ? "Tap to check" : "Text available",
+                                icon: "doc.on.doc"
+                            ) {
+                                state.refreshClipboardSuggestion()
+                                if state.clipboardSuggestionText != nil {
+                                    state.openClipboardSuggestion()
+                                }
+                            }
+                        }
+                    }
+
+                    SectionTitle(left: "Recent")
+                        .padding(.top, 6)
+
+                    recentRows
                 }
-                .padding(18)
+                .padding(.horizontal, 14)
+                .padding(.bottom, 78)
             }
-            .background(IOSTheme.paper.ignoresSafeArea())
-            .navigationTitle("Parrot")
+            .scrollIndicators(.hidden)
         }
+        .background(IOSTheme.paper.ignoresSafeArea())
     }
 
-    private var header: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            Text("Read confidently. Reply naturally.")
-                .font(.system(size: 34, weight: .bold))
-                .foregroundStyle(IOSTheme.ink)
-            Text("Explain social posts by meaning and tone, then turn rough thoughts into native English replies.")
-                .font(.callout)
-                .foregroundStyle(IOSTheme.muted)
-        }
-        .frame(maxWidth: .infinity, alignment: .leading)
-    }
-
-    private func clipboardCard(_ text: String) -> some View {
-        VStack(alignment: .leading, spacing: 10) {
-            Label("Copied text", systemImage: "doc.on.clipboard")
-                .font(.footnote.weight(.bold))
-                .foregroundStyle(IOSTheme.muted)
-            Text(text)
-                .lineLimit(4)
-                .font(.body)
-            Button("Explain copied text") {
-                state.openClipboardSuggestion()
-            }
-            .buttonStyle(.borderedProminent)
-            .tint(IOSTheme.green)
-        }
-        .padding(14)
-        .parrotCard()
-    }
-
-    private var recentList: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            Text("Recent")
-                .font(.headline)
-            ForEach(state.recentSessions.prefix(5)) { session in
-                Button {
-                    state.reopen(session)
-                } label: {
-                    VStack(alignment: .leading, spacing: 4) {
-                        Text(session.sourceDraft)
-                            .lineLimit(2)
-                            .foregroundStyle(IOSTheme.ink)
-                        Text(session.platform.displayName + " · " + session.mode.rawValue)
-                            .font(.caption)
-                            .foregroundStyle(IOSTheme.soft)
-                    }
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .padding(12)
-                    .background(IOSTheme.surface)
-                    .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+    private func quickTile(
+        title: String,
+        subtitle: String,
+        icon: String,
+        action: @escaping () -> Void
+    ) -> some View {
+        Button(action: action) {
+            VStack(alignment: .leading, spacing: 8) {
+                IconTile(systemName: icon)
+                Spacer(minLength: 0)
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(title)
+                        .font(.system(size: 11, weight: .heavy, design: .rounded))
+                        .foregroundStyle(IOSTheme.ink)
+                    Text(subtitle)
+                        .font(.system(size: 9.5, weight: .semibold, design: .rounded))
+                        .foregroundStyle(IOSTheme.muted)
+                        .lineLimit(1)
                 }
             }
+            .frame(maxWidth: .infinity, minHeight: 84, alignment: .leading)
+            .padding(8)
+            .parrotCard()
         }
+        .buttonStyle(.plain)
+    }
+
+    private var recentRows: some View {
+        VStack(spacing: 7) {
+            if state.recentSessions.isEmpty {
+                recentButton(
+                    title: "The onboarding asks too much too early.",
+                    subtitle: "X · translated 8 min ago · editable"
+                ) {
+                    state.openManualSession()
+                }
+                recentButton(
+                    title: "History seed: roadmap sounds good...",
+                    subtitle: "Search all saved sessions"
+                ) {
+                    state.selectedTab = .history
+                }
+            } else {
+                ForEach(state.recentSessions.prefix(4)) { session in
+                    recentButton(
+                        title: session.sourceDraft,
+                        subtitle: "\(session.platform.displayName) · \(session.mode.rawValue) · editable"
+                    ) {
+                        state.reopen(session)
+                    }
+                }
+            }
+        }
+    }
+
+    private func recentButton(title: String, subtitle: String, action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            VStack(alignment: .leading, spacing: 4) {
+                Text(title)
+                    .font(.system(size: 11, weight: .heavy, design: .rounded))
+                    .foregroundStyle(IOSTheme.ink)
+                    .lineLimit(1)
+                Text(subtitle)
+                    .font(.system(size: 9.5, weight: .semibold, design: .rounded))
+                    .foregroundStyle(IOSTheme.muted)
+                    .lineLimit(1)
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(.horizontal, 8)
+            .padding(.vertical, 7)
+            .parrotCard()
+        }
+        .buttonStyle(.plain)
     }
 }

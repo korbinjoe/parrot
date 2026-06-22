@@ -2,7 +2,7 @@ import Foundation
 
 /// Supported languages. `.auto` triggers detection. `.custom` carries an ISO 639-1 code
 /// for languages not yet first-classed.
-public enum Language: Equatable, Hashable, Sendable {
+public enum Language: Equatable, Hashable, Sendable, Codable {
     case auto
     case zh
     case en
@@ -43,10 +43,21 @@ public enum Language: Equatable, Hashable, Sendable {
         default: self = .custom(code)
         }
     }
+
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.singleValueContainer()
+        let code = try container.decode(String.self)
+        self = code == "auto" ? .auto : Language(code: code)
+    }
+
+    public func encode(to encoder: Encoder) throws {
+        var container = encoder.singleValueContainer()
+        try container.encode(code ?? "auto")
+    }
 }
 
 /// What kind of operation the user is requesting.
-public enum TranslateMode: Sendable {
+public enum TranslateMode: Sendable, Equatable {
     case translate
     case lookup   // dictionary lookup for a single word
     case polish   // rewrite/polish text
@@ -57,12 +68,20 @@ public struct TranslateRequest: Sendable {
     public let from: Language
     public let to: Language
     public let mode: TranslateMode
+    public let terminology: TerminologySnapshot?
 
-    public init(text: String, from: Language = .auto, to: Language, mode: TranslateMode = .translate) {
+    public init(
+        text: String,
+        from: Language = .auto,
+        to: Language,
+        mode: TranslateMode = .translate,
+        terminology: TerminologySnapshot? = nil
+    ) {
         self.text = text
         self.from = from
         self.to = to
         self.mode = mode
+        self.terminology = terminology
     }
 }
 
@@ -92,28 +111,60 @@ public struct TranslateResult: Sendable {
     public let detectedFrom: Language?
     public let phonetics: [Phonetic]?
     public let definitions: [Definition]?
+    public let terminologyApplication: TerminologyApplication?
 
     public init(providerId: String,
                 translated: String,
                 detectedFrom: Language? = nil,
                 phonetics: [Phonetic]? = nil,
-                definitions: [Definition]? = nil) {
+                definitions: [Definition]? = nil,
+                terminologyApplication: TerminologyApplication? = nil) {
         self.providerId = providerId
         self.translated = translated
         self.detectedFrom = detectedFrom
         self.phonetics = phonetics
         self.definitions = definitions
+        self.terminologyApplication = terminologyApplication
     }
+
+    public func withTranslated(
+        _ translated: String,
+        terminologyApplication: TerminologyApplication? = nil
+    ) -> TranslateResult {
+        TranslateResult(
+            providerId: providerId,
+            translated: translated,
+            detectedFrom: detectedFrom,
+            phonetics: phonetics,
+            definitions: definitions,
+            terminologyApplication: terminologyApplication ?? self.terminologyApplication
+        )
+    }
+}
+
+public enum TerminologySupport: String, Codable, Sendable, Equatable {
+    case unsupported
+    case placeholder
+    case prompt
+    case promptAndPlaceholder
+    case nativeGlossary
 }
 
 public struct ProviderCapabilities: Sendable {
     public let supportsLookup: Bool
     public let supportsStream: Bool
     public let supportsPolish: Bool
-    public init(supportsLookup: Bool = false, supportsStream: Bool = false, supportsPolish: Bool = false) {
+    public let terminology: TerminologySupport
+    public init(
+        supportsLookup: Bool = false,
+        supportsStream: Bool = false,
+        supportsPolish: Bool = false,
+        terminology: TerminologySupport = .placeholder
+    ) {
         self.supportsLookup = supportsLookup
         self.supportsStream = supportsStream
         self.supportsPolish = supportsPolish
+        self.terminology = terminology
     }
 }
 

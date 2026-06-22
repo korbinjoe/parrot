@@ -5,6 +5,7 @@
   "author": "Parrot",
   "minParrotVersion": "0.1.0",
   "capabilities": ["translate", "polish"],
+  "supportsTerminology": true,
   "permissions": { "network": ["api.openai.com"] },
   "options": [
     { "key": "apiKey", "type": "secret", "label": "API Key", "required": true },

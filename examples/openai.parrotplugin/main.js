@@ -4,6 +4,14 @@ function translate(query, completion) {
   var model = $option.model || "gpt-4o-mini";
   var system = "You are a professional translator. Translate the user's text into " +
                query.to + ". Output only the translation.";
+  if (query.terminology && query.terminology.length) {
+    system += "\n\nTerminology constraints:";
+    for (var i = 0; i < query.terminology.length; i++) {
+      var term = query.terminology[i];
+      system += "\n- " + term.source + " => " + term.target;
+    }
+    system += "\nUse the exact target term whenever the source term appears.";
+  }
   $http.post({
     url: "https://api.openai.com/v1/chat/completions",
     header: {

@@ -20,6 +20,7 @@ my-engine.parrotplugin/
   "name": "My Engine",
   "version": "1.0.0",
   "capabilities": ["translate"],
+  "supportsTerminology": true,
   "permissions": {
     "network": ["api.example.com"]
   },
@@ -31,6 +32,7 @@ my-engine.parrotplugin/
 ```
 
 - `permissions.network`：允许访问的主机白名单（后缀匹配）。不在此列表的请求会被拒绝。
+- `supportsTerminology`：可选；声明插件会自己读取 `query.terminology` 并处理术语约束。未声明时，宿主仍可用占位符保护做兼容。
 - `options`：用户可配置项；`secret: true` 的项通过本地 SecretStore/`$option` 注入，不写入历史库或日志。
 
 ## main.js（实现）
@@ -39,12 +41,16 @@ my-engine.parrotplugin/
 
 ```js
 function translate(query) {
-  // query: { text, from, to }
+  // query: { text, from, to, mode, terminology? }
   const key = $option.apiKey;
+  const terms = query.terminology || [];
+  const terminologyPrompt = terms.length
+    ? "\nTerminology:\n" + terms.map(t => `- ${t.source} => ${t.target}`).join("\n")
+    : "";
   const resp = $http.post({
     url: "https://api.example.com/v1/translate",
     header: { "Authorization": "Bearer " + key, "Content-Type": "application/json" },
-    body: { text: query.text, target: query.to }
+    body: { text: query.text, target: query.to, instruction: terminologyPrompt }
   });
   if (resp.error) {
     return { error: { message: resp.error } };
@@ -69,6 +75,31 @@ function translate(query) {
 | `$http.get/post({url, header, body})` | HTTP 请求，受网络白名单限制 |
 | `$option.<key>` | 读取清单中声明的配置项 |
 | `$log(msg)` | 输出调试日志 |
+
+## 术语表
+
+当用户启用术语表且本次文本命中术语时，宿主会把命中项放在 `query.terminology`：
+
+```js
+[
+  { source: "AI Agent", target: "AI Agent", from: "en", to: "zh" }
+]
+```
+
+LLM 插件应把它拼进 system prompt，例如：
+
+```js
+var system = "Translate to " + query.to + ". Output only the translation.";
+if (query.terminology && query.terminology.length) {
+  system += "\n\nTerminology constraints:";
+  query.terminology.forEach(function (term) {
+    system += "\n- " + term.source + " => " + term.target;
+  });
+  system += "\nUse the exact target term whenever the source term appears.";
+}
+```
+
+旧插件可以忽略 `query.terminology`；宿主会尽量通过占位符保护兼容。
 
 ## 调试
 

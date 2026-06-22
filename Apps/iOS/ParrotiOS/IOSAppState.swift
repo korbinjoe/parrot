@@ -22,10 +22,30 @@ final class IOSAppState: ObservableObject {
 
     enum AppTab: Hashable {
         case today
-        case understand
-        case express
+        case work
+        case lens
         case history
-        case settings
+        case engines
+
+        var title: String {
+            switch self {
+            case .today: return "Today"
+            case .work: return "Work"
+            case .lens: return "Lens"
+            case .history: return "History"
+            case .engines: return "Engines"
+            }
+        }
+
+        var systemImage: String {
+            switch self {
+            case .today: return "sparkle"
+            case .work: return "pencil.line"
+            case .lens: return "viewfinder"
+            case .history: return "clock.arrow.circlepath"
+            case .engines: return "gearshape"
+            }
+        }
     }
 
     private let socialService: any SocialUnderstandingService & SocialExpressionService
@@ -72,9 +92,6 @@ final class IOSAppState: ObservableObject {
         await consumeShareHandoff()
         await loadRecent()
         await purgeUnreferencedQuickLensImages()
-        if activeSession == nil {
-            openDemoSession()
-        }
     }
 
     func handle(url: URL) async {
@@ -92,8 +109,24 @@ final class IOSAppState: ObservableObject {
             platform: .x,
             sourceDraft: "The product is not bad, but the onboarding feels like it was designed by people who already know how it works."
         )
-        selectedTab = .understand
+        selectedTab = .work
         Task { await understandActiveSession() }
+    }
+
+    func openManualSession() {
+        activeSession = SocialTextSession(
+            origin: .manualInput,
+            platform: .general,
+            sourceDraft: "The product is not bad, but the onboarding feels like it was designed by people who already know how it works."
+        )
+        selectedTab = .work
+        Task { await understandActiveSession() }
+    }
+
+    func ensureWorkSession() {
+        if activeSession == nil {
+            activeSession = SocialTextSession(origin: .manualInput, platform: .general, sourceDraft: "")
+        }
     }
 
     private func configureUITestStateIfNeeded() -> Bool {
@@ -106,7 +139,7 @@ final class IOSAppState: ObservableObject {
                 sourceDraft: "@confused_user\n12:03 PM\nThis onboarding is not bad\nbut it collapses once real users touch it.\n\n"
             )
             recentSessions = []
-            selectedTab = .understand
+            selectedTab = .work
             return true
         }
 
@@ -128,19 +161,44 @@ final class IOSAppState: ObservableObject {
             return true
         }
 
+        if args.contains("--ui-test-work") {
+            var session = SocialTextSession(
+                origin: .manualInput,
+                platform: .x,
+                sourceDraft: "The product is not bad, but the onboarding feels like it was designed by people who already know how it works.",
+                userIntentDraft: "I agree. The feature is useful, but new users need a calmer first step."
+            )
+            session.apply(UnderstandResult(
+                meaningSummary: "It is qualified praise: the speaker sees product value, but thinks the first-run path assumes too much context.",
+                toneTags: ["product critique", "constructive"],
+                phraseExplanations: [
+                    PhraseExplanation(phrase: "too much too early", explanation: "The onboarding asks for decisions before the value is clear.")
+                ],
+                fullTranslation: "这段内容主要在批评首次使用流程：产品可能有价值，但太早让用户做决定。"
+            ))
+            activeSession = session
+            selectedTab = .work
+            return true
+        }
+
+        if args.contains("--ui-test-engines") {
+            selectedTab = .engines
+            return true
+        }
+
         if args.contains("--ui-test-quick-lens-empty") {
-            isQuickLensPresented = true
+            isQuickLensPresented = false
             quickLensStatus = .noRecentScreenshot
             quickLensNotice = "No recent screenshot found. Take a screenshot, then run Quick Lens again."
-            selectedTab = .today
+            selectedTab = .lens
             return true
         }
 
         if args.contains("--ui-test-quick-lens-permission") {
-            isQuickLensPresented = true
+            isQuickLensPresented = false
             quickLensStatus = .needsPermission
             quickLensNotice = "Parrot needs Photos access to find the screenshot you just took."
-            selectedTab = .today
+            selectedTab = .lens
             return true
         }
 
@@ -155,7 +213,7 @@ final class IOSAppState: ObservableObject {
     func openClipboardSuggestion() {
         guard let text = clipboardSuggestionText else { return }
         activeSession = SocialTextSession(origin: .clipboard, platform: .general, sourceDraft: text)
-        selectedTab = .understand
+        selectedTab = .work
         Task { await understandActiveSession() }
     }
 
@@ -166,7 +224,7 @@ final class IOSAppState: ObservableObject {
             session.userIntentDraft = "我觉得这个评价挺公平，产品不差，但是新用户第一次用确实会迷路。"
         }
         activeSession = session
-        selectedTab = .express
+        selectedTab = .work
     }
 
     func updateSourceDraft(_ text: String) {
@@ -259,11 +317,12 @@ final class IOSAppState: ObservableObject {
     func reopen(_ session: SocialTextSession) {
         activeSession = session
         if session.quickLens != nil {
-            isQuickLensPresented = true
+            isQuickLensPresented = false
             quickLensStatus = .ready
             quickLensNotice = nil
+            selectedTab = .lens
         } else {
-            selectedTab = session.mode == .express ? .express : .understand
+            selectedTab = .work
         }
     }
 
@@ -307,7 +366,8 @@ final class IOSAppState: ObservableObject {
     }
 
     func openQuickLensFromLatestScreenshot() async {
-        isQuickLensPresented = true
+        selectedTab = .lens
+        isQuickLensPresented = false
         quickLensNotice = nil
         errorNotice = nil
 
@@ -444,7 +504,7 @@ final class IOSAppState: ObservableObject {
         guard let handoff = try? await handoffStore.consumeLatest() else { return }
         var session = handoff.makeSession()
         activeSession = session
-        selectedTab = .understand
+        selectedTab = .work
 
         if handoff.kind == .image, let fileName = handoff.imageFileName {
             isProcessing = true
@@ -633,8 +693,8 @@ final class IOSAppState: ObservableObject {
             fullTranslation: "这个产品有用，但 onboarding 太早向用户索取太多。"
         ))
         activeSession = session
-        selectedTab = .today
-        isQuickLensPresented = true
+        selectedTab = .lens
+        isQuickLensPresented = false
         quickLensStatus = .ready
         quickLensNotice = nil
     }

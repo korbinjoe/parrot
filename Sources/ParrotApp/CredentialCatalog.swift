@@ -71,7 +71,8 @@ enum CredentialCatalog {
 
     static func descriptor(matching serviceID: String?) -> CredentialDescriptor? {
         guard let serviceID else { return nil }
-        return all.first { $0.matchesServiceID(serviceID) }
+        let engineID = EngineModelConfig.baseEngineID(forProviderID: serviceID)
+        return all.first { $0.matchesServiceID(serviceID) || $0.matchesServiceID(engineID) }
     }
 
     static func normalizedServiceID(_ serviceID: String?) -> String? {

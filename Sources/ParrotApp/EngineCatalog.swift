@@ -42,7 +42,7 @@ enum EngineCatalog {
             descriptor("microsoft", "Microsoft 翻译", .machine, account: AppSettings.microsoftAccount, env: "MICROSOFT_TRANSLATOR_KEY", placeholder: "订阅 Key"),
             descriptor("opencode", "OpenCode Go", .llm, account: AppSettings.openCodeAccount, env: "OPENCODE_API_KEY", placeholder: "Go API Key", defaultModel: "glm-5.1"),
             descriptor("deepseek", "DeepSeek", .llm, account: AppSettings.deepSeekAccount, env: "DEEPSEEK_API_KEY", placeholder: "API Key", defaultModel: "deepseek-chat"),
-            descriptor("gemini", "Gemini", .llm, account: AppSettings.geminiAccount, env: "GEMINI_API_KEY", placeholder: "API Key"),
+            descriptor("gemini", "Gemini", .llm, account: AppSettings.geminiAccount, env: "GEMINI_API_KEY", placeholder: "API Key", defaultModel: "gemini-2.0-flash"),
             descriptor("groq", "Groq", .llm, account: AppSettings.groqAccount, env: "GROQ_API_KEY", placeholder: "API Key", defaultModel: "llama-3.3-70b-versatile"),
             descriptor("ollama", "Ollama", .llm, noCredentialNote: "本地服务 · 无需 Key", defaultModel: "glm-5:cloud", defaultEndpoint: "http://127.0.0.1:11434/v1/chat/completions", supportsValidation: false),
             descriptor("qwen", "通义千问", .llm, account: AppSettings.qwenAccount, env: "DASHSCOPE_API_KEY", placeholder: "DashScope Key", defaultModel: "qwen-turbo"),
@@ -69,7 +69,8 @@ enum EngineCatalog {
     }
 
     static func descriptor(for id: String) -> EngineDescriptor? {
-        all.first { $0.id == id }
+        let engineID = EngineModelConfig.baseEngineID(forProviderID: id)
+        return all.first { $0.id == engineID }
     }
 
     static func orderedDescriptors(settings: AppSettings) -> [EngineDescriptor] {

@@ -7,6 +7,7 @@ final class AppSettings: ObservableObject {
     private let defaults: UserDefaults
     private var keyCache: [String: String] = [:]
     private var missingKeyCache: Set<String> = []
+    private let terminologyStore: TerminologyStore
 
     // MARK: - Secret account IDs
 
@@ -77,12 +78,24 @@ final class AppSettings: ObservableObject {
     @Published var tencentOCRRegion: String { didSet { defaults.set(tencentOCRRegion, forKey: "ocr.tencent.region") } }
     @Published var amazonRegion: String { didSet { defaults.set(amazonRegion, forKey: "engine.amazon.region") } }
 
+    @Published var terminologyEnabled: Bool {
+        didSet { persistTerminologyState() }
+    }
+    @Published var terminologyStrictMode: Bool {
+        didSet { persistTerminologyState() }
+    }
+    @Published var terminologyEntries: [TerminologyEntry] {
+        didSet { persistTerminologyState() }
+    }
+
     // Legacy placeholders (use static accounts in extension)
     @Published var baiduOCRAccount = "ocr.baidu.credentials"
     @Published var tencentOCRAccount = "ocr.tencent.credentials"
 
-    init(defaults: UserDefaults = .standard) {
+    init(defaults: UserDefaults = .standard, terminologyStore: TerminologyStore = TerminologyStore()) {
         self.defaults = defaults
+        self.terminologyStore = terminologyStore
+        let terminologyState = terminologyStore.loadState()
         self.targetLanguageCode = defaults.string(forKey: "targetLanguageCode") ?? "zh"
         self.sourceLanguageCode = defaults.string(forKey: "sourceLanguageCode") ?? "auto"
         self.googleEnabled = defaults.object(forKey: "engine.google.enabled") as? Bool ?? true
@@ -120,6 +133,9 @@ final class AppSettings: ObservableObject {
         self.ttsProviderId = defaults.string(forKey: "tts.providerId") ?? "system"
         self.tencentOCRRegion = defaults.string(forKey: "ocr.tencent.region") ?? "ap-guangzhou"
         self.amazonRegion = defaults.string(forKey: "engine.amazon.region") ?? "us-east-1"
+        self.terminologyEnabled = terminologyState.isEnabled
+        self.terminologyStrictMode = terminologyState.strictMode
+        self.terminologyEntries = terminologyState.entries
     }
 
     /// Probe whether credentials for an engine are configured and accepted by the provider.
@@ -158,10 +174,25 @@ final class AppSettings: ObservableObject {
     }
 
     func model(for engineId: String) -> String? {
+        if let stored = storedModelConfigs(for: engineId),
+           let primary = stored.first(where: { $0.id == EngineModelConfig.primaryID }) ?? stored.first {
+            let value = primary.trimmedName
+            return value.isEmpty ? nil : value
+        }
+
         let v = defaults.string(forKey: "engine.\(engineId).model") ?? ""
         return v.isEmpty ? nil : v
     }
     func setModel(_ value: String, for engineId: String) {
+        var configs = modelConfigs(for: engineId, defaultModel: value)
+        if let index = configs.firstIndex(where: { $0.id == EngineModelConfig.primaryID }) {
+            configs[index].name = value
+        } else if configs.isEmpty {
+            configs = [EngineModelConfig(id: EngineModelConfig.primaryID, name: value)]
+        } else {
+            configs[0].name = value
+        }
+        setModelConfigs(configs, for: engineId)
         defaults.set(value, forKey: "engine.\(engineId).model")
     }
     func endpoint(for engineId: String) -> String? {
@@ -170,6 +201,88 @@ final class AppSettings: ObservableObject {
     }
     func setEndpoint(_ value: String, for engineId: String) {
         defaults.set(value, forKey: "engine.\(engineId).endpoint")
+    }
+
+    func modelConfigs(for engineId: String, defaultModel: String?) -> [EngineModelConfig] {
+        if let stored = storedModelConfigs(for: engineId), !stored.isEmpty {
+            return normalizedModelConfigs(stored, defaultModel: defaultModel)
+        }
+
+        let legacyModel: String
+        if engineId == "openai" {
+            legacyModel = openAIModel
+        } else {
+            legacyModel = defaults.string(forKey: "engine.\(engineId).model") ?? ""
+        }
+        let model = legacyModel.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+            ? (defaultModel ?? "")
+            : legacyModel
+        guard !model.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return [] }
+        return [EngineModelConfig(id: EngineModelConfig.primaryID, name: model, enabled: true)]
+    }
+
+    func setModelConfigs(_ configs: [EngineModelConfig], for engineId: String) {
+        let normalized = normalizedModelConfigs(configs, defaultModel: nil)
+        if let encoded = try? JSONEncoder().encode(normalized) {
+            defaults.set(encoded, forKey: modelConfigsKey(engineId))
+        }
+
+        if let primary = normalized.first(where: { $0.id == EngineModelConfig.primaryID }) ?? normalized.first {
+            defaults.set(primary.trimmedName, forKey: "engine.\(engineId).model")
+            if engineId == "openai" {
+                openAIModel = primary.trimmedName
+            }
+        }
+        objectWillChange.send()
+    }
+
+    func isModelEnabled(engineId: String, modelId: String, defaultModel: String?) -> Bool {
+        modelConfigs(for: engineId, defaultModel: defaultModel)
+            .first(where: { $0.id == modelId })?
+            .enabled ?? false
+    }
+
+    private func storedModelConfigs(for engineId: String) -> [EngineModelConfig]? {
+        guard let data = defaults.data(forKey: modelConfigsKey(engineId)) else { return nil }
+        return try? JSONDecoder().decode([EngineModelConfig].self, from: data)
+    }
+
+    private func normalizedModelConfigs(
+        _ configs: [EngineModelConfig],
+        defaultModel: String?
+    ) -> [EngineModelConfig] {
+        var seen: Set<String> = []
+        let trimmed = configs.compactMap { config -> EngineModelConfig? in
+            let id = config.id.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+                ? UUID().uuidString
+                : config.id
+            guard !seen.contains(id) else { return nil }
+            seen.insert(id)
+
+            let name = config.trimmedName
+            if name.isEmpty {
+                guard config.id == EngineModelConfig.primaryID,
+                      let defaultModel,
+                      !defaultModel.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+                    return nil
+                }
+                return EngineModelConfig(id: id, name: defaultModel, enabled: config.enabled)
+            }
+            return EngineModelConfig(id: id, name: name, enabled: config.enabled)
+        }
+
+        if trimmed.contains(where: { $0.id == EngineModelConfig.primaryID }) {
+            return trimmed
+        }
+        if let first = trimmed.first {
+            return [EngineModelConfig(id: EngineModelConfig.primaryID, name: first.name, enabled: first.enabled)]
+                + trimmed.dropFirst()
+        }
+        return []
+    }
+
+    private func modelConfigsKey(_ engineId: String) -> String {
+        "engine.\(engineId).models"
     }
 
     func secretsAbsentFromDefaults(sampleSecret: String) -> Bool {
@@ -182,6 +295,66 @@ final class AppSettings: ObservableObject {
         sourceLanguageCode == "auto" ? .auto : Language(code: sourceLanguageCode)
     }
     var targetLanguage: Language { Language(code: targetLanguageCode) }
+
+    func terminologySnapshot() -> TerminologySnapshot? {
+        guard terminologyEnabled else { return nil }
+        let snapshot = TerminologySnapshot(entries: terminologyEntries, strictMode: terminologyStrictMode)
+        return snapshot.isEmpty ? nil : snapshot
+    }
+
+    @discardableResult
+    func saveTerminologyEntry(_ entry: TerminologyEntry) -> Result<Void, TerminologyStoreError> {
+        do {
+            try TerminologyStore.validate(entry, against: terminologyEntries)
+            if let idx = terminologyEntries.firstIndex(where: { $0.id == entry.id }) {
+                terminologyEntries[idx] = entry
+            } else {
+                terminologyEntries.append(entry)
+            }
+            return .success(())
+        } catch let error as TerminologyStoreError {
+            return .failure(error)
+        } catch {
+            return .failure(.emptySourceOrTarget)
+        }
+    }
+
+    func deleteTerminologyEntry(_ id: UUID) {
+        terminologyEntries.removeAll { $0.id == id }
+    }
+
+    func replaceTerminologyEntries(_ entries: [TerminologyEntry]) {
+        terminologyEntries = entries
+    }
+
+    func terminologyImportPlan(csv: String) throws -> TerminologyImportPlan {
+        let decoded = try TerminologyCSV.decode(csv)
+        return TerminologyCSV.planImport(decoded: decoded, existing: terminologyEntries)
+    }
+
+    func applyTerminologyImport(_ plan: TerminologyImportPlan) {
+        var next = terminologyEntries
+        for entry in plan.overwritten {
+            if let idx = next.firstIndex(where: { $0.id == entry.id }) {
+                next[idx] = entry
+            }
+        }
+        next.append(contentsOf: plan.added)
+        terminologyEntries = next
+    }
+
+    func terminologyCSV() -> String {
+        TerminologyCSV.encode(terminologyEntries)
+    }
+
+    private func persistTerminologyState() {
+        terminologyStore.saveState(TerminologyStoreState(
+            isEnabled: terminologyEnabled,
+            strictMode: terminologyStrictMode,
+            entries: terminologyEntries
+        ))
+        objectWillChange.send()
+    }
 
     // MARK: - Keys
 

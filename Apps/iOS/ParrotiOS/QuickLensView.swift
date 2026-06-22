@@ -4,59 +4,58 @@ import UIKit
 
 struct QuickLensView: View {
     @EnvironmentObject private var state: IOSAppState
-    @Environment(\.dismiss) private var dismiss
-    @State private var sourceEditorOpen = false
     @State private var cropMode = false
     @State private var cropStart: CGPoint?
     @State private var cropCurrent: CGPoint?
     @State private var cropRect: CGRectCodable?
 
     var body: some View {
-        NavigationStack {
+        VStack(spacing: 0) {
+            AppHeader(leadingTitle: "Close", leadingAction: {
+                state.selectedTab = .today
+                state.isQuickLensPresented = false
+            }, title: "Quick Lens") {
+                MiniIconButton(systemName: "arrow.clockwise") {
+                    Task { await state.retryQuickLensOCR() }
+                }
+                .accessibilityLabel("Retry OCR")
+            }
+
             ScrollView {
-                VStack(alignment: .leading, spacing: 16) {
+                VStack(alignment: .leading, spacing: 8) {
                     statusHeader
                     screenshotArea
-                    selectedSource
-                    if sourceEditorOpen {
-                        sourceEditor
-                    }
+                    sourceEditor
                     if state.quickLensStatus.isRecoverableFailure {
                         recoveryActions
                     }
                     resultArea
                     actionRow
                 }
-                .padding(16)
+                .padding(.horizontal, 14)
+                .padding(.bottom, 78)
             }
-            .background(IOSTheme.paper.ignoresSafeArea())
-            .navigationTitle("Quick Lens")
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .topBarLeading) {
-                    Button("Close") {
-                        state.isQuickLensPresented = false
-                        dismiss()
-                    }
-                }
-            }
+            .scrollIndicators(.hidden)
         }
+        .background(IOSTheme.paper.ignoresSafeArea())
         .accessibilityIdentifier("QuickLensView")
     }
 
     private var statusHeader: some View {
-        VStack(alignment: .leading, spacing: 7) {
-            Label(state.quickLensStatus.title, systemImage: "viewfinder")
-                .font(.headline)
-                .foregroundStyle(IOSTheme.ink)
+        VStack(alignment: .leading, spacing: 5) {
+            HStack(spacing: 6) {
+                StatusPill(text: "Latest screenshot")
+                StatusPill(text: state.quickLensStatus.title, tone: state.quickLensStatus == .ready ? .good : .blue)
+                Spacer()
+            }
             if let notice = state.quickLensNotice {
                 Text(notice)
-                    .font(.footnote)
+                    .font(.system(size: 10, weight: .semibold, design: .rounded))
                     .foregroundStyle(IOSTheme.muted)
                     .fixedSize(horizontal: false, vertical: true)
             } else if state.quickLensStatus == .ready {
                 Text("Tap a highlighted block if Parrot picked the wrong text.")
-                    .font(.footnote)
+                    .font(.system(size: 10, weight: .semibold, design: .rounded))
                     .foregroundStyle(IOSTheme.muted)
             }
         }
@@ -101,10 +100,10 @@ struct QuickLensView: View {
                         }
                     }
                 }
-                .frame(height: min(UIScreen.main.bounds.height * 0.48, 430))
+                .frame(height: min(UIScreen.main.bounds.height * 0.30, 260))
                 .background(IOSTheme.surface2)
-                .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
-                .overlay(RoundedRectangle(cornerRadius: 18, style: .continuous).stroke(IOSTheme.line))
+                .clipShape(RoundedRectangle(cornerRadius: IOSTheme.cardRadius, style: .continuous))
+                .overlay(RoundedRectangle(cornerRadius: IOSTheme.cardRadius, style: .continuous).stroke(IOSTheme.line))
 
                 if cropMode {
                     HStack {
@@ -114,7 +113,7 @@ struct QuickLensView: View {
                             cropCurrent = nil
                             cropRect = nil
                         }
-                        .buttonStyle(.bordered)
+                        .buttonStyle(.compactMuted)
 
                         Button("Use crop") {
                             if let cropRect {
@@ -124,8 +123,7 @@ struct QuickLensView: View {
                                 }
                             }
                         }
-                        .buttonStyle(.borderedProminent)
-                        .tint(IOSTheme.cyan)
+                        .buttonStyle(.compactBlue)
                         .disabled(cropRect == nil)
                     }
                 }
@@ -136,13 +134,13 @@ struct QuickLensView: View {
                     .font(.system(size: 32, weight: .semibold))
                     .foregroundStyle(IOSTheme.cyan)
                 Text("No screenshot loaded")
-                    .font(.headline)
+                    .font(.system(size: 12, weight: .heavy, design: .rounded))
                 Text("Take a screenshot, then run Quick Lens again.")
-                    .font(.footnote)
+                    .font(.system(size: 10, weight: .semibold, design: .rounded))
                     .foregroundStyle(IOSTheme.muted)
             }
             .frame(maxWidth: .infinity, alignment: .leading)
-            .padding(16)
+            .padding(10)
             .parrotCard()
             .accessibilityElement(children: .ignore)
             .accessibilityLabel("No recent screenshot")
@@ -150,64 +148,51 @@ struct QuickLensView: View {
         }
     }
 
-    private var selectedSource: some View {
-        VStack(alignment: .leading, spacing: 8) {
+    private var sourceEditor: some View {
+        VStack(alignment: .leading, spacing: 7) {
             HStack {
-                Text("Selected text")
-                    .font(.caption.weight(.bold))
+                Text("Recognized source")
+                    .font(.system(size: 10, weight: .heavy, design: .rounded))
                     .foregroundStyle(IOSTheme.muted)
+                    .textCase(.uppercase)
                 Spacer()
-                Button {
+                MiniIconButton(systemName: "doc.on.doc") {
                     state.copySourceDraft()
-                } label: {
-                    Image(systemName: "doc.on.doc")
-                        .frame(width: 34, height: 34)
                 }
-                .buttonStyle(.bordered)
                 .accessibilityLabel("Copy selected text")
                 .accessibilityIdentifier("QuickLensCopySource")
                 .disabled((state.activeSession?.sourceDraft.trimmingCharacters(in: .whitespacesAndNewlines) ?? "").isEmpty)
-
-                if let confidence = state.activeSession?.quickLens?.selectedCandidate?.confidence,
-                   confidence < 0.65 {
-                    Text("Check OCR")
-                        .font(.caption.weight(.semibold))
-                        .foregroundStyle(IOSTheme.amber)
-                }
             }
-            Text(state.activeSession?.sourceDraft.isEmpty == false ? state.activeSession?.sourceDraft ?? "" : "No text selected yet.")
-                .font(.callout)
-                .foregroundStyle(IOSTheme.ink)
-                .lineLimit(5)
-                .fixedSize(horizontal: false, vertical: true)
-        }
-        .padding(14)
-        .parrotCard()
-    }
-
-    private var sourceEditor: some View {
-        VStack(alignment: .leading, spacing: 10) {
             TextEditor(text: Binding(
                 get: { state.activeSession?.sourceDraft ?? "" },
                 set: { state.updateSourceDraft($0) }
             ))
             .accessibilityIdentifier("QuickLensSourceEditor")
-            .frame(minHeight: 130)
+            .font(.system(size: 12, weight: .semibold, design: .rounded))
+            .frame(minHeight: 68)
             .scrollContentBackground(.hidden)
             .padding(8)
             .background(IOSTheme.surface2)
-            .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+            .clipShape(RoundedRectangle(cornerRadius: IOSTheme.cardRadius, style: .continuous))
+
+            FlowLayout(spacing: 6) {
+                ForEach(OCRCleanupAction.allCases, id: \.title) { action in
+                    Button(action.shortTitle) {
+                        state.applyOCRCleanup(action)
+                    }
+                    .buttonStyle(.compactBlue)
+                }
+            }
 
             Button {
                 Task { await state.understandActiveSession() }
             } label: {
-                Label("Rerun Explain", systemImage: "arrow.clockwise")
+                Text("Rerun translation")
                     .frame(maxWidth: .infinity)
             }
-            .buttonStyle(.borderedProminent)
-            .tint(IOSTheme.green)
+            .buttonStyle(.compactGreen)
         }
-        .padding(14)
+        .padding(9)
         .parrotCard()
     }
 
@@ -215,13 +200,15 @@ struct QuickLensView: View {
         VStack(alignment: .leading, spacing: 12) {
             if state.quickLensStatus == .recognizingText || state.quickLensStatus == .loadingScreenshot || state.quickLensStatus == .requestingPhotoPermission {
                 ProgressView(state.quickLensStatus.title)
+                    .font(.system(size: 10, weight: .semibold, design: .rounded))
             } else if state.quickLensStatus == .translating || state.isProcessing {
                 ProgressView("Explaining selected text")
+                    .font(.system(size: 10, weight: .semibold, design: .rounded))
             }
 
             if let error = state.errorNotice {
                 Text(error)
-                    .font(.footnote)
+                    .font(.system(size: 10, weight: .bold, design: .rounded))
                     .foregroundStyle(.red)
             }
 
@@ -229,42 +216,38 @@ struct QuickLensView: View {
                 if let translation = visibleTranslation(result) {
                     HStack {
                         Text("Translation")
-                            .font(.caption.weight(.bold))
-                            .foregroundStyle(Color(red: 0.04, green: 0.49, blue: 0.26))
+                            .font(.system(size: 10, weight: .heavy, design: .rounded))
+                            .foregroundStyle(IOSTheme.greenDeep)
                         Spacer()
-                        Button {
+                        MiniIconButton(systemName: "doc.on.doc") {
                             state.copy(translation)
-                        } label: {
-                            Image(systemName: "doc.on.doc")
-                                .frame(width: 34, height: 34)
                         }
-                        .buttonStyle(.bordered)
                         .accessibilityLabel("Copy translation")
                         .accessibilityIdentifier("QuickLensCopyTranslation")
                     }
                     Text(translation)
-                        .font(.title3.weight(.semibold))
+                        .font(.system(size: 13, weight: .bold, design: .rounded))
                         .foregroundStyle(IOSTheme.ink)
                         .fixedSize(horizontal: false, vertical: true)
                         .accessibilityIdentifier("QuickLensTranslation")
                 }
                 Text("Meaning")
-                    .font(.caption.weight(.bold))
-                    .foregroundStyle(Color(red: 0.04, green: 0.49, blue: 0.26))
+                    .font(.system(size: 10, weight: .heavy, design: .rounded))
+                    .foregroundStyle(IOSTheme.greenDeep)
                 Text(result.meaningSummary)
-                    .font(visibleTranslation(result) == nil ? .title3.weight(.semibold) : .body)
+                    .font(.system(size: visibleTranslation(result) == nil ? 13 : 11, weight: .semibold, design: .rounded))
                     .foregroundStyle(IOSTheme.ink)
                     .accessibilityIdentifier("QuickLensMeaning")
                 if let note = result.confidenceNote {
                     Text(note)
-                        .font(.caption)
+                        .font(.system(size: 9.5, weight: .semibold, design: .rounded))
                         .foregroundStyle(IOSTheme.muted)
                         .fixedSize(horizontal: false, vertical: true)
                 }
                 FlowLayout(spacing: 7) {
                     ForEach(result.toneTags, id: \.self) { tag in
                         Text(tag)
-                            .font(.caption.weight(.semibold))
+                            .font(.system(size: 9, weight: .bold, design: .rounded))
                             .padding(.horizontal, 10)
                             .padding(.vertical, 6)
                             .background(IOSTheme.subtleFill)
@@ -274,12 +257,12 @@ struct QuickLensView: View {
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(16)
+        .padding(9)
         .background(
             LinearGradient(colors: [IOSTheme.meaningTint, IOSTheme.surface], startPoint: .topLeading, endPoint: .bottomTrailing)
         )
-        .clipShape(RoundedRectangle(cornerRadius: 22, style: .continuous))
-        .overlay(RoundedRectangle(cornerRadius: 22, style: .continuous).stroke(IOSTheme.line))
+        .clipShape(RoundedRectangle(cornerRadius: IOSTheme.cardRadius, style: .continuous))
+        .overlay(RoundedRectangle(cornerRadius: IOSTheme.cardRadius, style: .continuous).stroke(IOSTheme.line))
     }
 
     private func visibleTranslation(_ result: UnderstandResult) -> String? {
@@ -298,37 +281,30 @@ struct QuickLensView: View {
                 Label("Reply", systemImage: "arrowshape.turn.up.left.fill")
                     .frame(maxWidth: .infinity)
             }
-            .buttonStyle(.borderedProminent)
-            .tint(IOSTheme.green)
+            .buttonStyle(.compactGreen)
 
             Button {
-                sourceEditorOpen.toggle()
                 state.editQuickLensSource()
             } label: {
                 Label("Edit", systemImage: "pencil")
                     .frame(maxWidth: .infinity)
             }
-            .buttonStyle(.bordered)
+            .buttonStyle(.compactBlue)
 
             Button {
                 cropMode.toggle()
                 state.openQuickLensManualCrop()
             } label: {
                 Image(systemName: "crop")
-                    .frame(width: 42, height: 42)
             }
-            .buttonStyle(.bordered)
+            .buttonStyle(.compactMuted)
             .accessibilityLabel("Crop")
 
-            Button {
+            MiniIconButton(systemName: "doc.on.doc") {
                 if let summary = state.activeSession?.understand?.meaningSummary {
                     state.copy(summary)
                 }
-            } label: {
-                Image(systemName: "doc.on.doc")
-                    .frame(width: 42, height: 42)
             }
-            .buttonStyle(.bordered)
             .accessibilityLabel("Copy meaning")
         }
     }
@@ -341,8 +317,7 @@ struct QuickLensView: View {
                 Label("Try latest screenshot again", systemImage: "arrow.clockwise")
                     .frame(maxWidth: .infinity)
             }
-            .buttonStyle(.borderedProminent)
-            .tint(IOSTheme.green)
+            .buttonStyle(.compactGreen)
 
             Button {
                 if let url = URL(string: UIApplication.openSettingsURLString) {
@@ -352,17 +327,17 @@ struct QuickLensView: View {
                 Label("Open Settings", systemImage: "gearshape")
                     .frame(maxWidth: .infinity)
             }
-            .buttonStyle(.bordered)
+            .buttonStyle(.compactBlue)
 
             Button {
                 state.activeSession = SocialTextSession(origin: .manualInput, sourceDraft: "")
-                state.selectedTab = .understand
+                state.selectedTab = .work
                 state.isQuickLensPresented = false
             } label: {
                 Label("Enter text manually", systemImage: "keyboard")
                     .frame(maxWidth: .infinity)
             }
-            .buttonStyle(.bordered)
+            .buttonStyle(.compactMuted)
         }
     }
 
@@ -477,5 +452,16 @@ private struct CandidateBlockOverlay: View {
     private var fill: Color {
         if isNoise { return IOSTheme.amber.opacity(0.08) }
         return selected ? IOSTheme.green.opacity(0.22) : IOSTheme.cyan.opacity(0.14)
+    }
+}
+
+private extension OCRCleanupAction {
+    var shortTitle: String {
+        switch self {
+        case .removeUsernames: return "Remove @"
+        case .removeTimestamps: return "Time"
+        case .joinLines: return "Join lines"
+        case .deleteEmptyLines: return "Trim"
+        }
     }
 }

@@ -20,6 +20,7 @@ public struct PluginManifest: Codable, Sendable {
     public let author: String?
     public let minParrotVersion: String?
     public let capabilities: [String]?   // "translate" | "lookup" | "polish"
+    public let supportsTerminology: Bool?
     public let permissions: Permissions?
     public let options: [Option]?
 

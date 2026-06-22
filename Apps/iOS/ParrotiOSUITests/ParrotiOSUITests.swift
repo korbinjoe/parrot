@@ -5,21 +5,19 @@ final class ParrotiOSUITests: XCTestCase {
     func testUnderstandToExpressFlowPreservesDraft() {
         let app = launchApp()
 
-        app.tabBars.buttons["Understand"].tap()
-        XCTAssertTrue(app.navigationBars["Understand"].waitForExistence(timeout: 5))
+        app.buttons["TabWork"].tap()
+        XCTAssertTrue(app.staticTexts["Workspace"].waitForExistence(timeout: 5))
         XCTAssertTrue(app.textViews["UnderstandSourceEditor"].waitForExistence(timeout: 5))
 
-        app.buttons["Reply"].firstMatch.tap()
-        XCTAssertTrue(app.navigationBars["Express"].waitForExistence(timeout: 5))
         XCTAssertTrue(app.buttons["Generate replies"].exists)
         XCTAssertTrue(app.textViews["ExpressIntentEditor"].exists)
     }
 
     func testReplyComposerToneSwitchingAndCopyFeedback() {
-        let app = launchApp()
+        let app = launchApp(arguments: ["--ui-test-work"])
 
-        app.tabBars.buttons["Express"].tap()
-        XCTAssertTrue(app.navigationBars["Express"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.staticTexts["Workspace"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.textViews["ExpressIntentEditor"].waitForExistence(timeout: 5))
         app.buttons["Friendly"].tap()
         app.buttons["Generate replies"].tap()
 
@@ -31,16 +29,16 @@ final class ParrotiOSUITests: XCTestCase {
     func testOCRCleanupMutatesTextAndKeepsDraftEditable() {
         let app = launchApp(arguments: ["--ui-test-ocr"])
 
-        XCTAssertTrue(app.staticTexts["OCR Cleanup"].waitForExistence(timeout: 5))
-        let editor = app.textViews["OCRTextEditor"]
-        XCTAssertTrue(editor.exists)
+        XCTAssertTrue(app.staticTexts["Workspace"].waitForExistence(timeout: 5))
+        let editor = app.textViews["UnderstandSourceEditor"]
+        XCTAssertTrue(editor.waitForExistence(timeout: 5))
         XCTAssertTrue(String(describing: editor.value ?? "").contains("@confused_user"))
-        XCTAssertTrue(app.buttons["OCRCopySource"].exists)
+        XCTAssertTrue(app.buttons["UnderstandCopySource"].exists)
 
-        app.buttons["Remove usernames"].tap()
+        app.buttons["Clean lines"].tap()
         XCTAssertTrue(app.staticTexts["OCR text cleaned"].waitForExistence(timeout: 3))
-        XCTAssertFalse(String(describing: editor.value ?? "").contains("@confused_user"))
-        app.buttons["OCRCopySource"].tap()
+        XCTAssertTrue(String(describing: editor.value ?? "").contains("This onboarding is not bad"))
+        app.buttons["UnderstandCopySource"].tap()
         XCTAssertTrue(app.staticTexts["Copied"].waitForExistence(timeout: 3))
         XCTAssertTrue(app.buttons["Understand"].exists)
     }
@@ -48,10 +46,10 @@ final class ParrotiOSUITests: XCTestCase {
     func testHistoryItemReopensEditableSession() {
         let app = launchApp(arguments: ["--ui-test-history"])
 
-        XCTAssertTrue(app.navigationBars["History"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.staticTexts["History"].waitForExistence(timeout: 5))
         app.buttons.containing(NSPredicate(format: "label CONTAINS %@", "History seed")).firstMatch.tap()
 
-        XCTAssertTrue(app.navigationBars["Understand"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.staticTexts["Workspace"].waitForExistence(timeout: 5))
         XCTAssertTrue(app.textViews["UnderstandSourceEditor"].waitForExistence(timeout: 5))
         XCTAssertTrue(app.buttons["UnderstandCopySource"].exists)
         XCTAssertTrue(app.staticTexts["UnderstandTranslation"].waitForExistence(timeout: 5))
@@ -61,7 +59,7 @@ final class ParrotiOSUITests: XCTestCase {
     func testQuickLensAutoTranslatesFixtureAndSwitchesCandidate() {
         let app = launchApp(arguments: ["--ui-test-quick-lens"])
 
-        XCTAssertTrue(app.otherElements["QuickLensView"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.staticTexts["Quick Lens"].waitForExistence(timeout: 5))
         XCTAssertTrue(app.buttons["QuickLensCopySource"].waitForExistence(timeout: 5))
         XCTAssertTrue(app.staticTexts["QuickLensTranslation"].waitForExistence(timeout: 5))
         XCTAssertTrue(app.buttons["QuickLensCopyTranslation"].exists)
@@ -72,22 +70,24 @@ final class ParrotiOSUITests: XCTestCase {
         XCTAssertTrue(second.waitForExistence(timeout: 5))
         second.tap()
 
-        XCTAssertTrue(app.staticTexts.containing(NSPredicate(format: "label CONTAINS %@", "ship the feature")).firstMatch.waitForExistence(timeout: 5))
+        let editor = app.textViews["QuickLensSourceEditor"]
+        XCTAssertTrue(editor.waitForExistence(timeout: 5))
+        XCTAssertTrue(String(describing: editor.value ?? "").contains("ship the feature"))
     }
 
     func testQuickLensEditSourceKeepsEditablePath() {
         let app = launchApp(arguments: ["--ui-test-quick-lens"])
 
-        XCTAssertTrue(app.otherElements["QuickLensView"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.staticTexts["Quick Lens"].waitForExistence(timeout: 5))
         app.buttons["Edit"].tap()
         XCTAssertTrue(app.textViews["QuickLensSourceEditor"].waitForExistence(timeout: 5))
-        XCTAssertTrue(app.buttons["Rerun Explain"].exists)
+        XCTAssertTrue(app.buttons["Rerun translation"].exists)
     }
 
     func testCopyRecognizedAndTranslatedTextShowsFeedback() {
         let app = launchApp(arguments: ["--ui-test-quick-lens"])
 
-        XCTAssertTrue(app.otherElements["QuickLensView"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.staticTexts["Quick Lens"].waitForExistence(timeout: 5))
         XCTAssertTrue(app.buttons["QuickLensCopySource"].waitForExistence(timeout: 5))
         app.buttons["QuickLensCopySource"].tap()
         XCTAssertTrue(app.staticTexts["Copied"].waitForExistence(timeout: 3))
@@ -100,7 +100,7 @@ final class ParrotiOSUITests: XCTestCase {
     func testQuickLensNoRecentScreenshotRecovery() {
         let app = launchApp(arguments: ["--ui-test-quick-lens-empty"])
 
-        XCTAssertTrue(app.otherElements["QuickLensView"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.staticTexts["Quick Lens"].waitForExistence(timeout: 5))
         XCTAssertTrue(app.otherElements["QuickLensNoRecent"].waitForExistence(timeout: 5))
         XCTAssertTrue(app.buttons["Try latest screenshot again"].exists)
         XCTAssertTrue(app.buttons["Enter text manually"].exists)
@@ -109,7 +109,7 @@ final class ParrotiOSUITests: XCTestCase {
     func testQuickLensPermissionRecovery() {
         let app = launchApp(arguments: ["--ui-test-quick-lens-permission"])
 
-        XCTAssertTrue(app.otherElements["QuickLensView"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.staticTexts["Quick Lens"].waitForExistence(timeout: 5))
         XCTAssertTrue(app.staticTexts["Photos access needed"].waitForExistence(timeout: 5))
         XCTAssertTrue(app.buttons["Open Settings"].exists)
         XCTAssertTrue(app.buttons["Enter text manually"].exists)

@@ -13,6 +13,7 @@
 | 截图翻译 | 框选屏幕区域 OCR 后翻译 | `⌥S` / 菜单 |
 | 输入翻译 | 弹窗输入文本翻译 | `⌥A` / 菜单 |
 | 多引擎聚合 | Google / DeepL / OpenAI / 腾讯 / 百度 / 有道 / 彩云 / Microsoft / 10+ LLM / 插件 | 自动 |
+| 术语表 | 专业名词、产品名、缩写固定译法 | 设置 → 术语 |
 | 插件系统 | JS 插件接入任意 LLM/词典（沙箱 + 网络白名单） | `~/Library/Application Support/Parrot/Plugins` |
 | 历史 / 收藏 | 自动记录、收藏、检索 | 悬浮窗 ⭐️ |
 | TTS 朗读 | 原文 / 译文语音合成 | 悬浮窗 🔊 |
@@ -34,6 +35,7 @@ Parrot 与 [Bob 服务矩阵](https://bobtranslate.com/guide/advance/service.htm
 - **DeepL / OpenAI / 腾讯 / 百度 / 有道 / 彩云 / Microsoft**：Swift 内置，需 API Key。
 - **LLM 全家桶**：DeepSeek、Gemini、Groq、Ollama、通义、豆包、Kimi、智谱、硅基流动 — Swift 内置。
 - **系统翻译**：macOS 15+（开发中）。
+- **术语表**：在「设置 → 术语」维护专业名词，详见 [docs/terminology.md](./docs/terminology.md)。
 
 API Key 在「设置 → 密钥」录入，默认存储于 `~/Library/Application Support/Parrot/secrets.json`（文件权限 `0600`）。亦支持环境变量（如 `OPENAI_API_KEY`、`DEEPSEEK_API_KEY`），且环境变量优先于本地配置。
 

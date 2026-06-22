@@ -65,6 +65,11 @@ let package = Package(
             path: "Tests/ParrotCoreTests"
         ),
         .testTarget(
+            name: "ParrotAppTests",
+            dependencies: ["ParrotApp"],
+            path: "Tests/ParrotAppTests"
+        ),
+        .testTarget(
             name: "ParrotSocialTests",
             dependencies: ["ParrotCore", "ParrotSocial", "ParrotPlatform", "ParrotPlatformiOS"],
             path: "Tests/ParrotSocialTests"

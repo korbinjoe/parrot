@@ -3,6 +3,7 @@ import SwiftUI
 import Carbon.HIToolbox
 import ParrotCore
 import ParrotEngines
+import UniformTypeIdentifiers
 
 /// Hosts the SwiftUI settings UI in a standard titled window (separate from the floating panel).
 @MainActor
@@ -30,7 +31,7 @@ final class SettingsWindow {
                 onRetryProvider: onRetryProvider
             ))
             let win = NSWindow(contentViewController: hosting)
-            win.title = L("Parrot 设置")
+            configureTitle(for: win)
             win.styleMask = [.titled, .closable, .miniaturizable, .resizable]
             win.isReleasedWhenClosed = false
             win.contentMinSize = NSSize(width: 640, height: 420)
@@ -45,11 +46,20 @@ final class SettingsWindow {
                 onRetryProvider: onRetryProvider
             ))
         }
+        if let window {
+            configureTitle(for: window)
+        }
         NSApp.activate(ignoringOtherApps: true)
         if let window {
             WindowPlacement.center(window)
         }
         window?.makeKeyAndOrderFront(nil)
+    }
+
+    private func configureTitle(for window: NSWindow) {
+        let title = L("Parrot 设置")
+        window.title = title
+        window.setAccessibilityTitle(title)
     }
 }
 
@@ -168,12 +178,13 @@ struct SettingsView: View {
     private let onRetryProvider: (String) -> Void
 
     enum Pane: String, CaseIterable, Identifiable {
-        case general, engines, ocr, tts, keys, shortcuts, plugins, about
+        case general, engines, terminology, ocr, tts, keys, shortcuts, plugins, about
         var id: String { rawValue }
         var title: String {
             switch self {
             case .general: return L("通用")
             case .engines: return L("翻译")
+            case .terminology: return L("术语")
             case .ocr: return L("识别")
             case .tts: return L("语音")
             case .keys: return L("密钥")
@@ -186,6 +197,7 @@ struct SettingsView: View {
             switch self {
             case .general: return "gearshape"
             case .engines: return "globe"
+            case .terminology: return "text.book.closed"
             case .ocr: return "doc.text.viewfinder"
             case .tts: return "waveform"
             case .keys: return "key"
@@ -199,7 +211,7 @@ struct SettingsView: View {
     @State private var selection: Pane = .general
     @State private var focusedServiceID: String?
     @State private var secretDrafts: [String: String] = [:]
-    @State private var modelDrafts: [String: String] = [:]
+    @State private var modelListDrafts: [String: [EngineModelConfig]] = [:]
     @State private var endpointDrafts: [String: String] = [:]
     @State private var validateNote: String = ""
     @State private var savedNote: String = ""
@@ -212,6 +224,11 @@ struct SettingsView: View {
     @State private var showMoreEngines = true
     @State private var recordingShortcut: ShortcutAction?
     @State private var shortcutMonitor: Any?
+    @State private var terminologySearchText = ""
+    @State private var terminologyDraft = TerminologyDraft()
+    @State private var editingTerminologyID: UUID?
+    @State private var terminologyNote = ""
+    @State private var pendingTerminologyImport: TerminologyImportPlan?
     @FocusState private var focusedCredentialFieldID: String?
 
     private let languages: [(String, String)] = [
@@ -260,6 +277,43 @@ struct SettingsView: View {
             case .failed: return Theme.Palette.danger
             case .validating: return Theme.Palette.label2
             }
+        }
+    }
+
+    struct TerminologyDraft: Equatable {
+        var source = ""
+        var target = ""
+        var fromCode = "auto"
+        var toCode = "zh"
+        var note = ""
+        var caseSensitive = false
+        var enabled = true
+
+        init(entry: TerminologyEntry? = nil, defaultTarget: String = "zh") {
+            guard let entry else {
+                toCode = defaultTarget
+                return
+            }
+            source = entry.source
+            target = entry.target
+            fromCode = entry.from.code ?? "auto"
+            toCode = entry.to.code ?? defaultTarget
+            note = entry.note ?? ""
+            caseSensitive = entry.caseSensitive
+            enabled = entry.enabled
+        }
+
+        func entry(id: UUID? = nil) -> TerminologyEntry {
+            TerminologyEntry(
+                id: id ?? UUID(),
+                source: source,
+                target: target,
+                from: fromCode == "auto" ? .auto : Language(code: fromCode),
+                to: Language(code: toCode),
+                note: note.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? nil : note,
+                caseSensitive: caseSensitive,
+                enabled: enabled
+            )
         }
     }
 
@@ -361,6 +415,7 @@ struct SettingsView: View {
         switch selection {
         case .general: generalPane
         case .engines: enginesPane
+        case .terminology: terminologyPane
         case .ocr: ocrPane
         case .tts: ttsPane
         case .keys: keysPane
@@ -456,6 +511,303 @@ struct SettingsView: View {
                 state.applySettings()
             }
         )
+    }
+
+    private var terminologyPane: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            sectionTitle("术语")
+            formGroup {
+                settingRow("启用术语表") {
+                    Toggle("", isOn: $settings.terminologyEnabled)
+                        .labelsHidden()
+                        .toggleStyle(.switch)
+                        .controlSize(.small)
+                }
+                settingRow("严格术语模式") {
+                    Toggle("", isOn: $settings.terminologyStrictMode)
+                        .labelsHidden()
+                        .toggleStyle(.switch)
+                        .controlSize(.small)
+                        .disabled(!settings.terminologyEnabled)
+                }
+            }
+
+            HStack(spacing: Theme.Spacing.s8) {
+                NativeSearchField("搜索源词、译法或备注", text: $terminologySearchText)
+                    .frame(width: 240, height: 24)
+                Button {
+                    beginNewTerminologyEntry()
+                } label: {
+                    Label("新增", systemImage: "plus")
+                }
+                .buttonStyle(SettingsMiniButtonStyle(prominence: .accent))
+                Button {
+                    importTerminologyCSV()
+                } label: {
+                    Label("导入", systemImage: "square.and.arrow.down")
+                }
+                .buttonStyle(SettingsMiniButtonStyle())
+                Button {
+                    exportTerminologyCSV()
+                } label: {
+                    Label("导出", systemImage: "square.and.arrow.up")
+                }
+                .buttonStyle(SettingsMiniButtonStyle())
+                Spacer()
+            }
+            .padding(.bottom, Theme.Spacing.s12)
+
+            if editingTerminologyID != nil {
+                terminologyEditor
+            }
+
+            if let pendingTerminologyImport {
+                terminologyImportPreview(pendingTerminologyImport)
+            }
+
+            if !terminologyNote.isEmpty {
+                Text(terminologyNote)
+                    .font(Theme.Font.caption)
+                    .foregroundStyle(terminologyNote.contains("失败") || terminologyNote.contains("重复") ? Theme.Palette.danger : Theme.Palette.label2)
+                    .padding(.bottom, Theme.Spacing.s8)
+            }
+
+            formGroup {
+                if filteredTerminologyEntries.isEmpty {
+                    emptyEngineRow(settings.terminologyEntries.isEmpty ? "还没有术语" : "没有匹配的术语")
+                } else {
+                    ForEach(filteredTerminologyEntries) { entry in
+                        terminologyEntryRow(entry)
+                    }
+                }
+            }
+            callout("术语会随每次翻译请求生成快照。机器翻译优先用占位符保护，LLM 会收到术语约束。")
+        }
+    }
+
+    private var filteredTerminologyEntries: [TerminologyEntry] {
+        let query = terminologySearchText.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        guard !query.isEmpty else { return settings.terminologyEntries }
+        return settings.terminologyEntries.filter { entry in
+            entry.source.lowercased().contains(query)
+                || entry.target.lowercased().contains(query)
+                || (entry.note ?? "").lowercased().contains(query)
+        }
+    }
+
+    private var terminologyEditor: some View {
+        formGroup {
+            settingRow("源词") {
+                TextField("AI Agent", text: $terminologyDraft.source)
+                    .textFieldStyle(.roundedBorder)
+                    .frame(width: 240)
+            }
+            settingRow("译法") {
+                TextField("AI Agent", text: $terminologyDraft.target)
+                    .textFieldStyle(.roundedBorder)
+                    .frame(width: 240)
+            }
+            settingRow("源语言") {
+                Picker("", selection: $terminologyDraft.fromCode) {
+                    Text("任意").tag("auto")
+                    ForEach(languages, id: \.0) { code, name in Text(name).tag(code) }
+                }
+                .labelsHidden()
+                .frame(width: 150)
+            }
+            settingRow("目标语言") {
+                Picker("", selection: $terminologyDraft.toCode) {
+                    ForEach(languages, id: \.0) { code, name in Text(name).tag(code) }
+                }
+                .labelsHidden()
+                .frame(width: 150)
+            }
+            settingRow("大小写敏感") {
+                Toggle("", isOn: $terminologyDraft.caseSensitive)
+                    .labelsHidden()
+                    .toggleStyle(.switch)
+                    .controlSize(.small)
+            }
+            settingRow("启用") {
+                Toggle("", isOn: $terminologyDraft.enabled)
+                    .labelsHidden()
+                    .toggleStyle(.switch)
+                    .controlSize(.small)
+            }
+            settingRow("备注") {
+                TextField("可选", text: $terminologyDraft.note)
+                    .textFieldStyle(.roundedBorder)
+                    .frame(width: 240)
+            }
+            HStack(spacing: Theme.Spacing.s8) {
+                Spacer()
+                Button("取消") { cancelTerminologyEdit() }
+                    .buttonStyle(SettingsMiniButtonStyle())
+                Button("保存") { saveTerminologyDraft() }
+                    .buttonStyle(SettingsMiniButtonStyle(prominence: .accent))
+            }
+            .padding(.horizontal, Theme.Spacing.s12)
+            .padding(.vertical, 8)
+        }
+    }
+
+    private func terminologyEntryRow(_ entry: TerminologyEntry) -> some View {
+        VStack(spacing: 0) {
+            HStack(spacing: Theme.Spacing.s8) {
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("\(entry.source) -> \(entry.target)")
+                        .font(Theme.Font.body)
+                        .foregroundStyle(Theme.Palette.label)
+                    Text(terminologySubtitle(entry))
+                        .font(Theme.Font.caption)
+                        .foregroundStyle(Theme.Palette.label3)
+                        .lineLimit(1)
+                }
+                Spacer(minLength: Theme.Spacing.s8)
+                Toggle("", isOn: terminologyEnabledBinding(entry))
+                    .labelsHidden()
+                    .toggleStyle(.switch)
+                    .controlSize(.small)
+                IconButton("pencil", help: "编辑术语", size: 11) { editTerminologyEntry(entry) }
+                IconButton("trash", help: "删除术语", size: 11) { deleteTerminologyEntry(entry) }
+            }
+            .padding(.horizontal, Theme.Spacing.s12)
+            .padding(.vertical, 8)
+            .frame(minHeight: 46)
+            Divider()
+        }
+    }
+
+    private func terminologyImportPreview(_ plan: TerminologyImportPlan) -> some View {
+        formGroup {
+            settingRow("导入预览") {
+                Text("新增 \(plan.addedCount) · 覆盖 \(plan.overwrittenCount) · 冲突 \(plan.conflictCount)")
+                    .font(Theme.Font.caption)
+                    .foregroundStyle(plan.conflictCount > 0 ? Theme.Palette.warning : Theme.Palette.label2)
+            }
+            HStack(spacing: Theme.Spacing.s8) {
+                Spacer()
+                Button("取消") { pendingTerminologyImport = nil }
+                    .buttonStyle(SettingsMiniButtonStyle())
+                Button("确认导入") {
+                    settings.applyTerminologyImport(plan)
+                    pendingTerminologyImport = nil
+                    terminologyNote = "已导入术语"
+                    clearTerminologyNote()
+                }
+                .buttonStyle(SettingsMiniButtonStyle(prominence: .accent))
+                .disabled(plan.importableEntries.isEmpty)
+            }
+            .padding(.horizontal, Theme.Spacing.s12)
+            .padding(.vertical, 8)
+        }
+    }
+
+    private func terminologySubtitle(_ entry: TerminologyEntry) -> String {
+        let from = entry.from.code ?? "auto"
+        let to = entry.to.code ?? ""
+        var parts = ["\(from) -> \(to)"]
+        if entry.caseSensitive { parts.append("大小写敏感") }
+        if let note = entry.note, !note.isEmpty { parts.append(note) }
+        return parts.joined(separator: " · ")
+    }
+
+    private func terminologyEnabledBinding(_ entry: TerminologyEntry) -> Binding<Bool> {
+        Binding(
+            get: {
+                settings.terminologyEntries.first(where: { $0.id == entry.id })?.enabled ?? entry.enabled
+            },
+            set: { value in
+                var updated = entry
+                updated.enabled = value
+                _ = settings.saveTerminologyEntry(updated)
+            }
+        )
+    }
+
+    private func beginNewTerminologyEntry() {
+        terminologyDraft = TerminologyDraft(defaultTarget: settings.targetLanguageCode)
+        editingTerminologyID = UUID()
+        terminologyNote = ""
+    }
+
+    private func editTerminologyEntry(_ entry: TerminologyEntry) {
+        terminologyDraft = TerminologyDraft(entry: entry, defaultTarget: settings.targetLanguageCode)
+        editingTerminologyID = entry.id
+        terminologyNote = ""
+    }
+
+    private func cancelTerminologyEdit() {
+        editingTerminologyID = nil
+        terminologyDraft = TerminologyDraft(defaultTarget: settings.targetLanguageCode)
+        terminologyNote = ""
+    }
+
+    private func saveTerminologyDraft() {
+        guard let editingTerminologyID else { return }
+        let existing = settings.terminologyEntries.first(where: { $0.id == editingTerminologyID })
+        let entry = terminologyDraft.entry(id: existing?.id ?? editingTerminologyID)
+        switch settings.saveTerminologyEntry(entry) {
+        case .success:
+            if TerminologyStore.hasOverlap(entry, in: settings.terminologyEntries) {
+                terminologyNote = "已保存。存在包含关系，翻译时会优先匹配更长术语。"
+            } else {
+                terminologyNote = "已保存术语"
+            }
+            self.editingTerminologyID = nil
+            terminologyDraft = TerminologyDraft(defaultTarget: settings.targetLanguageCode)
+            clearTerminologyNote()
+        case .failure(.emptySourceOrTarget):
+            terminologyNote = "保存失败：源词和译法不能为空"
+        case .failure(.duplicate):
+            terminologyNote = "保存失败：相同语言对下已有重复源词"
+        }
+    }
+
+    private func deleteTerminologyEntry(_ entry: TerminologyEntry) {
+        settings.deleteTerminologyEntry(entry.id)
+        if editingTerminologyID == entry.id {
+            cancelTerminologyEdit()
+        }
+        terminologyNote = "已删除术语"
+        clearTerminologyNote()
+    }
+
+    private func importTerminologyCSV() {
+        let panel = NSOpenPanel()
+        panel.allowedContentTypes = [.commaSeparatedText, .plainText]
+        panel.allowsMultipleSelection = false
+        panel.canChooseDirectories = false
+        guard panel.runModal() == .OK, let url = panel.url else { return }
+        do {
+            let csv = try String(contentsOf: url, encoding: .utf8)
+            pendingTerminologyImport = try settings.terminologyImportPlan(csv: csv)
+            terminologyNote = ""
+        } catch {
+            terminologyNote = "导入失败：CSV 格式不正确"
+            clearTerminologyNote(after: 4)
+        }
+    }
+
+    private func exportTerminologyCSV() {
+        let panel = NSSavePanel()
+        panel.allowedContentTypes = [.commaSeparatedText]
+        panel.nameFieldStringValue = "parrot-terminology.csv"
+        guard panel.runModal() == .OK, let url = panel.url else { return }
+        do {
+            try settings.terminologyCSV().write(to: url, atomically: true, encoding: .utf8)
+            terminologyNote = "已导出术语"
+            clearTerminologyNote()
+        } catch {
+            terminologyNote = "导出失败：无法写入文件"
+            clearTerminologyNote(after: 4)
+        }
+    }
+
+    private func clearTerminologyNote(after seconds: Double = 2.5) {
+        DispatchQueue.main.asyncAfter(deadline: .now() + seconds) {
+            terminologyNote = ""
+        }
     }
 
     private var ocrPane: some View {
@@ -785,7 +1137,7 @@ struct SettingsView: View {
             if descriptor.defaultModel != nil || descriptor.defaultEndpoint != nil {
                 VStack(alignment: .leading, spacing: Theme.Spacing.s8) {
                     if descriptor.defaultModel != nil {
-                        credentialTextFieldRow("Model", placeholder: descriptor.defaultModel ?? "model", text: modelBinding(for: descriptor))
+                        credentialModelList(descriptor)
                     }
                     if descriptor.defaultEndpoint != nil {
                         credentialTextFieldRow("Endpoint", placeholder: endpointPlaceholder(for: descriptor), text: endpointBinding(for: descriptor))
@@ -853,6 +1205,63 @@ struct SettingsView: View {
                 .controlSize(.small)
                 .font(Theme.Font.callout)
                 .frame(minWidth: 180, idealWidth: 320, maxWidth: 380, minHeight: 22, idealHeight: 22, maxHeight: 22)
+            Spacer(minLength: 0)
+        }
+    }
+
+    private func credentialModelList(_ descriptor: CredentialDescriptor) -> some View {
+        VStack(alignment: .leading, spacing: Theme.Spacing.s8) {
+            HStack(spacing: Theme.Spacing.s8) {
+                formRowLabel("Model")
+                Text(L("模型"))
+                    .font(Theme.Font.caption)
+                    .foregroundStyle(Theme.Palette.label2)
+                Spacer(minLength: 0)
+                Button {
+                    addModelConfig(for: descriptor)
+                } label: {
+                    Label("新增", systemImage: "plus")
+                }
+                .buttonStyle(SettingsMiniButtonStyle())
+            }
+
+            ForEach(Array(modelConfigsDraft(for: descriptor).enumerated()), id: \.element.id) { index, model in
+                modelConfigRow(model, descriptor: descriptor, index: index)
+            }
+        }
+    }
+
+    private func modelConfigRow(
+        _ model: EngineModelConfig,
+        descriptor: CredentialDescriptor,
+        index: Int
+    ) -> some View {
+        HStack(alignment: .center, spacing: Theme.Spacing.s8) {
+            Spacer()
+                .frame(width: 64)
+            TextField(descriptor.defaultModel ?? "model", text: modelNameBinding(for: descriptor, modelID: model.id))
+                .textFieldStyle(.roundedBorder)
+                .controlSize(.small)
+                .font(Theme.Font.callout)
+                .frame(minWidth: 180, idealWidth: 300, maxWidth: 360, minHeight: 22, idealHeight: 22, maxHeight: 22)
+            Toggle("", isOn: modelEnabledBinding(for: descriptor, modelID: model.id))
+                .labelsHidden()
+                .toggleStyle(.switch)
+                .controlSize(.small)
+                .help(L("启用模型"))
+            IconButton("trash", help: "删除模型", size: 11) {
+                removeModelConfig(model.id, from: descriptor)
+            }
+            .disabled(model.id == EngineModelConfig.primaryID || modelConfigsDraft(for: descriptor).count <= 1)
+            if index == 0 {
+                Text("默认")
+                    .font(Theme.Font.tag)
+                    .foregroundStyle(Theme.Palette.label2)
+                    .padding(.horizontal, 6)
+                    .frame(height: 18)
+                    .background(Theme.Palette.bgControl)
+                    .clipShape(RoundedRectangle(cornerRadius: Theme.Radius.control))
+            }
             Spacer(minLength: 0)
         }
     }
@@ -1238,7 +1647,7 @@ struct SettingsView: View {
     private func isCredentialServiceDirty(_ descriptor: CredentialDescriptor) -> Bool {
         if hasSecretDraft(for: descriptor) { return true }
         if descriptor.defaultModel != nil,
-           (modelDrafts[descriptor.id] ?? currentModel(for: descriptor)) != currentModel(for: descriptor) {
+           modelConfigsDraft(for: descriptor) != currentModelConfigs(for: descriptor) {
             return true
         }
         if descriptor.defaultEndpoint != nil,
@@ -1278,9 +1687,8 @@ struct SettingsView: View {
         }
 
         if descriptor.defaultModel != nil {
-            let value = trim(modelDrafts[descriptor.id] ?? currentModel(for: descriptor))
-            saveModel(value, for: descriptor)
-            modelDrafts[descriptor.id] = currentModel(for: descriptor)
+            saveModelConfigs(modelConfigsDraft(for: descriptor), for: descriptor)
+            modelListDrafts[descriptor.id] = currentModelConfigs(for: descriptor)
         }
 
         if descriptor.defaultEndpoint != nil {
@@ -1466,13 +1874,6 @@ struct SettingsView: View {
         )
     }
 
-    private func modelBinding(for descriptor: CredentialDescriptor) -> Binding<String> {
-        Binding(
-            get: { modelDrafts[descriptor.id] ?? currentModel(for: descriptor) },
-            set: { modelDrafts[descriptor.id] = $0 }
-        )
-    }
-
     private func endpointBinding(for descriptor: CredentialDescriptor) -> Binding<String> {
         Binding(
             get: { endpointDrafts[descriptor.id] ?? currentEndpoint(for: descriptor) },
@@ -1489,17 +1890,67 @@ struct SettingsView: View {
     }
 
     private func loadAdvancedDrafts() {
-        modelDrafts = Dictionary(uniqueKeysWithValues: allCredentialDescriptors
+        modelListDrafts = Dictionary(uniqueKeysWithValues: allCredentialDescriptors
             .filter { $0.defaultModel != nil }
-            .map { ($0.id, currentModel(for: $0)) })
+            .map { ($0.id, currentModelConfigs(for: $0)) })
         endpointDrafts = Dictionary(uniqueKeysWithValues: allCredentialDescriptors
             .filter { $0.defaultEndpoint != nil }
             .map { ($0.id, currentEndpoint(for: $0)) })
     }
 
-    private func currentModel(for descriptor: CredentialDescriptor) -> String {
-        if descriptor.id == "openai" { return settings.openAIModel }
-        return settings.model(for: descriptor.id) ?? descriptor.defaultModel ?? ""
+    private func currentModelConfigs(for descriptor: CredentialDescriptor) -> [EngineModelConfig] {
+        settings.modelConfigs(for: descriptor.id, defaultModel: descriptor.defaultModel)
+    }
+
+    private func modelConfigsDraft(for descriptor: CredentialDescriptor) -> [EngineModelConfig] {
+        modelListDrafts[descriptor.id] ?? currentModelConfigs(for: descriptor)
+    }
+
+    private func updateModelConfig(
+        for descriptor: CredentialDescriptor,
+        modelID: String,
+        mutate: (inout EngineModelConfig) -> Void
+    ) {
+        var configs = modelConfigsDraft(for: descriptor)
+        guard let index = configs.firstIndex(where: { $0.id == modelID }) else { return }
+        mutate(&configs[index])
+        modelListDrafts[descriptor.id] = configs
+    }
+
+    private func modelNameBinding(for descriptor: CredentialDescriptor, modelID: String) -> Binding<String> {
+        Binding(
+            get: {
+                modelConfigsDraft(for: descriptor).first(where: { $0.id == modelID })?.name ?? ""
+            },
+            set: { value in
+                updateModelConfig(for: descriptor, modelID: modelID) { $0.name = value }
+            }
+        )
+    }
+
+    private func modelEnabledBinding(for descriptor: CredentialDescriptor, modelID: String) -> Binding<Bool> {
+        Binding(
+            get: {
+                modelConfigsDraft(for: descriptor).first(where: { $0.id == modelID })?.enabled ?? false
+            },
+            set: { value in
+                updateModelConfig(for: descriptor, modelID: modelID) { $0.enabled = value }
+            }
+        )
+    }
+
+    private func addModelConfig(for descriptor: CredentialDescriptor) {
+        var configs = modelConfigsDraft(for: descriptor)
+        configs.append(EngineModelConfig(name: "", enabled: true))
+        modelListDrafts[descriptor.id] = configs
+    }
+
+    private func removeModelConfig(_ modelID: String, from descriptor: CredentialDescriptor) {
+        guard modelID != EngineModelConfig.primaryID else { return }
+        var configs = modelConfigsDraft(for: descriptor)
+        guard configs.count > 1 else { return }
+        configs.removeAll { $0.id == modelID }
+        modelListDrafts[descriptor.id] = configs
     }
 
     private func currentEndpoint(for descriptor: CredentialDescriptor) -> String {
@@ -1551,7 +2002,7 @@ struct SettingsView: View {
                 ok = saveSecret(trim(secretDrafts[credential.account] ?? ""), account: credential.account) && ok
             }
             if descriptor.defaultModel != nil {
-                saveModel(trim(modelDrafts[descriptor.id] ?? currentModel(for: descriptor)), for: descriptor)
+                saveModelConfigs(modelConfigsDraft(for: descriptor), for: descriptor)
             }
             if descriptor.defaultEndpoint != nil {
                 saveEndpoint(trim(endpointDrafts[descriptor.id] ?? currentEndpoint(for: descriptor)), for: descriptor)
@@ -1570,13 +2021,20 @@ struct SettingsView: View {
         return settings.setKey(value, account: account)
     }
 
-    private func saveModel(_ value: String, for descriptor: CredentialDescriptor) {
-        guard !value.isEmpty else { return }
-        if descriptor.id == "openai" {
-            settings.openAIModel = value
-        } else {
-            settings.setModel(value, for: descriptor.id)
+    private func saveModelConfigs(_ configs: [EngineModelConfig], for descriptor: CredentialDescriptor) {
+        let cleaned = configs.compactMap { config -> EngineModelConfig? in
+            let name = config.trimmedName
+            if name.isEmpty {
+                guard config.id == EngineModelConfig.primaryID,
+                      let defaultModel = descriptor.defaultModel,
+                      !defaultModel.isEmpty else {
+                    return nil
+                }
+                return EngineModelConfig(id: config.id, name: defaultModel, enabled: config.enabled)
+            }
+            return EngineModelConfig(id: config.id, name: name, enabled: config.enabled)
         }
+        settings.setModelConfigs(cleaned, for: descriptor.id)
     }
 
     private func saveEndpoint(_ value: String, for descriptor: CredentialDescriptor) {

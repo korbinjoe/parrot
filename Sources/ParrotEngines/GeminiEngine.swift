@@ -10,7 +10,12 @@ public final class GeminiEngine: TranslationProvider, @unchecked Sendable {
     public let id = "gemini"
     public let displayName = "Gemini"
     public let supportedLanguages: [Language] = [.auto, .zh, .en, .ja, .ko, .fr, .de, .es, .ru]
-    public let capabilities = ProviderCapabilities(supportsLookup: true, supportsStream: false, supportsPolish: true)
+    public let capabilities = ProviderCapabilities(
+        supportsLookup: true,
+        supportsStream: false,
+        supportsPolish: true,
+        terminology: .prompt
+    )
 
     private var apiKey: String?
     private var model: String = "gemini-2.0-flash"

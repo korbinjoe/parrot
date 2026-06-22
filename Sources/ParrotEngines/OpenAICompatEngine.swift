@@ -29,7 +29,12 @@ open class OpenAICompatEngine: TranslationProvider, @unchecked Sendable {
         defaultModel: String,
         requiresAPIKey: Bool = true,
         supportedLanguages: [Language] = [.auto, .zh, .en, .ja, .ko, .fr, .de, .es, .ru],
-        capabilities: ProviderCapabilities = ProviderCapabilities(supportsLookup: true, supportsStream: true, supportsPolish: true),
+        capabilities: ProviderCapabilities = ProviderCapabilities(
+            supportsLookup: true,
+            supportsStream: true,
+            supportsPolish: true,
+            terminology: .prompt
+        ),
         requestTimeout: TimeInterval = 60,
         session: URLSession = .shared
     ) {
@@ -146,11 +151,11 @@ open class OpenAICompatEngine: TranslationProvider, @unchecked Sendable {
         let target = req.to.code ?? "the target language"
         switch req.mode {
         case .translate:
-            return "You are a professional translator. Translate the user's text into \(target). Output only the translation, no explanations."
+            return "You are a professional translator. Translate the user's text into \(target). Output only the translation, no explanations.\(TerminologyProcessor.promptBlock(for: req) ?? "")"
         case .lookup:
             return "You are a dictionary. For the user's word, give the \(target) meaning, part of speech, phonetics, and one example. Be concise."
         case .polish:
-            return "Polish and improve the user's text in \(target) while preserving meaning. Output only the result."
+            return "Polish and improve the user's text in \(target) while preserving meaning. Output only the result.\(TerminologyProcessor.promptBlock(for: req) ?? "")"
         }
     }
 

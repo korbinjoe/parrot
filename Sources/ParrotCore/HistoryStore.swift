@@ -8,13 +8,22 @@ public struct TranslationRecordOutcome: Codable, Sendable, Identifiable, Equatab
     public var modelName: String?
     public var translated: String
     public var latencyMs: Int?
+    public var terminologyApplication: TerminologyApplication?
 
-    public init(providerId: String, displayName: String, modelName: String? = nil, translated: String, latencyMs: Int? = nil) {
+    public init(
+        providerId: String,
+        displayName: String,
+        modelName: String? = nil,
+        translated: String,
+        latencyMs: Int? = nil,
+        terminologyApplication: TerminologyApplication? = nil
+    ) {
         self.providerId = providerId
         self.displayName = displayName
         self.modelName = modelName
         self.translated = translated
         self.latencyMs = latencyMs
+        self.terminologyApplication = terminologyApplication
     }
 }
 
