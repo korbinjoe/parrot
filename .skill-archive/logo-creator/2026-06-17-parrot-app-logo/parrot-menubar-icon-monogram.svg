@@ -1,6 +1,0 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="Parrot menu bar icon">
-  <g transform="translate(-7 0)">
-    <path fill="#000" fill-rule="evenodd" clip-rule="evenodd"
-          d="M18 9c0-1.1.9-2 2-2h19.4C51.1 7 59 14.6 59 25.5S51.1 44 39.4 44H30v10.9c0 1.1-.9 2-2 2h-8c-1.1 0-2-.9-2-2V9Zm12 10.2v12.7h8.6c4.7 0 7.7-2.4 7.7-6.4s-3-6.3-7.7-6.3H30Z"/>
-  </g>
-</svg>

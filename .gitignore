@@ -8,3 +8,4 @@ DerivedData/
 *.p12
 secrets/
 build/
+.skill-archive/

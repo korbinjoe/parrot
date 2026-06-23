@@ -1,8 +1,22 @@
 # Parrot
 
-开源的 macOS 翻译 + OCR 工具，对标主流商业翻译工具的核心能力：划词翻译、截图 OCR 翻译、输入翻译、查词、多引擎聚合对比、可扩展插件系统（接入任意 LLM）、历史/收藏、TTS。完全免费、无次数限制。
+[![CI](https://github.com/korbinjoe/parrot/actions/workflows/ci.yml/badge.svg)](https://github.com/korbinjoe/parrot/actions/workflows/ci.yml)
+
+开源 macOS / iOS 翻译 + OCR 工具：划词翻译、截图 OCR 翻译、输入翻译、查词、多引擎聚合对比、可扩展插件系统（接入任意 LLM）、历史/收藏、TTS。
 
 > 规划与设计见 `openspec/changes/macos-translator/`。
+
+## 预览
+
+<p align="center">
+  <img src="docs/screenshots/app-icon.png" alt="Parrot App Icon" width="128">
+  <img src="docs/screenshots/menubar-icon.png" alt="Parrot Menu Bar Icon" width="64">
+</p>
+
+| 平台 | 说明 |
+|------|------|
+| **macOS** | 菜单栏常驻 App，全局快捷键 + 悬浮翻译窗。克隆后运行 `bash scripts/build-app.sh` 产出 `build/Parrot.app`。 |
+| **iOS** | 社交阅读/写作助手与 Quick Lens OCR（iOS 17+）。用 Xcode 打开 `project.yml` 生成工程后运行 `ParrotiOS` scheme。交互原型见 [docs/mockups/ios-social-assistant/index.html](./docs/mockups/ios-social-assistant/index.html)。 |
 
 ## 功能
 
@@ -20,24 +34,29 @@
 | PopClip | 选中后从 PopClip 调起 Parrot | `examples/Parrot.popclipext` |
 | URL Scheme | `parrot://translate?text=` / `parrot://lookup?text=` | 外部集成 |
 
-## 从 Bob 迁移
-
-Parrot 与 [Bob 服务矩阵](https://bobtranslate.com/guide/advance/service.html) 对标，完整对照见 **[docs/bob-service-matrix.md](./docs/bob-service-matrix.md)**（含各引擎密钥申请链接）。
-
-- **文本翻译**：设置 → 引擎 中开启对应内置引擎，在「密钥」页填入 API Key（腾讯/百度/有道格式为 `Id:Secret`）。
-- **LLM**：OpenAI、DeepSeek、Gemini、Groq、Ollama、通义、豆包、Kimi、智谱、硅基流动均已 Swift 内置，无需安装插件。
-- **OCR**：默认 Apple Vision（离线）；云端 OCR（百度/腾讯）后续版本提供。
-- Bob 零配置免费 LLM 代理（智谱 Flash、硅基免费 tier）Parrot 不提供，请自备官方 Key。
-
 ## 引擎与密钥
 
-- **Google**：免费 Web 端点，无需 Key，默认开启。
+- **Google**：默认使用非官方 Web 端点，无需 Key（见下方合规说明）。
 - **DeepL / OpenAI / 腾讯 / 百度 / 有道 / 彩云 / Microsoft**：Swift 内置，需 API Key。
 - **LLM 全家桶**：DeepSeek、Gemini、Groq、Ollama、通义、豆包、Kimi、智谱、硅基流动 — Swift 内置。
 - **系统翻译**：macOS 15+（开发中）。
 - **术语表**：在「设置 → 术语」维护专业名词，详见 [docs/terminology.md](./docs/terminology.md)。
 
+完整引擎清单与密钥申请链接见 **[docs/engines.md](./docs/engines.md)**。
+
 API Key 在「设置 → 密钥」录入，默认存储于 `~/Library/Application Support/Parrot/secrets.json`（文件权限 `0600`）。亦支持环境变量（如 `OPENAI_API_KEY`、`DEEPSEEK_API_KEY`），且环境变量优先于本地配置。
+
+## 第三方服务合规说明
+
+Parrot 集成多家翻译 / OCR / TTS 服务，使用时须遵守各服务商条款：
+
+| 服务 | 说明 |
+|------|------|
+| **Google 翻译（默认引擎）** | 通过 `translate.googleapis.com` 非官方 Web 端点调用，**不属于** [Google Cloud Translation API](https://cloud.google.com/translate) 正式服务。该端点可能随时变更、限流或不可用；高频或商业用途请改用官方 Cloud API 并自备 Key。 |
+| **其他云引擎** | DeepL、OpenAI、腾讯、百度等需用户自行申请 API Key，用量与费用由各平台计费规则决定。 |
+| **插件** | 第三方 JS 插件的网络请求受 manifest 白名单约束，插件作者对其行为负责。 |
+
+Parrot 本身为 AGPL-3.0 开源软件，**不**提供任何翻译代理或免费额度；所有云服务能力均由用户直连第三方。
 
 ## 构建与测试
 
@@ -50,7 +69,10 @@ swift test                  # 单元测试（Swift Testing）
 bash scripts/build-app.sh   # 产出 build/Parrot.app（菜单栏常驻）
 ```
 
-技术栈与最低系统：Swift 6 + SwiftUI + AppKit，macOS 13+。
+**macOS**：Swift 6 + SwiftUI + AppKit，macOS 13+。  
+**iOS**：SwiftUI，iOS 17+；`xcodegen generate` 后打开 `Parrot.xcodeproj` 运行 `ParrotiOS`。
+
+CI 在每次 push 时自动 `swift build`、`swift test` 并打包 `Parrot.app` artifact（见 [Actions](https://github.com/korbinjoe/parrot/actions)）。
 
 ## 架构
 
@@ -65,6 +87,7 @@ Interaction（快捷键/菜单/PopClip/URL）
 - `ParrotEngines` — Google / DeepL / OpenAI-compat LLM / 国内机翻 / Mock / Vision OCR。
 - `ParrotPlugins` — JavaScriptCore 沙箱插件运行时（`$http` 主机白名单、`$option`/`$log` 注入）。
 - `ParrotApp` — 菜单栏 App、全局快捷键、悬浮窗、截图 OCR、设置面板、TTS。
+- `ParrotSocial` / `ParrotPlatformiOS` — iOS 社交助手与平台适配。
 
 详见 `openspec/changes/macos-translator/design.md`。
 
