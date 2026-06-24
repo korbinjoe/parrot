@@ -12,6 +12,8 @@ struct ResultView: View {
         static let minScrollHeight: CGFloat = 260
         static let idealScrollFloor: CGFloat = 520
         static let maxPreferredHeight: CGFloat = 680
+        static let toolbarControlHeight: CGFloat = 28
+        static let fixedToolbarHeight = toolbarControlHeight + Theme.Spacing.s12 + Theme.Spacing.s8
     }
 
     @ObservedObject var state: AppState
@@ -47,9 +49,9 @@ struct ResultView: View {
                 if state.isOffline {
                     WarningBar("无网络连接，翻译可能失败")
                 }
+                fixedToolbar
                 ScrollView {
                     VStack(alignment: .leading, spacing: Theme.Spacing.s8) {
-                        header
                         if let notice = state.workspaceNotice {
                             WorkspaceNoticeView(notice: notice, onAction: handleNoticeAction)
                         }
@@ -81,14 +83,15 @@ struct ResultView: View {
                             }
                         }
                     }
-                    .padding(Theme.Spacing.s12)
+                    .padding(.horizontal, Theme.Spacing.s12)
+                    .padding(.bottom, Theme.Spacing.s12)
                     .background(GeometryReader { geo in
                         Color.clear.preference(key: ContentHeightKey.self, value: geo.size.height)
                     })
                 }
                 .frame(
                     minHeight: Layout.minScrollHeight,
-                    idealHeight: min(max(contentHeight, Layout.idealScrollFloor), Layout.maxPreferredHeight),
+                    idealHeight: preferredScrollHeight,
                     maxHeight: .infinity
                 )
                 if !feedbackText.isEmpty {
@@ -108,7 +111,7 @@ struct ResultView: View {
             idealWidth: Layout.idealWidth,
             maxWidth: .infinity,
             minHeight: Layout.minHeight,
-            idealHeight: min(max(contentHeight, Layout.idealScrollFloor), Layout.maxPreferredHeight),
+            idealHeight: preferredPanelHeight,
             maxHeight: .infinity
         )
         .onPreferenceChange(ContentHeightKey.self) { contentHeight = $0 }
@@ -116,6 +119,16 @@ struct ResultView: View {
             sourceComposerFocused = false
             state.setComposerFocused(false)
         }
+    }
+
+    private var preferredScrollHeight: CGFloat {
+        let floor = max(Layout.minScrollHeight, Layout.idealScrollFloor - Layout.fixedToolbarHeight)
+        let ceiling = Layout.maxPreferredHeight - Layout.fixedToolbarHeight
+        return min(max(contentHeight, floor), ceiling)
+    }
+
+    private var preferredPanelHeight: CGFloat {
+        min(max(contentHeight + Layout.fixedToolbarHeight, Layout.idealScrollFloor), Layout.maxPreferredHeight)
     }
 
     private var panelStroke: some View {
@@ -169,6 +182,16 @@ struct ResultView: View {
 
     // MARK: - Header (language direction + source actions)
 
+    private var fixedToolbar: some View {
+        header
+            .padding(.horizontal, Theme.Spacing.s12)
+            .padding(.top, Theme.Spacing.s12)
+            .padding(.bottom, Theme.Spacing.s8)
+            .frame(maxWidth: .infinity)
+            .background(Theme.Palette.bgPanel)
+            .zIndex(1)
+    }
+
     private var header: some View {
         HStack(spacing: Theme.Spacing.s8) {
             LanguageDirectionControl(
@@ -208,7 +231,7 @@ struct ResultView: View {
             IconButton("gearshape", help: "打开设置") { onConfigureProvider(nil) }
             IconButton("xmark", help: "关闭面板") { onClose() }
         }
-        .frame(height: 28)
+        .frame(height: Layout.toolbarControlHeight)
     }
 
     private func swapLanguages() {
