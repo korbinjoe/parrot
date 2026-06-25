@@ -1,0 +1,1921 @@
+<!DOCTYPE html>
+<html lang="zh-CN" data-theme="system">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Parrot Translation Learning UI Prototype</title>
+<style>
+:root {
+  color-scheme: light dark;
+  --font: -apple-system, BlinkMacSystemFont, "SF Pro Text", "SF Pro Display", "PingFang SC", "Helvetica Neue", Arial, sans-serif;
+  --accent: #6d85c9;
+  --accent-strong: #5a70b3;
+  --accent-soft: rgb(109 133 201 / 16%);
+  --accent-ink: #080b1a;
+  --success: #34c759;
+  --warning: #ff9f0a;
+  --danger: #ff3b30;
+  --star: #ffcc00;
+  --desktop-1: #f0f2fb;
+  --desktop-2: #d0d7ee;
+  --desktop-3: #a7b4dd;
+  --wallpaper-grain: rgb(255 255 255 / 18%);
+  --menu-glass: rgb(255 255 255 / 72%);
+  --canvas: #f4f6fa;
+  --window: #fbfcff;
+  --window-solid: #fbfcff;
+  --content: #ffffff;
+  --content-solid: #ffffff;
+  --sidebar: #f0f2f6;
+  --control: #ecf0f6;
+  --control-hover: #e3e8f1;
+  --selection: rgb(109 133 201 / 14%);
+  --skeleton: #e6ebf3;
+  --separator: rgb(0 0 0 / 12%);
+  --hairline: rgb(0 0 0 / 8%);
+  --label: #1d1d1f;
+  --label-2: rgb(60 60 67 / 67%);
+  --label-3: rgb(60 60 67 / 38%);
+  --shadow-panel: 0 22px 54px rgb(31 41 55 / 24%), 0 0 0 .5px var(--separator);
+  --shadow-pop: 0 18px 42px rgb(31 41 55 / 22%), 0 0 0 .5px var(--separator);
+  --radius-window: 12px;
+  --radius-card: 10px;
+  --radius-control: 7px;
+  --s4: 4px;
+  --s8: 8px;
+  --s12: 12px;
+  --s16: 16px;
+  --s20: 20px;
+  --s24: 24px;
+  --ease: cubic-bezier(.16, 1, .3, 1);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root[data-theme="system"] {
+    --accent: #6d85c9;
+    --accent-strong: #8fa2dc;
+    --accent-soft: rgb(109 133 201 / 22%);
+    --accent-ink: #080b1a;
+    --success: #30d158;
+    --warning: #ff9f0a;
+    --danger: #ff453a;
+    --star: #ffd60a;
+    --desktop-1: #141725;
+    --desktop-2: #202642;
+    --desktop-3: #394875;
+    --wallpaper-grain: rgb(255 255 255 / 7%);
+    --menu-glass: rgb(30 32 38 / 82%);
+    --canvas: #191b21;
+    --window: #22242b;
+    --window-solid: #22242b;
+    --content: #2b2d35;
+    --content-solid: #2b2d35;
+    --sidebar: #1f222a;
+    --control: #323641;
+    --control-hover: #3a3f4d;
+    --selection: rgb(109 133 201 / 18%);
+    --skeleton: #3a3e48;
+    --separator: rgb(255 255 255 / 13%);
+    --hairline: rgb(255 255 255 / 8%);
+    --label: #f5f5f7;
+    --label-2: rgb(235 235 245 / 67%);
+    --label-3: rgb(235 235 245 / 38%);
+    --shadow-panel: 0 26px 62px rgb(0 0 0 / 48%), 0 0 0 .5px var(--separator);
+    --shadow-pop: 0 20px 48px rgb(0 0 0 / 42%), 0 0 0 .5px var(--separator);
+  }
+}
+
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --accent: #6d85c9;
+  --accent-strong: #8fa2dc;
+  --accent-soft: rgb(109 133 201 / 22%);
+  --accent-ink: #080b1a;
+  --success: #30d158;
+  --warning: #ff9f0a;
+  --danger: #ff453a;
+  --star: #ffd60a;
+  --desktop-1: #141725;
+  --desktop-2: #202642;
+  --desktop-3: #394875;
+  --wallpaper-grain: rgb(255 255 255 / 7%);
+  --menu-glass: rgb(30 32 38 / 82%);
+  --canvas: #191b21;
+  --window: #22242b;
+  --window-solid: #22242b;
+  --content: #2b2d35;
+  --content-solid: #2b2d35;
+  --sidebar: #1f222a;
+  --control: #323641;
+  --control-hover: #3a3f4d;
+  --selection: rgb(109 133 201 / 18%);
+  --skeleton: #3a3e48;
+  --separator: rgb(255 255 255 / 13%);
+  --hairline: rgb(255 255 255 / 8%);
+  --label: #f5f5f7;
+  --label-2: rgb(235 235 245 / 67%);
+  --label-3: rgb(235 235 245 / 38%);
+  --shadow-panel: 0 26px 62px rgb(0 0 0 / 48%), 0 0 0 .5px var(--separator);
+  --shadow-pop: 0 20px 48px rgb(0 0 0 / 42%), 0 0 0 .5px var(--separator);
+}
+
+* { box-sizing: border-box; }
+html, body { margin: 0; min-height: 100%; }
+body {
+  font-family: var(--font);
+  color: var(--label);
+  background: #111;
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+button, input, select { font: inherit; }
+button { color: inherit; }
+
+.desktop {
+  min-height: 100dvh;
+  position: relative;
+  overflow: hidden;
+  background:
+    linear-gradient(135deg, var(--desktop-1), var(--desktop-2) 48%, var(--desktop-3)),
+    #dce5ee;
+}
+.desktop::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  background:
+    linear-gradient(120deg, transparent 0 28%, var(--wallpaper-grain) 28% 29%, transparent 29% 100%),
+    linear-gradient(48deg, transparent 0 62%, rgb(255 255 255 / 10%) 62% 63%, transparent 63% 100%);
+  opacity: .55;
+}
+.desktop::after {
+  content: "";
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  background-image: repeating-linear-gradient(0deg, rgb(255 255 255 / 3%) 0 1px, transparent 1px 4px);
+  mix-blend-mode: soft-light;
+}
+
+.menubar {
+  height: 28px;
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 0 14px;
+  position: relative;
+  z-index: 30;
+  color: rgb(255 255 255 / 94%);
+  background: var(--menu-glass);
+  -webkit-backdrop-filter: blur(24px) saturate(180%);
+  backdrop-filter: blur(24px) saturate(180%);
+  box-shadow: 0 .5px 0 rgb(0 0 0 / 12%);
+  font-size: 13px;
+  line-height: 1;
+}
+.menubar b { font-weight: 700; }
+.menubar .right {
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  font-variant-numeric: tabular-nums;
+}
+
+.viewer {
+  position: fixed;
+  z-index: 40;
+  top: 44px;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px;
+  max-width: min(1060px, calc(100vw - 28px));
+  overflow-x: auto;
+  border-radius: 13px;
+  background: var(--window);
+  border: .5px solid var(--separator);
+  box-shadow: var(--shadow-pop);
+}
+.viewer button {
+  border: 0;
+  background: transparent;
+  border-radius: 8px;
+  color: var(--label-2);
+  height: 28px;
+  padding: 0 12px;
+  white-space: nowrap;
+  cursor: pointer;
+  transition: transform .16s var(--ease), background .16s var(--ease), color .16s var(--ease);
+}
+.viewer button:hover { background: var(--control); color: var(--label); }
+.viewer button:active { transform: translateY(1px); }
+.viewer button.active { background: var(--accent); color: var(--accent-ink); }
+.viewer .divider { width: 1px; height: 18px; background: var(--separator); flex: 0 0 auto; }
+
+.stage {
+  min-height: calc(100dvh - 28px);
+  padding: 122px 24px 64px;
+  display: grid;
+  place-items: center;
+  position: relative;
+  z-index: 5;
+}
+.surface {
+  display: none;
+  align-items: center;
+  justify-content: center;
+  gap: 20px;
+  width: min(1120px, 100%);
+}
+.surface.active {
+  display: flex;
+  animation: surface-in .22s var(--ease);
+}
+@keyframes surface-in {
+  from { opacity: 0; transform: translateY(10px) scale(.992); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+.window, .panel, .popover {
+  background: var(--window);
+  border: .5px solid var(--separator);
+  box-shadow: var(--shadow-panel);
+}
+.window {
+  overflow: hidden;
+  border-radius: var(--radius-window);
+}
+.panel {
+  border-radius: var(--radius-window);
+  padding: 12px;
+  position: relative;
+}
+.titlebar {
+  height: 40px;
+  display: grid;
+  grid-template-columns: 90px 1fr 90px;
+  align-items: center;
+  padding: 0 14px;
+  border-bottom: .5px solid var(--separator);
+}
+.traffic { display: flex; gap: 8px; }
+.traffic i {
+  width: 12px;
+  height: 12px;
+  border-radius: 999px;
+  display: block;
+}
+.traffic i:nth-child(1) { background: #ff5f57; }
+.traffic i:nth-child(2) { background: #febc2e; }
+.traffic i:nth-child(3) { background: #28c840; }
+.titlebar strong {
+  justify-self: center;
+  font-size: 13px;
+  font-weight: 600;
+}
+.titlebar .toolbar {
+  justify-self: end;
+  display: flex;
+  gap: 4px;
+}
+
+.icon-sprite {
+  position: absolute;
+  width: 0;
+  height: 0;
+  overflow: hidden;
+}
+.icon {
+  width: 15px;
+  height: 15px;
+  display: block;
+  stroke: currentColor;
+  fill: none;
+  stroke-width: 1.8;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+.icon.fill {
+  fill: currentColor;
+  stroke: none;
+}
+.icon-button {
+  width: 26px;
+  height: 26px;
+  display: inline-grid;
+  place-items: center;
+  border: 0;
+  border-radius: var(--radius-control);
+  background: transparent;
+  color: var(--label-2);
+  cursor: pointer;
+  transition: background .14s var(--ease), color .14s var(--ease), transform .14s var(--ease);
+}
+.icon-button:hover { background: var(--control); color: var(--label); }
+.icon-button:active { transform: translateY(1px); }
+.icon-button.is-active { color: var(--accent); background: var(--selection); }
+.icon-button.star-on { color: var(--star); }
+
+.button {
+  border: .5px solid var(--separator);
+  background: var(--control);
+  color: var(--label);
+  border-radius: var(--radius-control);
+  min-height: 28px;
+  padding: 0 12px;
+  cursor: pointer;
+  transition: background .16s var(--ease), transform .16s var(--ease), color .16s var(--ease);
+}
+.button:hover { background: var(--control-hover); }
+.button:active { transform: translateY(1px); }
+.button.primary {
+  border-color: rgb(0 0 0 / 0%);
+  background: var(--accent);
+  color: var(--accent-ink);
+}
+.button.primary:hover { background: var(--accent-strong); }
+.button.success {
+  border-color: color-mix(in srgb, var(--success), transparent 45%);
+  background: color-mix(in srgb, var(--success), transparent 84%);
+  color: var(--success);
+}
+
+.tag, .lang-pill, .status-chip, .term-chip {
+  display: inline-flex;
+  align-items: center;
+  border-radius: 999px;
+  white-space: nowrap;
+}
+.tag {
+  height: 18px;
+  padding: 0 7px;
+  border-radius: 5px;
+  background: var(--accent-soft);
+  color: var(--accent);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: .04em;
+  text-transform: uppercase;
+}
+.lang-pill {
+  gap: 6px;
+  height: 24px;
+  padding: 0 10px;
+  background: var(--control);
+  border: .5px solid var(--separator);
+  color: var(--label-2);
+  font-size: 11px;
+  font-weight: 650;
+}
+.lang-pill button {
+  border: 0;
+  background: transparent;
+  color: var(--accent);
+  cursor: pointer;
+  padding: 0;
+}
+.status-chip {
+  gap: 5px;
+  height: 20px;
+  padding: 0 8px;
+  background: var(--control);
+  color: var(--label-2);
+  font-size: 11px;
+}
+.dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 999px;
+  background: var(--label-3);
+}
+.dot.ok { background: var(--success); }
+.dot.warn { background: var(--warning); }
+.dot.accent { background: var(--accent); }
+.freq-badge {
+  min-width: 22px;
+  height: 18px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 6px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--warning), transparent 86%);
+  color: var(--warning);
+  font-size: 10px;
+  font-weight: 700;
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+}
+
+.learning-layout {
+  align-items: stretch;
+}
+.learning-panel {
+  width: min(462px, calc(100vw - 48px));
+}
+.panel-top {
+  height: 28px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+.panel-top .actions { margin-left: auto; display: flex; gap: 2px; }
+.source-block,
+.translation-block,
+.practice-block,
+.detail-card,
+.metric-tile,
+.word-detail-section {
+  border-radius: var(--radius-card);
+  background: var(--content);
+  border: .5px solid var(--hairline);
+}
+.source-block {
+  padding: 11px 12px;
+}
+.source-text {
+  font-size: 13px;
+  line-height: 18px;
+  color: var(--label);
+}
+.source-meta {
+  margin-top: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  color: var(--label-3);
+  font-size: 11px;
+}
+.translation-block {
+  margin-top: 8px;
+  padding: 12px;
+}
+.answer-head {
+  height: 22px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.answer-label {
+  color: var(--label-3);
+  font-size: 11px;
+}
+.answer-head .latency {
+  margin-left: auto;
+  color: var(--label-3);
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+}
+.result-copy {
+  margin: 7px 0 0;
+  font-size: 17px;
+  line-height: 25px;
+  letter-spacing: 0;
+}
+.learn-term {
+  display: inline;
+  border: 0;
+  border-radius: 6px;
+  padding: 1px 3px 2px;
+  margin: 0 1px;
+  background: var(--accent-soft);
+  color: var(--label);
+  box-shadow: inset 0 0 0 .5px color-mix(in srgb, var(--accent), transparent 46%);
+  cursor: pointer;
+  line-height: inherit;
+}
+.learn-term[data-count]::after {
+  content: attr(data-count);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 18px;
+  height: 15px;
+  margin-left: 3px;
+  padding: 0 4px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--warning), transparent 86%);
+  color: var(--warning);
+  font-size: 9px;
+  font-weight: 700;
+  line-height: 1;
+  vertical-align: 1px;
+  font-variant-numeric: tabular-nums;
+}
+.learn-term:hover,
+.learn-term.active {
+  background: color-mix(in srgb, var(--accent), transparent 76%);
+  color: var(--accent);
+}
+.learn-term.mastered {
+  background: color-mix(in srgb, var(--success), transparent 86%);
+  box-shadow: inset 0 0 0 .5px color-mix(in srgb, var(--success), transparent 48%);
+}
+.learning-strip {
+  margin-top: 12px;
+  padding-top: 10px;
+  border-top: .5px solid var(--separator);
+}
+.strip-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 20px;
+}
+.strip-head strong {
+  font-size: 12px;
+  line-height: 16px;
+}
+.strip-head span {
+  margin-left: auto;
+  color: var(--label-3);
+  font-size: 11px;
+}
+.term-chips {
+  margin-top: 8px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.term-chip {
+  height: 24px;
+  gap: 5px;
+  border: .5px solid var(--separator);
+  background: var(--control);
+  color: var(--label-2);
+  padding: 0 8px;
+  font-size: 12px;
+  cursor: pointer;
+  transition: background .16s var(--ease), color .16s var(--ease), transform .16s var(--ease);
+}
+.term-chip:hover { background: var(--control-hover); color: var(--label); }
+.term-chip.active {
+  background: var(--selection);
+  color: var(--accent);
+  border-color: color-mix(in srgb, var(--accent), transparent 58%);
+}
+.term-chip.saved::before {
+  content: "✓";
+  color: var(--success);
+  font-weight: 700;
+}
+.term-chip .freq-badge {
+  height: 16px;
+  min-width: 18px;
+  padding: 0 5px;
+  font-size: 9px;
+}
+
+.practice-block {
+  margin-top: 8px;
+  padding: 12px;
+}
+.practice-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 9px;
+}
+.practice-head strong { font-size: 13px; line-height: 18px; }
+.practice-head .status-chip { margin-left: auto; }
+.cloze {
+  margin: 0;
+  font-size: 14px;
+  line-height: 20px;
+}
+.blank {
+  display: inline-grid;
+  min-width: 106px;
+  height: 22px;
+  place-items: center;
+  border-radius: 6px;
+  background: var(--control);
+  border: .5px dashed var(--separator);
+  color: var(--label-3);
+}
+.blank.filled {
+  border-style: solid;
+  background: color-mix(in srgb, var(--success), transparent 88%);
+  color: var(--success);
+}
+.quiz-options {
+  margin-top: 10px;
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 6px;
+}
+.quiz-option {
+  min-width: 0;
+  min-height: 30px;
+  border: .5px solid var(--separator);
+  border-radius: var(--radius-control);
+  background: var(--control);
+  color: var(--label);
+  cursor: pointer;
+}
+.quiz-option:hover { background: var(--control-hover); }
+.quiz-option.correct {
+  border-color: color-mix(in srgb, var(--success), transparent 45%);
+  background: color-mix(in srgb, var(--success), transparent 86%);
+  color: var(--success);
+}
+.quiz-option.wrong {
+  border-color: color-mix(in srgb, var(--danger), transparent 48%);
+  background: color-mix(in srgb, var(--danger), transparent 88%);
+  color: var(--danger);
+}
+.practice-feedback {
+  display: none;
+  margin-top: 8px;
+  padding: 7px 8px;
+  border-radius: 7px;
+  font-size: 12px;
+  line-height: 16px;
+}
+.practice-feedback.show {
+  display: block;
+  animation: fold-in .16s var(--ease);
+}
+.practice-feedback.ok {
+  background: color-mix(in srgb, var(--success), transparent 88%);
+  color: var(--success);
+}
+.practice-feedback.warn {
+  background: color-mix(in srgb, var(--warning), transparent 86%);
+  color: var(--warning);
+}
+@keyframes fold-in {
+  from { opacity: 0; transform: translateY(-4px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.context-card {
+  width: 320px;
+  border-radius: var(--radius-window);
+  padding: 12px;
+  background: var(--window);
+  border: .5px solid var(--separator);
+  box-shadow: var(--shadow-pop);
+}
+.term-title {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  align-items: start;
+  gap: 8px;
+}
+.term-badges {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 6px;
+}
+.term-title h2 {
+  margin: 0;
+  font-size: 18px;
+  line-height: 23px;
+  letter-spacing: 0;
+}
+.term-title small {
+  display: block;
+  margin-top: 3px;
+  color: var(--label-2);
+  font-size: 12px;
+}
+.detail-card {
+  margin-top: 10px;
+  padding: 11px 12px;
+}
+.detail-card h3,
+.word-detail-section h3 {
+  margin: 0 0 7px;
+  color: var(--label-2);
+  font-size: 12px;
+  line-height: 16px;
+  font-weight: 650;
+}
+.detail-card p,
+.word-detail-section p {
+  margin: 0;
+  color: var(--label);
+  font-size: 13px;
+  line-height: 18px;
+}
+.pair-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: grid;
+  gap: 6px;
+}
+.pair-list li {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 8px;
+  color: var(--label);
+  font-size: 12px;
+  line-height: 16px;
+}
+.pair-list span:last-child { color: var(--label-2); }
+.mastery {
+  margin-top: 10px;
+  display: grid;
+  gap: 7px;
+}
+.mastery-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 11px;
+  color: var(--label-3);
+}
+.stage-track {
+  height: 6px;
+  border-radius: 999px;
+  background: var(--control);
+  overflow: hidden;
+}
+.stage-fill {
+  height: 100%;
+  width: var(--stage, 40%);
+  border-radius: inherit;
+  background: var(--accent);
+}
+.term-actions {
+  margin-top: 10px;
+  display: flex;
+  justify-content: flex-end;
+  gap: 6px;
+}
+
+.popover-demo {
+  width: min(760px, calc(100vw - 48px));
+  min-height: 430px;
+  border-radius: var(--radius-window);
+  background: var(--window);
+  border: .5px solid var(--separator);
+  box-shadow: var(--shadow-panel);
+  position: relative;
+  overflow: hidden;
+}
+.demo-reader {
+  padding: 46px 56px;
+  height: 100%;
+  background: var(--canvas);
+}
+.demo-card {
+  width: min(520px, 100%);
+  padding: 18px;
+  border-radius: var(--radius-card);
+  background: var(--content);
+  border: .5px solid var(--hairline);
+}
+.demo-card p {
+  margin: 0;
+  font-size: 18px;
+  line-height: 28px;
+}
+.demo-card .demo-copy { margin-top: 10px; }
+.word-popover {
+  position: absolute;
+  right: 48px;
+  top: 108px;
+  width: 318px;
+  border-radius: 13px;
+  background: var(--window);
+  border: .5px solid var(--separator);
+  box-shadow: var(--shadow-pop);
+  padding: 12px;
+}
+.word-popover::before {
+  content: "";
+  position: absolute;
+  left: -8px;
+  top: 64px;
+  width: 16px;
+  height: 16px;
+  transform: rotate(45deg);
+  background: var(--window-solid);
+  border-left: .5px solid var(--separator);
+  border-bottom: .5px solid var(--separator);
+  border-radius: 3px;
+}
+
+.review-window {
+  width: min(820px, calc(100vw - 48px));
+  height: 520px;
+}
+.review-body {
+  height: calc(100% - 40px);
+  display: grid;
+  grid-template-columns: 250px 1fr;
+}
+.review-list {
+  background: var(--sidebar);
+  border-right: .5px solid var(--separator);
+  display: flex;
+  flex-direction: column;
+}
+.review-summary {
+  padding: 12px;
+  border-bottom: .5px solid var(--separator);
+}
+.review-summary strong {
+  display: block;
+  font-size: 14px;
+  line-height: 18px;
+}
+.review-summary span {
+  display: block;
+  margin-top: 4px;
+  color: var(--label-2);
+  font-size: 12px;
+  line-height: 16px;
+}
+.queue-rows {
+  overflow: auto;
+  padding: 8px;
+}
+.queue-row {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 8px;
+  padding: 9px 10px;
+  min-height: 52px;
+  border-radius: 9px;
+  cursor: pointer;
+}
+.queue-row:hover,
+.queue-row.active { background: var(--selection); }
+.queue-row strong {
+  display: block;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  font-size: 13px;
+  line-height: 18px;
+}
+.queue-row span {
+  display: block;
+  color: var(--label-3);
+  font-size: 11px;
+  line-height: 15px;
+}
+.queue-row .badge {
+  align-self: start;
+  min-width: 24px;
+  height: 20px;
+  display: inline-grid;
+  place-items: center;
+  padding: 0 6px;
+  border-radius: 999px;
+  background: var(--control);
+  color: var(--label-2);
+  font-size: 11px;
+}
+.review-main {
+  background: var(--canvas);
+  padding: 22px;
+  display: grid;
+  align-content: start;
+  gap: 12px;
+}
+.review-card {
+  border-radius: 12px;
+  background: var(--content);
+  border: .5px solid var(--hairline);
+  padding: 18px;
+}
+.review-card .mode {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--label-3);
+  font-size: 11px;
+}
+.review-card h2 {
+  margin: 10px 0 8px;
+  font-size: 20px;
+  line-height: 26px;
+}
+.review-card p {
+  margin: 0;
+  font-size: 15px;
+  line-height: 22px;
+}
+.review-options {
+  margin-top: 14px;
+  display: grid;
+  gap: 8px;
+}
+.review-option {
+  min-height: 38px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  border: .5px solid var(--separator);
+  border-radius: 8px;
+  background: var(--control);
+  color: var(--label);
+  padding: 0 12px;
+  cursor: pointer;
+  text-align: left;
+}
+.review-option:hover { background: var(--control-hover); }
+.review-option.correct {
+  border-color: color-mix(in srgb, var(--success), transparent 44%);
+  background: color-mix(in srgb, var(--success), transparent 86%);
+  color: var(--success);
+}
+.review-option.wrong {
+  border-color: color-mix(in srgb, var(--danger), transparent 48%);
+  background: color-mix(in srgb, var(--danger), transparent 88%);
+  color: var(--danger);
+}
+.review-feedback {
+  display: none;
+  padding: 10px 12px;
+  border-radius: 8px;
+  font-size: 12px;
+  line-height: 17px;
+}
+.review-feedback.show {
+  display: block;
+  background: color-mix(in srgb, var(--success), transparent 88%);
+  color: var(--success);
+}
+.review-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.vocab-window {
+  width: min(900px, calc(100vw - 48px));
+  height: 540px;
+}
+.vocab-body {
+  height: calc(100% - 40px);
+  display: grid;
+  grid-template-columns: 300px 1fr;
+}
+.vocab-list {
+  background: var(--sidebar);
+  border-right: .5px solid var(--separator);
+  display: flex;
+  flex-direction: column;
+}
+.search {
+  margin: 10px;
+  min-height: 30px;
+  display: grid;
+  grid-template-columns: 18px 1fr;
+  align-items: center;
+  gap: 7px;
+  padding: 0 9px;
+  border-radius: 8px;
+  background: var(--control);
+  color: var(--label-3);
+  font-size: 13px;
+}
+.segmented {
+  display: flex;
+  margin: 0 10px 8px;
+  padding: 2px;
+  border-radius: 8px;
+  background: var(--control);
+  border: .5px solid var(--hairline);
+}
+.segmented button {
+  flex: 1;
+  min-height: 24px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--label-2);
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 600;
+}
+.segmented button.active {
+  background: var(--content-solid);
+  color: var(--label);
+  box-shadow: 0 1px 2px rgb(0 0 0 / 14%);
+}
+.word-rows { overflow: auto; padding: 2px 8px 8px; }
+.word-row {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 8px;
+  padding: 9px 10px;
+  min-height: 58px;
+  border-radius: 9px;
+  cursor: pointer;
+}
+.word-row:hover,
+.word-row.active { background: var(--selection); }
+.word-row strong {
+  display: block;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  font-size: 13px;
+  line-height: 18px;
+}
+.word-row span {
+  display: block;
+  color: var(--label-3);
+  font-size: 11px;
+  line-height: 15px;
+}
+.word-row .next {
+  display: grid;
+  justify-items: end;
+  gap: 5px;
+  color: var(--label-3);
+  font-size: 11px;
+  white-space: nowrap;
+}
+.word-row .next .freq-badge {
+  height: 17px;
+  min-width: 24px;
+}
+.vocab-detail {
+  background: var(--canvas);
+  padding: 18px;
+  overflow: auto;
+}
+.metrics {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 10px;
+  margin-bottom: 12px;
+}
+.metric-tile {
+  padding: 12px;
+}
+.metric-tile strong {
+  display: block;
+  font-size: 20px;
+  line-height: 24px;
+  font-variant-numeric: tabular-nums;
+}
+.metric-tile span {
+  display: block;
+  margin-top: 3px;
+  color: var(--label-2);
+  font-size: 11px;
+  line-height: 14px;
+}
+.word-detail {
+  border-radius: 12px;
+  background: var(--content);
+  border: .5px solid var(--hairline);
+  padding: 16px;
+}
+.word-detail-head {
+  display: flex;
+  align-items: start;
+  gap: 12px;
+}
+.word-detail-head h2 {
+  margin: 0;
+  font-size: 22px;
+  line-height: 28px;
+}
+.word-detail-head small {
+  display: block;
+  margin-top: 3px;
+  color: var(--label-2);
+  font-size: 12px;
+}
+.word-detail-head .term-actions { margin: 0 0 0 auto; }
+.word-detail-grid {
+  margin-top: 14px;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+.word-detail-section {
+  padding: 12px;
+}
+.history-sentence {
+  margin-top: 10px;
+  padding-top: 10px;
+  border-top: .5px solid var(--separator);
+  color: var(--label-2);
+  font-size: 12px;
+  line-height: 17px;
+}
+
+.settings-window {
+  width: min(740px, calc(100vw - 48px));
+  height: 500px;
+}
+.settings-body {
+  height: calc(100% - 40px);
+  display: grid;
+  grid-template-columns: 184px 1fr;
+}
+.sidebar {
+  padding: 10px 8px;
+  background: var(--sidebar);
+  border-right: .5px solid var(--separator);
+}
+.side-row {
+  min-height: 32px;
+  display: grid;
+  grid-template-columns: 22px 1fr;
+  align-items: center;
+  gap: 8px;
+  padding: 0 10px;
+  border-radius: 8px;
+  color: var(--label);
+  cursor: pointer;
+  font-size: 13px;
+}
+.side-row:hover,
+.side-row.active { background: var(--selection); }
+.side-row .icon { color: var(--label-2); }
+.settings-content {
+  overflow: auto;
+  padding: 22px 26px 28px;
+  background: var(--canvas);
+}
+.pane-title {
+  margin: 0 0 12px;
+  font-size: 17px;
+  line-height: 22px;
+  font-weight: 650;
+}
+.group {
+  border-radius: 12px;
+  background: var(--content);
+  border: .5px solid var(--hairline);
+  overflow: hidden;
+  margin-bottom: 16px;
+}
+.setting-row {
+  min-height: 42px;
+  display: grid;
+  grid-template-columns: 1fr auto;
+  align-items: center;
+  gap: 12px;
+  padding: 8px 12px;
+  border-bottom: .5px solid var(--separator);
+  font-size: 13px;
+}
+.setting-row:last-child { border-bottom: 0; }
+.setting-row small {
+  display: block;
+  margin-top: 2px;
+  color: var(--label-3);
+  font-size: 11px;
+  line-height: 14px;
+}
+.select, .stepper {
+  min-height: 28px;
+  border: .5px solid var(--separator);
+  background: var(--control);
+  color: var(--label);
+  border-radius: 7px;
+  padding: 0 9px;
+  outline: 0;
+}
+.stepper {
+  width: 54px;
+  text-align: center;
+}
+.switch {
+  width: 36px;
+  height: 22px;
+  margin-left: auto;
+  padding: 2px;
+  border: 0;
+  border-radius: 999px;
+  background: var(--separator);
+  cursor: pointer;
+  transition: background .16s var(--ease);
+}
+.switch::after {
+  content: "";
+  display: block;
+  width: 18px;
+  height: 18px;
+  border-radius: 999px;
+  background: #fff;
+  box-shadow: 0 1px 3px rgb(0 0 0 / 24%);
+  transition: transform .16s var(--ease);
+}
+.switch.on { background: var(--success); }
+.switch.on::after { transform: translateX(14px); }
+.inline-note {
+  margin: 8px 0 0;
+  color: var(--label-2);
+  font-size: 12px;
+  line-height: 17px;
+}
+
+@media (max-width: 920px) {
+  .surface.active { flex-direction: column; }
+  .context-card { width: min(462px, calc(100vw - 48px)); }
+  .review-body, .vocab-body, .settings-body { grid-template-columns: 1fr; }
+  .review-list, .vocab-list, .sidebar { display: none; }
+  .review-window, .vocab-window, .settings-window { height: min(560px, calc(100dvh - 150px)); }
+  .metrics { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .word-detail-grid { grid-template-columns: 1fr; }
+  .word-popover { position: static; margin: 12px auto 0; }
+  .word-popover::before { display: none; }
+}
+
+@media (max-width: 560px) {
+  .stage { padding-left: 12px; padding-right: 12px; }
+  .quiz-options { grid-template-columns: 1fr; }
+  .metrics { grid-template-columns: 1fr; }
+  .demo-reader { padding: 32px 18px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: .001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: .001ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+</style>
+</head>
+<body>
+<svg class="icon-sprite" aria-hidden="true" focusable="false">
+  <symbol id="icon-star" viewBox="0 0 24 24">
+    <path d="M12 3.2l2.65 5.35 5.9.86-4.27 4.16 1.01 5.88L12 16.67l-5.29 2.78 1.01-5.88L3.45 9.41l5.9-.86L12 3.2z"></path>
+  </symbol>
+  <symbol id="icon-copy" viewBox="0 0 24 24">
+    <rect x="8.5" y="8.5" width="10.5" height="10.5" rx="2.2"></rect>
+    <path d="M5 15.5V6.8A1.8 1.8 0 016.8 5h8.7"></path>
+  </symbol>
+  <symbol id="icon-speaker" viewBox="0 0 24 24">
+    <path d="M11 5.5L6.8 9H4v6h2.8L11 18.5v-13z"></path>
+    <path d="M15.1 8.7a4.8 4.8 0 010 6.6"></path>
+    <path d="M17.8 6.1a8.3 8.3 0 010 11.8"></path>
+  </symbol>
+  <symbol id="icon-pin" viewBox="0 0 24 24">
+    <path d="M9.5 4.5h5l-.7 5.3 3.2 3.2v2H7v-2l3.2-3.2-.7-5.3z"></path>
+    <path d="M12 15v5"></path>
+  </symbol>
+  <symbol id="icon-search" viewBox="0 0 24 24">
+    <circle cx="10.7" cy="10.7" r="5.7"></circle>
+    <path d="M15 15l4.5 4.5"></path>
+  </symbol>
+  <symbol id="icon-text" viewBox="0 0 24 24">
+    <path d="M4.5 7.2V5h15v2.2"></path>
+    <path d="M12 5v14"></path>
+    <path d="M8.2 19h7.6"></path>
+  </symbol>
+  <symbol id="icon-book" viewBox="0 0 24 24">
+    <path d="M5 4.5h9a3 3 0 013 3v12H8a3 3 0 00-3 3v-18z"></path>
+    <path d="M17 7.5h2a2 2 0 012 2v10h-4"></path>
+  </symbol>
+  <symbol id="icon-brain" viewBox="0 0 24 24">
+    <path d="M9 5.2A3.2 3.2 0 005.8 8.4 3.4 3.4 0 004 11.4c0 1.7 1.2 3.1 2.8 3.4A3.4 3.4 0 0010.2 19H12V6.7A3.2 3.2 0 009 5.2z"></path>
+    <path d="M15 5.2a3.2 3.2 0 013.2 3.2 3.4 3.4 0 011.8 3c0 1.7-1.2 3.1-2.8 3.4A3.4 3.4 0 0113.8 19H12V6.7a3.2 3.2 0 013-1.5z"></path>
+  </symbol>
+  <symbol id="icon-chart" viewBox="0 0 24 24">
+    <path d="M4 19.5h16"></path>
+    <path d="M7 16v-5"></path>
+    <path d="M12 16V6"></path>
+    <path d="M17 16V9"></path>
+  </symbol>
+  <symbol id="icon-gear" viewBox="0 0 24 24">
+    <circle cx="12" cy="12" r="3.2"></circle>
+    <path d="M12 3.5v2M12 18.5v2M5.99 5.99l1.42 1.42M16.59 16.59l1.42 1.42M3.5 12h2M18.5 12h2M5.99 18.01l1.42-1.42M16.59 7.41l1.42-1.42"></path>
+  </symbol>
+  <symbol id="icon-check" viewBox="0 0 24 24">
+    <path d="M5 12.5l4.2 4.2L19 7"></path>
+  </symbol>
+  <symbol id="icon-chevron" viewBox="0 0 24 24">
+    <path d="M9 5l7 7-7 7"></path>
+  </symbol>
+  <symbol id="icon-plus" viewBox="0 0 24 24">
+    <path d="M12 5v14M5 12h14"></path>
+  </symbol>
+</svg>
+
+<div class="desktop">
+  <div class="menubar" aria-hidden="true">
+    <b>Parrot</b>
+    <span>File</span>
+    <span>Edit</span>
+    <span>View</span>
+    <span>Window</span>
+    <span>Help</span>
+    <div class="right">
+      <span>Wi-Fi</span>
+      <span>100%</span>
+      <span>Wed 4:26 PM</span>
+    </div>
+  </div>
+
+  <nav class="viewer" aria-label="Prototype controls">
+    <button type="button" class="active" data-surface-target="translate">翻译学习</button>
+    <button type="button" data-surface-target="popover">词义弹层</button>
+    <button type="button" data-surface-target="review">每日复习</button>
+    <button type="button" data-surface-target="vocab">个人词库</button>
+    <button type="button" data-surface-target="settings">学习设置</button>
+    <span class="divider" aria-hidden="true"></span>
+    <button type="button" id="themeButton" aria-label="Toggle theme">深色</button>
+  </nav>
+
+  <main class="stage">
+    <section class="surface active learning-layout" data-surface="translate">
+      <article class="panel learning-panel" aria-label="Translation result with learning layer">
+        <div class="panel-top">
+          <span class="lang-pill">
+            <span>中文</span>
+            <button type="button" aria-label="Swap languages">⇄</button>
+            <span>EN</span>
+          </span>
+          <span class="status-chip"><span class="dot ok"></span> 学习识别已开启</span>
+          <span class="actions">
+            <button type="button" class="icon-button" id="pinPanelButton" aria-label="Pin panel" aria-pressed="false"><svg class="icon"><use href="#icon-pin"></use></svg></button>
+            <button type="button" class="icon-button" aria-label="Copy source"><svg class="icon"><use href="#icon-copy"></use></svg></button>
+            <button type="button" class="icon-button" aria-label="Speak source"><svg class="icon"><use href="#icon-speaker"></use></svg></button>
+          </span>
+        </div>
+
+        <div class="source-block">
+          <div class="source-text">该提案因证据不足被驳回。</div>
+          <div class="source-meta">
+            <span>来源：输入翻译</span>
+            <span>自动检测中文</span>
+          </div>
+        </div>
+
+        <div class="translation-block">
+          <div class="answer-head">
+            <span class="tag">DeepL</span>
+            <span class="answer-label">译文</span>
+            <span class="latency">186ms</span>
+          </div>
+          <p class="result-copy">
+            The
+            <button type="button" class="learn-term active" data-term="proposal" data-count="4次">proposal</button>
+            was rejected
+            <button type="button" class="learn-term" data-term="dueTo" data-count="2次">due to</button>
+            <button type="button" class="learn-term" data-term="insufficient" data-count="3次">insufficient evidence</button>.
+          </p>
+          <div class="learning-strip">
+            <div class="strip-head">
+              <svg class="icon"><use href="#icon-brain"></use></svg>
+              <strong>建议掌握 3 个表达</strong>
+              <span>预计 42 秒</span>
+            </div>
+            <div class="term-chips">
+              <button type="button" class="term-chip active saved" data-term="proposal">proposal <span class="freq-badge">4次</span></button>
+              <button type="button" class="term-chip" data-term="dueTo">due to <span class="freq-badge">2次</span></button>
+              <button type="button" class="term-chip" data-term="insufficient">insufficient evidence <span class="freq-badge">3次</span></button>
+            </div>
+          </div>
+        </div>
+
+        <div class="practice-block" id="microPractice">
+          <div class="practice-head">
+            <svg class="icon"><use href="#icon-text"></use></svg>
+            <strong>10 秒微练习</strong>
+            <span class="status-chip"><span class="dot accent"></span> 原句挖空</span>
+          </div>
+          <p class="cloze">The proposal was rejected due to <span class="blank" id="quizBlank">______</span> evidence.</p>
+          <div class="quiz-options">
+            <button type="button" class="quiz-option" data-answer="wrong">efficient</button>
+            <button type="button" class="quiz-option" data-answer="correct">insufficient</button>
+            <button type="button" class="quiz-option" data-answer="wrong">potential</button>
+          </div>
+          <div class="practice-feedback" id="practiceFeedback"></div>
+        </div>
+      </article>
+
+      <aside class="context-card" aria-label="Contextual word details">
+        <div class="term-title">
+          <div>
+            <h2 id="termTitle">proposal</h2>
+            <small id="termMeta">/prəˈpoʊzəl/ · n.</small>
+          </div>
+          <div class="term-badges">
+            <span class="freq-badge" id="termCount">4次</span>
+            <span class="tag" id="termType">高频</span>
+          </div>
+        </div>
+        <div class="detail-card">
+          <h3>当前句中含义</h3>
+          <p id="termMeaning">提案、方案；这里指被提交评估的一项正式建议。</p>
+        </div>
+        <div class="detail-card">
+          <h3>原句词块</h3>
+          <p id="termChunk">The proposal was rejected = 该提案被驳回</p>
+        </div>
+        <div class="detail-card">
+          <h3>常见搭配</h3>
+          <ul class="pair-list" id="termPairs">
+            <li><span>submit a proposal</span><span>提交提案</span></li>
+            <li><span>approve a proposal</span><span>批准提案</span></li>
+            <li><span>reject a proposal</span><span>驳回提案</span></li>
+          </ul>
+        </div>
+        <div class="mastery">
+          <div class="mastery-top"><span id="masteryText">阶段 2 / 5 · 原句能认出</span><span id="seenCount">见过 4 次</span></div>
+          <div class="stage-track"><div class="stage-fill" id="stageFill"></div></div>
+        </div>
+        <div class="term-actions">
+          <button type="button" class="button" id="knownButton">认识</button>
+          <button type="button" class="button primary" id="saveButton">已加入词库</button>
+        </div>
+      </aside>
+    </section>
+
+    <section class="surface" data-surface="popover">
+      <article class="popover-demo" aria-label="Context word popover">
+        <div class="demo-reader">
+          <div class="demo-card">
+            <span class="tag">翻译结果</span>
+            <p class="demo-copy">
+              The proposal was rejected due to
+              <button type="button" class="learn-term active" data-term="insufficient" data-count="3次">insufficient evidence</button>.
+            </p>
+          </div>
+        </div>
+        <div class="word-popover">
+          <div class="term-title">
+            <div>
+              <h2>insufficient evidence</h2>
+              <small>/ˌɪnsəˈfɪʃnt/ · phrase</small>
+            </div>
+            <span class="tag">关键理解</span>
+          </div>
+          <div class="detail-card">
+            <h3>当前句中含义</h3>
+            <p>证据不足；这是导致 proposal 被 rejected 的原因。</p>
+          </div>
+          <div class="detail-card">
+            <h3>可迁移搭配</h3>
+            <ul class="pair-list">
+              <li><span>insufficient data</span><span>数据不足</span></li>
+              <li><span>insufficient funds</span><span>资金不足</span></li>
+              <li><span>insufficient time</span><span>时间不够</span></li>
+            </ul>
+          </div>
+          <div class="term-actions">
+            <button type="button" class="button">以后再说</button>
+            <button type="button" class="button primary">加入词库</button>
+          </div>
+        </div>
+      </article>
+    </section>
+
+    <section class="surface" data-surface="review">
+      <article class="window review-window" aria-label="Daily vocabulary review">
+        <div class="titlebar">
+          <div class="traffic"><i></i><i></i><i></i></div>
+          <strong>今日复习</strong>
+          <div class="toolbar">
+            <span class="status-chip"><span class="dot ok"></span> 12 个</span>
+          </div>
+        </div>
+        <div class="review-body">
+          <aside class="review-list" aria-label="Review queue">
+            <div class="review-summary">
+              <strong>3 分钟队列</strong>
+              <span>8 个来自最近翻译，4 个来自反复遗忘。</span>
+            </div>
+            <div class="queue-rows">
+              <div class="queue-row active" data-review-index="0"><div><strong>insufficient</strong><span>原句挖空 · 昨天</span></div><span class="badge">1</span></div>
+              <div class="queue-row" data-review-index="1"><div><strong>due to</strong><span>中文回忆英文 · 今天</span></div><span class="badge">2</span></div>
+              <div class="queue-row" data-review-index="2"><div><strong>proposal</strong><span>迁移句 · 3 天前</span></div><span class="badge">3</span></div>
+              <div class="queue-row" data-review-index="3"><div><strong>evidence</strong><span>主动回忆 · 1 周前</span></div><span class="badge">4</span></div>
+            </div>
+          </aside>
+          <section class="review-main">
+            <div class="review-card">
+              <div class="mode"><span class="tag" id="reviewMode">原句挖空</span><span id="reviewOrigin">来自 6 月 24 日翻译</span></div>
+              <h2 id="reviewTitle">The proposal was rejected due to ___ evidence.</h2>
+              <p id="reviewPrompt">选择最符合“证据不足”的表达。</p>
+              <div class="review-options" id="reviewOptions">
+                <button type="button" class="review-option" data-review-answer="wrong">available</button>
+                <button type="button" class="review-option" data-review-answer="correct">insufficient</button>
+                <button type="button" class="review-option" data-review-answer="wrong">accurate</button>
+              </div>
+            </div>
+            <div class="review-feedback" id="reviewFeedback">回答正确。该表达进入“迁移句可识别”阶段。</div>
+            <div class="review-actions">
+              <button type="button" class="button" id="reviewAgain">稍后再练</button>
+              <button type="button" class="button primary" id="nextReview">下一张</button>
+            </div>
+          </section>
+        </div>
+      </article>
+    </section>
+
+    <section class="surface" data-surface="vocab">
+      <article class="window vocab-window" aria-label="Personal vocabulary">
+        <div class="titlebar">
+          <div class="traffic"><i></i><i></i><i></i></div>
+          <strong>个人词库</strong>
+          <div class="toolbar">
+            <button type="button" class="icon-button" aria-label="Add word"><svg class="icon"><use href="#icon-plus"></use></svg></button>
+          </div>
+        </div>
+        <div class="vocab-body">
+          <aside class="vocab-list" aria-label="Vocabulary list">
+            <div class="search"><svg class="icon"><use href="#icon-search"></use></svg><span>搜索表达或来源句</span></div>
+            <div class="segmented"><button type="button" class="active">全部</button><button type="button">待复习</button><button type="button">已掌握</button></div>
+            <div class="word-rows">
+              <div class="word-row active" data-vocab-term="insufficient"><div><strong>insufficient evidence</strong><span>商务 / 审批 · 阶段 2</span></div><span class="next"><span class="freq-badge">3次</span>今天</span></div>
+              <div class="word-row" data-vocab-term="proposal"><div><strong>proposal</strong><span>商务 / 文档 · 阶段 3</span></div><span class="next"><span class="freq-badge">4次</span>明天</span></div>
+              <div class="word-row" data-vocab-term="dueTo"><div><strong>due to</strong><span>通用连接词 · 阶段 1</span></div><span class="next"><span class="freq-badge">2次</span>今天</span></div>
+              <div class="word-row"><div><strong>early intervention</strong><span>论文 / 教育 · 阶段 2</span></div><span class="next"><span class="freq-badge">5次</span>2 天</span></div>
+              <div class="word-row"><div><strong>highlight the importance of</strong><span>写作表达 · 阶段 4</span></div><span class="next"><span class="freq-badge">7次</span>6 天</span></div>
+            </div>
+          </aside>
+          <section class="vocab-detail">
+            <div class="metrics">
+              <div class="metric-tile"><strong>128</strong><span>已沉淀表达</span></div>
+              <div class="metric-tile"><strong>42</strong><span>本周新增</span></div>
+              <div class="metric-tile"><strong>18</strong><span>今日待复习</span></div>
+              <div class="metric-tile"><strong>12%</strong><span>预计少查词</span></div>
+            </div>
+            <div class="word-detail">
+              <div class="word-detail-head">
+                <div>
+                  <h2 id="vocabTitle">insufficient evidence</h2>
+                  <small id="vocabMeta">phrase · 见过 3 次 · 来自翻译结果</small>
+                </div>
+                <div class="term-actions">
+                  <button type="button" class="icon-button star-on" aria-label="Favorite"><svg class="icon fill"><use href="#icon-star"></use></svg></button>
+                  <button type="button" class="icon-button" aria-label="Speak"><svg class="icon"><use href="#icon-speaker"></use></svg></button>
+                </div>
+              </div>
+              <div class="mastery">
+                <div class="mastery-top"><span id="vocabStage">阶段 2 / 5 · 原句能认出</span><span id="vocabNext">下次复习：今天 20:00</span></div>
+                <div class="stage-track"><div class="stage-fill" id="vocabFill"></div></div>
+              </div>
+              <div class="word-detail-grid">
+                <div class="word-detail-section">
+                  <h3>语境释义</h3>
+                  <p id="vocabMeaning">证据不足；在审批、研究或法律语境中用于解释拒绝原因。</p>
+                </div>
+                <div class="word-detail-section">
+                  <h3>常见搭配</h3>
+                  <p id="vocabPairs">insufficient data / insufficient funds / insufficient time</p>
+                </div>
+              </div>
+              <div class="history-sentence" id="vocabSentence">The proposal was rejected due to insufficient evidence.</div>
+            </div>
+          </section>
+        </div>
+      </article>
+    </section>
+
+    <section class="surface" data-surface="settings">
+      <article class="window settings-window" aria-label="Learning settings">
+        <div class="titlebar">
+          <div class="traffic"><i></i><i></i><i></i></div>
+          <strong>Parrot 设置</strong>
+          <div class="toolbar"><button type="button" class="icon-button" aria-label="Search settings"><svg class="icon"><use href="#icon-search"></use></svg></button></div>
+        </div>
+        <div class="settings-body">
+          <nav class="sidebar" aria-label="Settings sections">
+            <div class="side-row"><svg class="icon"><use href="#icon-gear"></use></svg><span>通用</span></div>
+            <div class="side-row"><svg class="icon"><use href="#icon-text"></use></svg><span>翻译</span></div>
+            <div class="side-row active"><svg class="icon"><use href="#icon-brain"></use></svg><span>学习</span></div>
+            <div class="side-row"><svg class="icon"><use href="#icon-book"></use></svg><span>术语</span></div>
+          </nav>
+          <div class="settings-content">
+            <h1 class="pane-title">学习</h1>
+            <div class="group">
+              <div class="setting-row">
+                <span>自动识别陌生表达<small>翻译完成后在译文中轻量高亮高价值词块。</small></span>
+                <button type="button" class="switch on" aria-label="Toggle learning recognition"></button>
+              </div>
+              <div class="setting-row">
+                <span>每句推荐上限<small>控制学习层密度，默认保留 3 个最值得掌握的表达。</small></span>
+                <input class="stepper" type="number" value="3" min="1" max="6" aria-label="Max recommendations per sentence">
+              </div>
+              <div class="setting-row">
+                <span>翻译后微练习<small>只在识别到高价值表达时出现，可随时忽略。</small></span>
+                <button type="button" class="switch on" aria-label="Toggle micro practice"></button>
+              </div>
+            </div>
+            <div class="group">
+              <div class="setting-row">
+                <span>每日复习强度</span>
+                <select class="select" aria-label="Review intensity">
+                  <option>轻量 · 3 分钟</option>
+                  <option>标准 · 5 分钟</option>
+                  <option>强化 · 10 分钟</option>
+                </select>
+              </div>
+              <div class="setting-row">
+                <span>目标水平</span>
+                <select class="select" aria-label="Target level">
+                  <option>B1 → B2</option>
+                  <option>A2 → B1</option>
+                  <option>B2 → C1</option>
+                </select>
+              </div>
+              <div class="setting-row">
+                <span>只复习真实翻译句<small>关闭后会允许系统补充迁移例句。</small></span>
+                <button type="button" class="switch on" aria-label="Toggle real sentence only"></button>
+              </div>
+            </div>
+            <p class="inline-note">学习词库与术语表分开管理：术语表保证译法稳定，学习词库追踪用户掌握程度。</p>
+          </div>
+        </div>
+      </article>
+    </section>
+  </main>
+</div>
+
+<script>
+const root = document.documentElement;
+const termData = {
+  proposal: {
+    title: "proposal",
+    meta: "/prəˈpoʊzəl/ · n.",
+    type: "高频",
+    count: "4次",
+    meaning: "提案、方案；这里指被提交评估的一项正式建议。",
+    chunk: "The proposal was rejected = 该提案被驳回",
+    pairs: [
+      ["submit a proposal", "提交提案"],
+      ["approve a proposal", "批准提案"],
+      ["reject a proposal", "驳回提案"]
+    ],
+    mastery: "阶段 2 / 5 · 原句能认出",
+    seen: "见过 4 次",
+    fill: "40%"
+  },
+  dueTo: {
+    title: "due to",
+    meta: "/duː tuː/ · phrase",
+    type: "连接词",
+    count: "2次",
+    meaning: "由于、因为；用于连接原因，语气比 because of 更书面。",
+    chunk: "rejected due to insufficient evidence = 因证据不足被驳回",
+    pairs: [
+      ["due to weather", "由于天气"],
+      ["due to a delay", "由于延误"],
+      ["due to lack of data", "由于缺少数据"]
+    ],
+    mastery: "阶段 1 / 5 · 已见过",
+    seen: "见过 2 次",
+    fill: "20%"
+  },
+  insufficient: {
+    title: "insufficient evidence",
+    meta: "/ˌɪnsəˈfɪʃnt/ · phrase",
+    type: "关键理解",
+    count: "3次",
+    meaning: "证据不足；这是导致 proposal 被 rejected 的原因。",
+    chunk: "insufficient evidence = 证据不足",
+    pairs: [
+      ["insufficient data", "数据不足"],
+      ["insufficient funds", "资金不足"],
+      ["insufficient time", "时间不够"]
+    ],
+    mastery: "阶段 2 / 5 · 原句能认出",
+    seen: "见过 3 次",
+    fill: "40%"
+  }
+};
+
+const vocabData = {
+  insufficient: {
+    title: "insufficient evidence",
+    meta: "phrase · 见过 3 次 · 来自翻译结果",
+    stage: "阶段 2 / 5 · 原句能认出",
+    next: "下次复习：今天 20:00",
+    fill: "40%",
+    meaning: "证据不足；在审批、研究或法律语境中用于解释拒绝原因。",
+    pairs: "insufficient data / insufficient funds / insufficient time",
+    sentence: "The proposal was rejected due to insufficient evidence."
+  },
+  proposal: {
+    title: "proposal",
+    meta: "noun · 见过 4 次 · 来自输入翻译",
+    stage: "阶段 3 / 5 · 迁移句可认出",
+    next: "下次复习：明天 09:00",
+    fill: "60%",
+    meaning: "正式提交的提案或方案，常见于商务、产品和研究场景。",
+    pairs: "submit a proposal / approve a proposal / reject a proposal",
+    sentence: "The revised proposal needs stronger evidence."
+  },
+  dueTo: {
+    title: "due to",
+    meta: "phrase · 见过 2 次 · 来自划词翻译",
+    stage: "阶段 1 / 5 · 已见过",
+    next: "下次复习：今天 21:30",
+    fill: "20%",
+    meaning: "由于、因为；偏正式，常用于解释原因。",
+    pairs: "due to weather / due to a delay / due to lack of data",
+    sentence: "The meeting was postponed due to a scheduling conflict."
+  }
+};
+
+const reviewCards = [
+  {
+    mode: "原句挖空",
+    origin: "来自 6 月 24 日翻译",
+    title: "The proposal was rejected due to ___ evidence.",
+    prompt: "选择最符合“证据不足”的表达。",
+    options: ["available", "insufficient", "accurate"],
+    correct: "insufficient"
+  },
+  {
+    mode: "中文回忆英文",
+    origin: "来自今天的输入翻译",
+    title: "会议因为日程冲突被推迟。",
+    prompt: "选择最适合“因为”的书面表达。",
+    options: ["due to", "next to", "up to"],
+    correct: "due to"
+  },
+  {
+    mode: "迁移句",
+    origin: "来自 3 天前划词翻译",
+    title: "The revised ___ needs stronger evidence.",
+    prompt: "补全“修订后的提案”。",
+    options: ["proposal", "purpose", "promise"],
+    correct: "proposal"
+  },
+  {
+    mode: "主动回忆",
+    origin: "来自历史记录",
+    title: "There is no clear evidence to support the claim.",
+    prompt: "选择 evidence 在句中的含义。",
+    options: ["证据", "效率", "预算"],
+    correct: "证据"
+  }
+];
+
+document.querySelectorAll("[data-surface-target]").forEach((button) => {
+  button.addEventListener("click", () => {
+    document.querySelectorAll("[data-surface-target]").forEach((b) => b.classList.remove("active"));
+    button.classList.add("active");
+    document.querySelectorAll("[data-surface]").forEach((surface) => surface.classList.remove("active"));
+    document.querySelector(`[data-surface="${button.dataset.surfaceTarget}"]`).classList.add("active");
+  });
+});
+
+document.getElementById("themeButton").addEventListener("click", (event) => {
+  const current = root.getAttribute("data-theme");
+  const next = current === "dark" ? "system" : "dark";
+  root.setAttribute("data-theme", next);
+  event.currentTarget.textContent = next === "dark" ? "系统" : "深色";
+});
+
+document.getElementById("pinPanelButton").addEventListener("click", (event) => {
+  const pressed = event.currentTarget.getAttribute("aria-pressed") === "true";
+  event.currentTarget.setAttribute("aria-pressed", String(!pressed));
+  event.currentTarget.classList.toggle("is-active", !pressed);
+});
+
+function setTerm(key) {
+  const item = termData[key];
+  if (!item) return;
+  document.querySelectorAll("[data-term]").forEach((node) => {
+    node.classList.toggle("active", node.dataset.term === key);
+  });
+  document.getElementById("termTitle").textContent = item.title;
+  document.getElementById("termMeta").textContent = item.meta;
+  document.getElementById("termType").textContent = item.type;
+  document.getElementById("termCount").textContent = item.count;
+  document.getElementById("termMeaning").textContent = item.meaning;
+  document.getElementById("termChunk").textContent = item.chunk;
+  document.getElementById("masteryText").textContent = item.mastery;
+  document.getElementById("seenCount").textContent = item.seen;
+  document.getElementById("stageFill").style.setProperty("--stage", item.fill);
+  document.getElementById("termPairs").innerHTML = item.pairs
+    .map(([en, zh]) => `<li><span>${en}</span><span>${zh}</span></li>`)
+    .join("");
+  document.getElementById("saveButton").textContent = key === "proposal" ? "已加入词库" : "加入词库";
+}
+
+document.querySelectorAll("[data-term]").forEach((node) => {
+  node.addEventListener("click", () => setTerm(node.dataset.term));
+});
+
+document.getElementById("saveButton").addEventListener("click", (event) => {
+  event.currentTarget.textContent = "已加入词库";
+  event.currentTarget.classList.add("success");
+  document.querySelectorAll("[data-term].active").forEach((node) => node.classList.add("saved"));
+});
+
+document.getElementById("knownButton").addEventListener("click", (event) => {
+  event.currentTarget.textContent = "已标记认识";
+  document.querySelectorAll("[data-term].active").forEach((node) => node.classList.add("mastered"));
+  document.getElementById("masteryText").textContent = "阶段 5 / 5 · 主动可用";
+  document.getElementById("stageFill").style.setProperty("--stage", "100%");
+});
+
+document.querySelectorAll(".quiz-option").forEach((option) => {
+  option.addEventListener("click", () => {
+    document.querySelectorAll(".quiz-option").forEach((node) => node.classList.remove("correct", "wrong"));
+    const feedback = document.getElementById("practiceFeedback");
+    const blank = document.getElementById("quizBlank");
+    if (option.dataset.answer === "correct") {
+      option.classList.add("correct");
+      blank.textContent = "insufficient";
+      blank.classList.add("filled");
+      feedback.textContent = "答对了。insufficient evidence 进入“原句能认出”阶段。";
+      feedback.className = "practice-feedback show ok";
+    } else {
+      option.classList.add("wrong");
+      document.querySelector('[data-answer="correct"]').classList.add("correct");
+      blank.textContent = "insufficient";
+      blank.classList.add("filled");
+      feedback.textContent = "答案是 insufficient。这个表达会在稍后的复习队列中再次出现。";
+      feedback.className = "practice-feedback show warn";
+    }
+  });
+});
+
+function renderReview(index) {
+  const item = reviewCards[index];
+  document.getElementById("reviewMode").textContent = item.mode;
+  document.getElementById("reviewOrigin").textContent = item.origin;
+  document.getElementById("reviewTitle").textContent = item.title;
+  document.getElementById("reviewPrompt").textContent = item.prompt;
+  document.getElementById("reviewFeedback").classList.remove("show");
+  document.getElementById("reviewOptions").innerHTML = item.options.map((option) => (
+    `<button type="button" class="review-option" data-option-value="${option}">${option}</button>`
+  )).join("");
+  document.querySelectorAll(".review-option").forEach((button) => {
+    button.addEventListener("click", () => {
+      document.querySelectorAll(".review-option").forEach((node) => node.classList.remove("correct", "wrong"));
+      const isCorrect = button.dataset.optionValue === item.correct;
+      button.classList.add(isCorrect ? "correct" : "wrong");
+      document.querySelectorAll(".review-option").forEach((node) => {
+        if (node.dataset.optionValue === item.correct) node.classList.add("correct");
+      });
+      const feedback = document.getElementById("reviewFeedback");
+      feedback.textContent = isCorrect
+        ? "回答正确。该表达进入下一掌握阶段。"
+        : `答案是 ${item.correct}。该表达会保留在今日队列。`;
+      feedback.classList.add("show");
+    });
+  });
+  document.querySelectorAll("[data-review-index]").forEach((row) => {
+    row.classList.toggle("active", Number(row.dataset.reviewIndex) === index);
+  });
+}
+
+document.querySelectorAll("[data-review-index]").forEach((row) => {
+  row.addEventListener("click", () => renderReview(Number(row.dataset.reviewIndex)));
+});
+
+let reviewIndex = 0;
+document.getElementById("nextReview").addEventListener("click", () => {
+  reviewIndex = (reviewIndex + 1) % reviewCards.length;
+  renderReview(reviewIndex);
+});
+document.getElementById("reviewAgain").addEventListener("click", () => {
+  const feedback = document.getElementById("reviewFeedback");
+  feedback.textContent = "已保留在今日队列，稍后会再次出现。";
+  feedback.classList.add("show");
+});
+renderReview(0);
+
+function setVocab(key) {
+  const item = vocabData[key];
+  if (!item) return;
+  document.querySelectorAll("[data-vocab-term]").forEach((row) => {
+    row.classList.toggle("active", row.dataset.vocabTerm === key);
+  });
+  document.getElementById("vocabTitle").textContent = item.title;
+  document.getElementById("vocabMeta").textContent = item.meta;
+  document.getElementById("vocabStage").textContent = item.stage;
+  document.getElementById("vocabNext").textContent = item.next;
+  document.getElementById("vocabFill").style.setProperty("--stage", item.fill);
+  document.getElementById("vocabMeaning").textContent = item.meaning;
+  document.getElementById("vocabPairs").textContent = item.pairs;
+  document.getElementById("vocabSentence").textContent = item.sentence;
+}
+document.querySelectorAll("[data-vocab-term]").forEach((row) => {
+  row.addEventListener("click", () => setVocab(row.dataset.vocabTerm));
+});
+
+document.querySelectorAll(".switch").forEach((button) => {
+  button.addEventListener("click", () => button.classList.toggle("on"));
+});
+
+document.querySelectorAll(".segmented button").forEach((button) => {
+  button.addEventListener("click", () => {
+    button.parentElement.querySelectorAll("button").forEach((node) => node.classList.remove("active"));
+    button.classList.add("active");
+  });
+});
+</script>
+</body>
+</html>

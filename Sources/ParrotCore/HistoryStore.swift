@@ -155,6 +155,11 @@ public actor HistoryStore {
 
     public func all() -> [TranslationRecord] { records }
 
+    public func latest(limit: Int) -> [TranslationRecord] {
+        guard limit > 0 else { return [] }
+        return Array(records.prefix(limit))
+    }
+
     public func favorites() -> [TranslationRecord] { records.filter { $0.isFavorite } }
 
     /// Case-insensitive substring search over source and translated text.

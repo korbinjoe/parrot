@@ -22,6 +22,18 @@ private func record(_ src: String, _ dst: String, fav: Bool = false) -> Translat
     #expect(all.first?.sourceText == "world")  // newest first
 }
 
+@Test func latestReturnsBoundedNewestRecords() async {
+    let store = tempStore()
+    await store.add(record("oldest", "1"))
+    await store.add(record("middle", "2"))
+    await store.add(record("newest", "3"))
+
+    let latest = await store.latest(limit: 2)
+    let empty = await store.latest(limit: 0)
+    #expect(latest.map(\.sourceText) == ["newest", "middle"])
+    #expect(empty == [])
+}
+
 @Test func searchMatchesSourceAndTranslation() async {
     let store = tempStore()
     await store.add(record("hello", "你好"))

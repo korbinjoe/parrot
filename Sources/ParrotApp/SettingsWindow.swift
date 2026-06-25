@@ -178,12 +178,13 @@ struct SettingsView: View {
     private let onRetryProvider: (String) -> Void
 
     enum Pane: String, CaseIterable, Identifiable {
-        case general, engines, terminology, ocr, tts, keys, shortcuts, plugins, about
+        case general, engines, learning, terminology, ocr, tts, keys, shortcuts, plugins, about
         var id: String { rawValue }
         var title: String {
             switch self {
             case .general: return L("通用")
             case .engines: return L("翻译")
+            case .learning: return L("学习")
             case .terminology: return L("术语")
             case .ocr: return L("识别")
             case .tts: return L("语音")
@@ -197,6 +198,7 @@ struct SettingsView: View {
             switch self {
             case .general: return "gearshape"
             case .engines: return "globe"
+            case .learning: return "brain.head.profile"
             case .terminology: return "text.book.closed"
             case .ocr: return "doc.text.viewfinder"
             case .tts: return "waveform"
@@ -415,6 +417,7 @@ struct SettingsView: View {
         switch selection {
         case .general: generalPane
         case .engines: enginesPane
+        case .learning: learningPane
         case .terminology: terminologyPane
         case .ocr: ocrPane
         case .tts: ttsPane
@@ -475,6 +478,45 @@ struct SettingsView: View {
             disclosureSection("更多服务", isExpanded: $showMoreEngines) {
                 engineOptionsGroup(disabledEngineOptions(in: .more), emptyText: "更多服务都已开启")
             }
+        }
+    }
+
+    private var learningPane: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            sectionTitle("学习")
+            formGroup {
+                settingRow("手动选词学习") {
+                    Toggle("", isOn: $settings.learningRecognitionEnabled)
+                        .labelsHidden()
+                        .toggleStyle(.switch)
+                        .controlSize(.small)
+                }
+                settingRow("翻译后微练习") {
+                    Toggle("", isOn: $settings.learningMicroPracticeEnabled)
+                        .labelsHidden()
+                        .toggleStyle(.switch)
+                        .controlSize(.small)
+                }
+            }
+
+            formGroup {
+                settingRow("每日复习强度") {
+                    Picker("", selection: $settings.learningReviewIntensity) {
+                        Text("轻量 · 3 分钟").tag("light")
+                        Text("标准 · 5 分钟").tag("standard")
+                        Text("强化 · 10 分钟").tag("intense")
+                    }
+                    .labelsHidden()
+                    .frame(width: 150)
+                }
+                settingRow("只复习真实翻译句") {
+                    Toggle("", isOn: $settings.learningRealSentenceOnly)
+                        .labelsHidden()
+                        .toggleStyle(.switch)
+                        .controlSize(.small)
+                }
+            }
+            callout("学习词库与术语表分开管理：术语表保证译法稳定，学习词库追踪用户掌握程度。选中原文或译文中的表达后，才会出现加入词库、掌握标记和微练习。")
         }
     }
 

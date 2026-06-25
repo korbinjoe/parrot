@@ -48,11 +48,21 @@ private final class HistoryModel: ObservableObject {
         var title: String { self == .all ? L("全部") : L("收藏") }
     }
 
-    @Published var records: [TranslationRecord] = []
-    @Published var query: String = ""
-    @Published var scope: Scope = .all
-    @Published var langPair: String = "" // "" = all; otherwise "src→dst"
+    @Published var records: [TranslationRecord] = [] {
+        didSet {
+            availablePairs = Self.distinctPairs(in: records)
+            if !langPair.isEmpty && !availablePairs.contains(langPair) {
+                langPair = ""
+            }
+            applyFilters()
+        }
+    }
+    @Published var query: String = "" { didSet { applyFilters() } }
+    @Published var scope: Scope = .all { didSet { applyFilters() } }
+    @Published var langPair: String = "" { didSet { applyFilters() } } // "" = all; otherwise "src→dst"
     @Published var selectedId: UUID?
+    @Published private(set) var filteredRecords: [TranslationRecord] = []
+    @Published private(set) var availablePairs: [String] = []
 
     private let store: HistoryStore
 
@@ -60,36 +70,37 @@ private final class HistoryModel: ObservableObject {
         self.store = store
     }
 
-    var filtered: [TranslationRecord] {
+    private func applyFilters() {
         let q = query.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
-        return records.filter { rec in
+        let next = records.filter { rec in
             if scope == .favorites && !rec.isFavorite { return false }
             if !langPair.isEmpty && Self.pairKey(rec) != langPair { return false }
             if q.isEmpty { return true }
             return rec.sourceText.lowercased().contains(q) || rec.translated.lowercased().contains(q)
         }
+        filteredRecords = next
+        if let id = selectedId, !next.contains(where: { $0.id == id }) {
+            selectedId = next.first?.id
+        } else if selectedId == nil {
+            selectedId = next.first?.id
+        }
     }
 
-    /// Distinct language pairs present in the records, for the filter menu.
-    var availablePairs: [String] {
+    static func pairKey(_ rec: TranslationRecord) -> String { "\(rec.sourceLang)→\(rec.targetLang)" }
+
+    private static func distinctPairs(in records: [TranslationRecord]) -> [String] {
         var seen: [String] = []
         for rec in records {
-            let key = Self.pairKey(rec)
+            let key = pairKey(rec)
             if !seen.contains(key) { seen.append(key) }
         }
         return seen
     }
 
-    static func pairKey(_ rec: TranslationRecord) -> String { "\(rec.sourceLang)→\(rec.targetLang)" }
-
     func reload() {
         Task {
             let all = await store.all()
             self.records = all
-            if let id = selectedId, !all.contains(where: { $0.id == id }) {
-                selectedId = nil
-            }
-            if selectedId == nil { selectedId = filtered.first?.id }
         }
     }
 
@@ -103,7 +114,6 @@ private final class HistoryModel: ObservableObject {
     func delete(_ rec: TranslationRecord) {
         Task {
             await store.delete(rec.id)
-            if selectedId == rec.id { selectedId = nil }
             reload()
         }
     }
@@ -139,12 +149,12 @@ private struct HistoryView: View {
         VStack(spacing: 0) {
             filterBar
             Divider()
-            if model.filtered.isEmpty {
+            if model.filteredRecords.isEmpty {
                 emptyList
             } else {
                 ScrollView {
                     LazyVStack(spacing: 2) {
-                        ForEach(model.filtered) { rec in
+                        ForEach(model.filteredRecords) { rec in
                             Button {
                                 model.selectedId = rec.id
                             } label: {
@@ -215,7 +225,7 @@ private struct HistoryView: View {
 
     @ViewBuilder
     private var detailColumn: some View {
-        if let rec = model.filtered.first(where: { $0.id == model.selectedId }) {
+        if let rec = model.filteredRecords.first(where: { $0.id == model.selectedId }) {
             HistoryDetail(record: rec,
                           onRetranslate: { onRetranslate(rec.sourceText) },
                           onCopy: { copy($0) },

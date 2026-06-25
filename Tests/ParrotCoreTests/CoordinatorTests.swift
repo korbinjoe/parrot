@@ -43,6 +43,18 @@ import Testing
     #expect(outcomes.isEmpty)
 }
 
+@Test func registryExposesDisplayOrderIDsForCachedRendering() {
+    let registry = ProviderRegistry()
+    registry.register(DelayedEngine(id: "a", delayMs: 0))
+    registry.register(DelayedEngine(id: "b", delayMs: 0))
+    registry.register(DelayedEngine(id: "disabled", delayMs: 0), enabled: false)
+    registry.setOrder(["b", "a", "disabled"])
+    registry.register(DelayedEngine(id: "plugin", delayMs: 0))
+
+    #expect(registry.providerIDsInDisplayOrder() == ["b", "a", "plugin"])
+    #expect(registry.providerIDsInDisplayOrder(includeDisabled: true) == ["b", "a", "disabled", "plugin"])
+}
+
 @Test func failingProviderIsIsolated() async {
     let registry = ProviderRegistry()
     registry.register(MockEngine())

@@ -7,7 +7,7 @@ import ParrotCore
 struct ResultView: View {
     private enum Layout {
         static let minWidth: CGFloat = 480
-        static let idealWidth: CGFloat = 560
+        static let idealWidth: CGFloat = 520
         static let minHeight: CGFloat = 320
         static let minScrollHeight: CGFloat = 260
         static let idealScrollFloor: CGFloat = 520
@@ -20,18 +20,21 @@ struct ResultView: View {
     @ObservedObject var panelPresentation: FloatingPanelPresentation
     let onTogglePinned: () -> Void
     let onConfigureProvider: (String?) -> Void
+    let onVocabulary: () -> Void
     let onWorkspaceNoticeAction: (WorkspaceNotice.Action) -> Void
     let onClose: () -> Void
 
     @State private var contentHeight: CGFloat = 160
     @State private var feedbackText: String = ""
     @State private var sourceComposerFocused: Bool = false
+    @State private var sourceLearningSelection: String = ""
 
     init(
         state: AppState,
         panelPresentation: FloatingPanelPresentation = FloatingPanelPresentation(),
         onTogglePinned: @escaping () -> Void = {},
         onConfigureProvider: @escaping (String?) -> Void = { _ in },
+        onVocabulary: @escaping () -> Void = {},
         onWorkspaceNoticeAction: @escaping (WorkspaceNotice.Action) -> Void = { _ in },
         onClose: @escaping () -> Void = {}
     ) {
@@ -39,6 +42,7 @@ struct ResultView: View {
         self.panelPresentation = panelPresentation
         self.onTogglePinned = onTogglePinned
         self.onConfigureProvider = onConfigureProvider
+        self.onVocabulary = onVocabulary
         self.onWorkspaceNoticeAction = onWorkspaceNoticeAction
         self.onClose = onClose
     }
@@ -73,6 +77,12 @@ struct ResultView: View {
                                 case .outcome(let outcome):
                                     TranslationOutcomeCard(outcome: outcome,
                                                            isSlow: state.slowProviderIDs.contains(outcome.providerId),
+                                                           settings: state.settings,
+                                                           sourceText: state.sourceText,
+                                                           learningEnabled: state.settings.learningRecognitionEnabled,
+                                                           microPracticeEnabled: state.settings.learningMicroPracticeEnabled,
+                                                           occurrenceCounts: state.learningOccurrenceCounts,
+                                                           sourceSelection: sourceLearningSelection,
                                                            onSpeak: { state.speakTranslation($0) },
                                                            onCopy: { copy($0) },
                                                            onRetry: { state.retryProvider(outcome.providerId) },
@@ -201,6 +211,9 @@ struct ResultView: View {
                 onTargetChange: { state.setLanguageDirection(targetCode: $0) },
                 onSwap: swapLanguages
             )
+            if state.settings.learningRecognitionEnabled {
+                LearningStatusChip(text: "选词学习", tone: Theme.Palette.success)
+            }
             Spacer(minLength: 0)
             IconButton("arrow.clockwise", help: state.isSourceDirty ? "翻译当前编辑内容" : "重新翻译") {
                 state.retryCurrentTranslation()
@@ -228,6 +241,7 @@ struct ResultView: View {
             .help(L("收藏"))
             IconButton("doc.on.doc", help: "复制原文") { copy(state.actionSourceText) }
             IconButton("speaker.wave.2", help: "朗读原文") { state.speakSource() }
+            IconButton("text.book.closed", help: "打开个人词库") { onVocabulary() }
             IconButton("gearshape", help: "打开设置") { onConfigureProvider(nil) }
             IconButton("xmark", help: "关闭面板") { onClose() }
         }
@@ -261,6 +275,9 @@ struct ResultView: View {
                     onFocusChange: { focused in
                         sourceComposerFocused = focused
                         state.setComposerFocused(focused)
+                    },
+                    onSelectionChange: { selection in
+                        sourceLearningSelection = selection
                     }
                 )
                     .frame(height: sourceEditorHeight)
@@ -376,7 +393,7 @@ struct ResultView: View {
         var pendingByID: [String: PendingProviderViewState] = [:]
         for provider in state.pendingProviders { pendingByID[provider.id] = provider }
         let observedIDs = state.outcomes.map(\.providerId) + state.pendingProviders.map(\.id)
-        let configuredIDs = EngineBootstrap.resolvedProviderOrder(settings: state.settings)
+        let configuredIDs = state.providerDisplayOrder
         let orderedIDs = configuredIDs + observedIDs.filter { !configuredIDs.contains($0) }
 
         var seen: Set<String> = []
@@ -595,6 +612,7 @@ private struct SourceComposerTextView: NSViewRepresentable {
     let focusRequest: Int
     let onCommandReturn: () -> Void
     let onFocusChange: (Bool) -> Void
+    let onSelectionChange: (String) -> Void
 
     func makeCoordinator() -> Coordinator {
         Coordinator(self)
@@ -680,6 +698,19 @@ private struct SourceComposerTextView: NSViewRepresentable {
         func textDidEndEditing(_ notification: Notification) {
             parent.onFocusChange(false)
         }
+
+        func textViewDidChangeSelection(_ notification: Notification) {
+            guard let textView = notification.object as? NSTextView else { return }
+            parent.onSelectionChange(Self.selectedText(in: textView))
+        }
+
+        private static func selectedText(in textView: NSTextView) -> String {
+            let range = textView.selectedRange()
+            guard range.length > 0,
+                  let swiftRange = Range(range, in: textView.string) else { return "" }
+            return String(textView.string[swiftRange])
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+        }
     }
 
     final class CommandAwareTextView: NSTextView {
@@ -703,11 +734,18 @@ private struct SourceComposerTextView: NSViewRepresentable {
 private struct TranslationOutcomeCard: View {
     let outcome: AggregatedOutcome
     let isSlow: Bool
+    @ObservedObject var settings: AppSettings
+    let sourceText: String
+    let learningEnabled: Bool
+    let microPracticeEnabled: Bool
+    let occurrenceCounts: [String: Int]
+    let sourceSelection: String
     let onSpeak: (String) -> Void
     let onCopy: (String) -> Void
     let onRetry: () -> Void
     let onConfigure: () -> Void
     @State private var showTerminologyDetails = false
+    @State private var translatedSelection: String = ""
 
     var body: some View {
         VStack(alignment: .leading, spacing: Theme.Spacing.s8) {
@@ -762,7 +800,7 @@ private struct TranslationOutcomeCard: View {
     @ViewBuilder
     private var content: some View {
         if let result = outcome.result {
-            TranslationBody(result: result, lineLimit: nil)
+            learningBody(for: result)
         } else if let error = outcome.error {
             VStack(alignment: .leading, spacing: Theme.Spacing.s8) {
                 Text(providerErrorText(error))
@@ -782,6 +820,102 @@ private struct TranslationOutcomeCard: View {
                 }
             }
         }
+    }
+
+    @ViewBuilder
+    private func learningBody(for result: TranslateResult) -> some View {
+        VStack(alignment: .leading, spacing: Theme.Spacing.s8) {
+            TranslationBody(result: result, lineLimit: nil) { selection in
+                translatedSelection = selection
+            }
+
+            if learningEnabled, let selected = manualLearningExpression(for: result) {
+                manualLearningPanel(expression: selected, origin: manualSelectionOrigin)
+            }
+        }
+    }
+
+    @ViewBuilder
+    private func manualLearningPanel(expression selected: LearningExpression, origin: String) -> some View {
+        VStack(alignment: .leading, spacing: Theme.Spacing.s8) {
+            HStack {
+                LearningStatusChip(text: origin)
+                Text("已选中“\(selected.term)”")
+                    .font(Theme.Font.caption)
+                    .foregroundStyle(Theme.Palette.label2)
+                    .lineLimit(1)
+                Spacer(minLength: 0)
+            }
+            LearningContextCard(
+                expression: selected,
+                saved: savedLearningIDs.contains(selected.id),
+                mastered: masteredLearningIDs.contains(selected.id),
+                onKnown: { settings.markLearningMastered(selected) },
+                onSave: { settings.markLearningSaved(selected) }
+            )
+            if microPracticeEnabled {
+                LearningMicroPracticeView(expression: selected) {
+                    settings.recordLearningReview(selected, correct: true)
+                } onWrong: {
+                    settings.recordLearningReview(selected, correct: false)
+                }
+                .id(selected.id)
+            }
+        }
+        .padding(10)
+        .background(Theme.Palette.bgControl.opacity(0.55))
+        .clipShape(RoundedRectangle(cornerRadius: Theme.Radius.control))
+        .overlay(RoundedRectangle(cornerRadius: Theme.Radius.control).strokeBorder(Theme.Palette.separator, lineWidth: 0.5))
+    }
+
+    private func manualLearningExpression(for result: TranslateResult) -> LearningExpression? {
+        let selection = manualSelectionText
+        guard !selection.isEmpty else { return nil }
+        return LearningRecommendationEngine.expressionForManualSelection(
+            selection,
+            contextText: manualSelectionUsesTranslation ? result.translated : sourceText,
+            sourceText: sourceText,
+            occurrenceCounts: occurrenceCounts
+        )
+    }
+
+    private var manualSelectionText: String {
+        let translated = translatedSelection.trimmingCharacters(in: .whitespacesAndNewlines)
+        if !translated.isEmpty { return translated }
+        return sourceSelection.trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
+    private var manualSelectionUsesTranslation: Bool {
+        !translatedSelection.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+    }
+
+    private var manualSelectionOrigin: String {
+        manualSelectionUsesTranslation ? "译文选词" : "原文选词"
+    }
+
+    @ViewBuilder
+    private func translationDetails(for result: TranslateResult) -> some View {
+        if let phonetics = result.phonetics, !phonetics.isEmpty {
+            Text(phonetics.map { "\($0.type) \($0.value)" }.joined(separator: "  "))
+                .font(Theme.Font.callout)
+                .foregroundStyle(Theme.Palette.label2)
+        }
+        if let defs = result.definitions {
+            ForEach(Array(defs.enumerated()), id: \.offset) { _, definition in
+                Text("\(definition.partOfSpeech) \(definition.meanings.joined(separator: "；"))")
+                    .font(Theme.Font.callout)
+                    .foregroundStyle(Theme.Palette.label2)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+        }
+    }
+
+    private var savedLearningIDs: Set<String> {
+        Set(settings.learningSavedExpressionIDs)
+    }
+
+    private var masteredLearningIDs: Set<String> {
+        Set(settings.learningMasteredExpressionIDs)
     }
 
     @ViewBuilder
@@ -854,16 +988,27 @@ private struct PendingOutcomeCard: View {
 private struct TranslationBody: View {
     let result: TranslateResult
     let lineLimit: Int?
+    var onSelectionChange: ((String) -> Void)? = nil
 
     var body: some View {
         VStack(alignment: .leading, spacing: Theme.Spacing.s4 + 2) {
-            Text(result.translated)
-                .font(Theme.Font.result)
-                .foregroundStyle(Theme.Palette.label)
-                .textSelection(.enabled)
-                .lineLimit(lineLimit)
-                .fixedSize(horizontal: false, vertical: true)
+            if let onSelectionChange {
+                SelectableResultTextView(
+                    text: result.translated,
+                    lineLimit: lineLimit,
+                    onSelectionChange: onSelectionChange
+                )
                 .frame(maxWidth: .infinity, alignment: .leading)
+                .fixedSize(horizontal: false, vertical: true)
+            } else {
+                Text(result.translated)
+                    .font(Theme.Font.result)
+                    .foregroundStyle(Theme.Palette.label)
+                    .textSelection(.enabled)
+                    .lineLimit(lineLimit)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+            }
             if let phonetics = result.phonetics, !phonetics.isEmpty {
                 Text(phonetics.map { "\($0.type) \($0.value)" }.joined(separator: "  "))
                     .font(Theme.Font.callout)
@@ -877,6 +1022,105 @@ private struct TranslationBody: View {
                         .fixedSize(horizontal: false, vertical: true)
                 }
             }
+        }
+    }
+}
+
+private struct SelectableResultTextView: NSViewRepresentable {
+    let text: String
+    let lineLimit: Int?
+    let onSelectionChange: (String) -> Void
+
+    func makeCoordinator() -> Coordinator {
+        Coordinator(self)
+    }
+
+    func makeNSView(context: Context) -> NSTextView {
+        let textView = NSTextView()
+        textView.delegate = context.coordinator
+        textView.isEditable = false
+        textView.isSelectable = true
+        textView.isRichText = false
+        textView.importsGraphics = false
+        textView.drawsBackground = false
+        textView.font = Self.font
+        textView.textColor = .labelColor
+        textView.textContainerInset = .zero
+        textView.textContainer?.lineFragmentPadding = 0
+        textView.textContainer?.widthTracksTextView = true
+        textView.isHorizontallyResizable = false
+        textView.isVerticallyResizable = false
+        textView.autoresizingMask = [.width]
+        textView.setAccessibilityElement(true)
+        textView.setAccessibilityLabel(L("译文，可选择表达加入学习"))
+        textView.string = text
+        configure(textView)
+        return textView
+    }
+
+    func updateNSView(_ textView: NSTextView, context: Context) {
+        context.coordinator.parent = self
+        textView.font = Self.font
+        textView.textColor = .labelColor
+        if textView.string != text {
+            textView.string = text
+            textView.setSelectedRange(NSRange(location: 0, length: 0))
+            onSelectionChange("")
+        }
+        configure(textView)
+    }
+
+    func sizeThatFits(_ proposal: ProposedViewSize, nsView: NSTextView, context: Context) -> CGSize? {
+        let width = max(proposal.width ?? nsView.bounds.width, 1)
+        return CGSize(width: width, height: Self.measuredHeight(for: text, width: width, lineLimit: lineLimit))
+    }
+
+    private func configure(_ textView: NSTextView) {
+        textView.textContainer?.maximumNumberOfLines = lineLimit ?? 0
+        textView.textContainer?.lineBreakMode = lineLimit == nil ? .byWordWrapping : .byTruncatingTail
+        textView.textContainer?.containerSize = NSSize(width: max(textView.bounds.width, 1), height: .greatestFiniteMagnitude)
+    }
+
+    private static var font: NSFont {
+        NSFont.systemFont(ofSize: 15)
+    }
+
+    private static func measuredHeight(for text: String, width: CGFloat, lineLimit: Int?) -> CGFloat {
+        let textStorage = NSTextStorage(string: text, attributes: [.font: font])
+        let layoutManager = NSLayoutManager()
+        let textContainer = NSTextContainer(containerSize: NSSize(width: width, height: .greatestFiniteMagnitude))
+        textContainer.lineFragmentPadding = 0
+        textContainer.maximumNumberOfLines = lineLimit ?? 0
+        textContainer.lineBreakMode = lineLimit == nil ? .byWordWrapping : .byTruncatingTail
+
+        layoutManager.addTextContainer(textContainer)
+        textStorage.addLayoutManager(layoutManager)
+        layoutManager.ensureLayout(for: textContainer)
+
+        let usedRect = layoutManager.usedRect(for: textContainer)
+        let lineHeight = ceil(font.ascender - font.descender + font.leading)
+        return max(ceil(usedRect.height), lineHeight) + 2
+    }
+
+    final class Coordinator: NSObject, NSTextViewDelegate {
+        var parent: SelectableResultTextView
+
+        init(_ parent: SelectableResultTextView) {
+            self.parent = parent
+        }
+
+        func textViewDidChangeSelection(_ notification: Notification) {
+            guard let textView = notification.object as? NSTextView else { return }
+            let range = textView.selectedRange()
+            guard range.length > 0,
+                  let swiftRange = Range(range, in: textView.string) else {
+                parent.onSelectionChange("")
+                return
+            }
+            parent.onSelectionChange(
+                String(textView.string[swiftRange])
+                    .trimmingCharacters(in: .whitespacesAndNewlines)
+            )
         }
     }
 }

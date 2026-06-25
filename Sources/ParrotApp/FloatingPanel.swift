@@ -12,7 +12,7 @@ final class FloatingPanelPresentation: ObservableObject {
 @MainActor
 final class FloatingPanel {
     private enum Metrics {
-        static let defaultContentSize = NSSize(width: 560, height: 640)
+        static let defaultContentSize = NSSize(width: 520, height: 640)
         static let minContentSize = NSSize(width: 480, height: 320)
     }
 
@@ -20,6 +20,7 @@ final class FloatingPanel {
     private var hosting: NSHostingController<ResultView>?
     private let state: AppState
     private let onConfigureProvider: (String?) -> Void
+    private let onVocabulary: () -> Void
     private let onWorkspaceNoticeAction: (WorkspaceNotice.Action) -> Void
     private let presentation = FloatingPanelPresentation()
     private var anchorPoint: NSPoint?
@@ -38,10 +39,12 @@ final class FloatingPanel {
     init(
         state: AppState,
         onConfigureProvider: @escaping (String?) -> Void = { _ in },
+        onVocabulary: @escaping () -> Void = {},
         onWorkspaceNoticeAction: @escaping (WorkspaceNotice.Action) -> Void = { _ in }
     ) {
         self.state = state
         self.onConfigureProvider = onConfigureProvider
+        self.onVocabulary = onVocabulary
         self.onWorkspaceNoticeAction = onWorkspaceNoticeAction
     }
 
@@ -118,6 +121,7 @@ final class FloatingPanel {
             panelPresentation: presentation,
             onTogglePinned: { [weak self] in self?.togglePinned() },
             onConfigureProvider: onConfigureProvider,
+            onVocabulary: onVocabulary,
             onWorkspaceNoticeAction: onWorkspaceNoticeAction,
             onClose: { [weak self] in self?.hide(force: true) }
         ))

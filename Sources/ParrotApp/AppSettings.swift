@@ -88,6 +88,41 @@ final class AppSettings: ObservableObject {
         didSet { persistTerminologyState() }
     }
 
+    // Learning layer
+    @Published var learningRecognitionEnabled: Bool {
+        didSet { defaults.set(learningRecognitionEnabled, forKey: "learning.recognition.enabled") }
+    }
+    @Published var learningMicroPracticeEnabled: Bool {
+        didSet { defaults.set(learningMicroPracticeEnabled, forKey: "learning.microPractice.enabled") }
+    }
+    @Published var learningRecommendationLimit: Int {
+        didSet {
+            let clamped = Self.clampedRecommendationLimit(learningRecommendationLimit)
+            if learningRecommendationLimit != clamped {
+                learningRecommendationLimit = clamped
+            }
+            defaults.set(clamped, forKey: "learning.recommendationLimit")
+        }
+    }
+    @Published var learningReviewIntensity: String {
+        didSet { defaults.set(learningReviewIntensity, forKey: "learning.reviewIntensity") }
+    }
+    @Published var learningTargetLevel: String {
+        didSet { defaults.set(learningTargetLevel, forKey: "learning.targetLevel") }
+    }
+    @Published var learningRealSentenceOnly: Bool {
+        didSet { defaults.set(learningRealSentenceOnly, forKey: "learning.realSentenceOnly") }
+    }
+    @Published var learningSavedExpressionIDs: [String] {
+        didSet { defaults.set(learningSavedExpressionIDs, forKey: "learning.savedExpressionIDs") }
+    }
+    @Published var learningMasteredExpressionIDs: [String] {
+        didSet { defaults.set(learningMasteredExpressionIDs, forKey: "learning.masteredExpressionIDs") }
+    }
+    @Published var learningVocabularyEntries: [LearningVocabularyEntry] {
+        didSet { persistLearningVocabularyEntries() }
+    }
+
     // Legacy placeholders (use static accounts in extension)
     @Published var baiduOCRAccount = "ocr.baidu.credentials"
     @Published var tencentOCRAccount = "ocr.tencent.credentials"
@@ -136,6 +171,168 @@ final class AppSettings: ObservableObject {
         self.terminologyEnabled = terminologyState.isEnabled
         self.terminologyStrictMode = terminologyState.strictMode
         self.terminologyEntries = terminologyState.entries
+        self.learningRecognitionEnabled = defaults.object(forKey: "learning.recognition.enabled") as? Bool ?? true
+        self.learningMicroPracticeEnabled = defaults.object(forKey: "learning.microPractice.enabled") as? Bool ?? true
+        self.learningRecommendationLimit = Self.clampedRecommendationLimit(defaults.object(forKey: "learning.recommendationLimit") as? Int ?? 3)
+        self.learningReviewIntensity = defaults.string(forKey: "learning.reviewIntensity") ?? "light"
+        self.learningTargetLevel = defaults.string(forKey: "learning.targetLevel") ?? "B1-B2"
+        self.learningRealSentenceOnly = defaults.object(forKey: "learning.realSentenceOnly") as? Bool ?? true
+        self.learningSavedExpressionIDs = defaults.stringArray(forKey: "learning.savedExpressionIDs") ?? []
+        self.learningMasteredExpressionIDs = defaults.stringArray(forKey: "learning.masteredExpressionIDs") ?? []
+        self.learningVocabularyEntries = Self.loadLearningVocabularyEntries(from: defaults)
+    }
+
+    static func clampedRecommendationLimit(_ value: Int) -> Int {
+        min(6, max(1, value))
+    }
+
+    func markLearningSaved(_ id: String) {
+        guard !learningSavedExpressionIDs.contains(id) else { return }
+        learningSavedExpressionIDs.append(id)
+    }
+
+    func markLearningSaved(_ expression: LearningExpression, sceneLabel: String = "翻译历史") {
+        markLearningSaved(expression.id)
+        upsertLearningVocabularyEntry(expression, sceneLabel: sceneLabel)
+    }
+
+    func markLearningMastered(_ id: String) {
+        markLearningSaved(id)
+        guard !learningMasteredExpressionIDs.contains(id) else { return }
+        learningMasteredExpressionIDs.append(id)
+    }
+
+    func markLearningMastered(_ expression: LearningExpression, sceneLabel: String = "翻译历史") {
+        markLearningSaved(expression, sceneLabel: sceneLabel)
+        updateLearningVocabularyEntry(expression.id) { entry in
+            entry.masteryStage = 5
+            entry.nextReviewAt = Calendar.current.date(byAdding: .day, value: 14, to: Date())
+        }
+        markLearningMastered(expression.id)
+    }
+
+    @discardableResult
+    func addLearningVocabularyTerm(
+        term rawTerm: String,
+        meaning rawMeaning: String = "",
+        sourceSentence rawSourceSentence: String = ""
+    ) -> String? {
+        let term = rawTerm.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !term.isEmpty else { return nil }
+        let id = LearningRecommendationEngine.key(for: term)
+        let now = Date()
+        let meaning = rawMeaning.trimmingCharacters(in: .whitespacesAndNewlines)
+        let sourceSentence = rawSourceSentence.trimmingCharacters(in: .whitespacesAndNewlines)
+        markLearningSaved(id)
+        if let index = learningVocabularyEntries.firstIndex(where: { $0.id == id }) {
+            var entries = learningVocabularyEntries
+            entries[index].term = term
+            if !meaning.isEmpty { entries[index].meaning = meaning }
+            if !sourceSentence.isEmpty { entries[index].sourceSentence = sourceSentence }
+            entries[index].sceneLabel = entries[index].sceneLabel.isEmpty ? "手动添加" : entries[index].sceneLabel
+            entries[index].isManual = true
+            entries[index].updatedAt = now
+            learningVocabularyEntries = entries
+        } else {
+            learningVocabularyEntries.append(
+                LearningVocabularyEntry(
+                    id: id,
+                    term: term,
+                    meaning: meaning,
+                    sourceSentence: sourceSentence,
+                    sceneLabel: "手动添加",
+                    isManual: true,
+                    savedAt: now,
+                    updatedAt: now
+                )
+            )
+        }
+        return id
+    }
+
+    func toggleLearningVocabularyFavorite(_ id: String) {
+        updateLearningVocabularyEntry(id) { entry in
+            entry.isFavorite.toggle()
+        }
+    }
+
+    func removeLearningVocabularyEntry(_ id: String) {
+        learningVocabularyEntries.removeAll { $0.id == id }
+        learningSavedExpressionIDs.removeAll { $0 == id }
+        learningMasteredExpressionIDs.removeAll { $0 == id }
+    }
+
+    func recordLearningReview(_ expression: LearningExpression, correct: Bool, sceneLabel: String = "翻译历史") {
+        markLearningSaved(expression, sceneLabel: sceneLabel)
+        updateLearningVocabularyEntry(expression.id) { entry in
+            let now = Date()
+            entry.lastReviewedAt = now
+            if correct {
+                entry.masteryStage = LearningVocabularyEntry.clampedStage(entry.masteryStage + 1)
+                entry.nextReviewAt = Self.nextLearningReviewDate(stage: entry.masteryStage, from: now)
+                if entry.masteryStage >= 5 {
+                    markLearningMastered(entry.id)
+                }
+            } else {
+                entry.wrongCount += 1
+                entry.masteryStage = max(1, entry.masteryStage - 1)
+                entry.nextReviewAt = Self.nextLearningReviewDate(stage: 1, from: now)
+            }
+        }
+    }
+
+    private func upsertLearningVocabularyEntry(_ expression: LearningExpression, sceneLabel: String) {
+        updateLearningVocabularyEntry(expression.id, create: LearningVocabularyEntry(expression: expression, sceneLabel: sceneLabel)) { entry in
+            entry.term = expression.term
+            entry.meaning = expression.meaning
+            entry.sourceSentence = expression.sourceSentence
+            entry.sceneLabel = sceneLabel
+            entry.occurrenceCount = max(entry.occurrenceCount, expression.occurrenceCount)
+            entry.masteryStage = max(entry.masteryStage, expression.masteryStage)
+        }
+    }
+
+    private func updateLearningVocabularyEntry(
+        _ id: String,
+        create newEntry: LearningVocabularyEntry? = nil,
+        mutate: (inout LearningVocabularyEntry) -> Void
+    ) {
+        var entries = learningVocabularyEntries
+        if let index = entries.firstIndex(where: { $0.id == id }) {
+            mutate(&entries[index])
+            entries[index].updatedAt = Date()
+        } else if var newEntry {
+            mutate(&newEntry)
+            newEntry.updatedAt = Date()
+            entries.append(newEntry)
+        } else {
+            return
+        }
+        learningVocabularyEntries = entries
+    }
+
+    private static func nextLearningReviewDate(stage: Int, from date: Date) -> Date {
+        let days: Int
+        switch stage {
+        case 1: days = 0
+        case 2: days = 1
+        case 3: days = 3
+        case 4: days = 7
+        default: days = 14
+        }
+        return Calendar.current.date(byAdding: .day, value: days, to: date) ?? date
+    }
+
+    private static func loadLearningVocabularyEntries(from defaults: UserDefaults) -> [LearningVocabularyEntry] {
+        guard let data = defaults.data(forKey: "learning.vocabulary.entries") else { return [] }
+        let decoder = JSONDecoder()
+        return (try? decoder.decode([LearningVocabularyEntry].self, from: data)) ?? []
+    }
+
+    private func persistLearningVocabularyEntries() {
+        let encoder = JSONEncoder()
+        guard let data = try? encoder.encode(learningVocabularyEntries) else { return }
+        defaults.set(data, forKey: "learning.vocabulary.entries")
     }
 
     /// Probe whether credentials for an engine are configured and accepted by the provider.

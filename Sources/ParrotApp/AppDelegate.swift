@@ -12,6 +12,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private lazy var floating = FloatingPanel(
         state: state,
         onConfigureProvider: { [weak self] providerID in self?.showSettingsForProvider(providerID) },
+        onVocabulary: { [weak self] in self?.vocabularyWindow.show() },
         onWorkspaceNoticeAction: { [weak self] action in self?.handleWorkspaceNoticeAction(action) }
     )
     private lazy var settingsWindow = SettingsWindow(state: state) { [weak self] providerID in
@@ -21,6 +22,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private lazy var historyWindow = HistoryWindow(state: state) { [weak self] text in
         self?.runTranslation(text)
     }
+    private lazy var learningReviewWindow = LearningReviewWindow(state: state)
+    private lazy var vocabularyWindow = VocabularyWindow(state: state)
     private let popover = NSPopover()
     private var previousFrontmostApp: NSRunningApplication?
     private var shortcutObserver: NSObjectProtocol?
@@ -70,6 +73,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         let appMenu = NSMenu(title: "Parrot")
         appMenu.addItem(appCommand("输入翻译", action: #selector(showInput), key: ""))
         appMenu.addItem(appCommand("查看历史", action: #selector(showHistory), key: ""))
+        appMenu.addItem(appCommand("今日复习", action: #selector(showLearningReview), key: ""))
+        appMenu.addItem(appCommand("个人词库", action: #selector(showVocabulary), key: ""))
         appMenu.addItem(appCommand("设置…", action: #selector(showSettings), key: ","))
         appMenu.addItem(.separator())
         appMenu.addItem(NSMenuItem(title: L("退出 Parrot"), action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q"))
@@ -154,6 +159,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             onInput: { [weak self] in self?.closePopoverThen { self?.showInput() } },
             onSettings: { [weak self] in self?.closePopoverThen { self?.showSettings() } },
             onHistory: { [weak self] in self?.closePopoverThen { self?.historyWindow.show() } },
+            onLearningReview: { [weak self] in self?.closePopoverThen { self?.learningReviewWindow.show() } },
+            onVocabulary: { [weak self] in self?.closePopoverThen { self?.vocabularyWindow.show() } },
             onRetranslate: { [weak self] text in self?.closePopoverThen { self?.runTranslation(text) } },
             onQuit: { NSApp.terminate(nil) }
         )
@@ -323,6 +330,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     @objc private func showHistory() {
         historyWindow.show()
+    }
+
+    @objc private func showLearningReview() {
+        learningReviewWindow.show()
+    }
+
+    @objc private func showVocabulary() {
+        vocabularyWindow.show()
     }
 
     @objc private func translateScreenshot() {

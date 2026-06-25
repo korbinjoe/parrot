@@ -41,6 +41,15 @@ public final class ProviderRegistry: @unchecked Sendable {
         return order.compactMap { id in enabled.contains(id) ? providers[id] : nil }
     }
 
+    /// Provider identifiers in display order. Disabled providers are omitted by default.
+    public func providerIDsInDisplayOrder(includeDisabled: Bool = false) -> [String] {
+        lock.lock(); defer { lock.unlock() }
+        guard includeDisabled else {
+            return order.filter { enabled.contains($0) }
+        }
+        return order
+    }
+
     public func provider(id: String) -> TranslationProvider? {
         lock.lock(); defer { lock.unlock() }
         return providers[id]

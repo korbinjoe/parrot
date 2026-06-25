@@ -12,6 +12,8 @@ struct MenuBarPopoverView: View {
     let onInput: () -> Void
     let onSettings: () -> Void
     let onHistory: () -> Void
+    let onLearningReview: () -> Void
+    let onVocabulary: () -> Void
     let onRetranslate: (String) -> Void
     let onQuit: () -> Void
 
@@ -57,6 +59,11 @@ struct MenuBarPopoverView: View {
                 }
             }
             plainRow("查看全部历史", icon: "clock.arrow.circlepath", action: onHistory)
+
+            sectionDivider
+
+            actionRow("brain.head.profile", "今日复习", "3 分钟", action: onLearningReview)
+            actionRow("text.book.closed", "个人词库", "高频词", action: onVocabulary)
 
             sectionDivider
 
@@ -167,8 +174,7 @@ struct MenuBarPopoverView: View {
 
     private func loadRecents() {
         Task {
-            let all = await state.history.all()
-            recents = Array(all.prefix(3))
+            recents = await state.history.latest(limit: 3)
         }
     }
 }

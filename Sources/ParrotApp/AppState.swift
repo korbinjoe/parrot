@@ -73,6 +73,10 @@ final class AppState: ObservableObject {
     @Published var isFavorite: Bool = false
     @Published var isOffline: Bool = false
     @Published var permissions: PermissionSnapshot = AppPermissions.snapshot()
+    @Published var learningHistoryRecords: [TranslationRecord] = []
+    @Published var learningOccurrenceCounts: [String: Int] = [:]
+    @Published private(set) var providerDisplayOrder: [String] = []
+    @Published private(set) var missingConfigurationOutcomes: [AggregatedOutcome] = []
 
     private let netMonitor = NWPathMonitor()
     private var translationTask: Task<Void, Never>?
@@ -81,6 +85,7 @@ final class AppState: ObservableObject {
     private var didSaveCurrentTranslation = false
     private var currentMode: TranslateMode = .translate
     private let directionResolver = TranslationDirectionResolver()
+    private var learningHistoryRefreshGeneration = 0
     private static let slowProviderSoftTimeout: TimeInterval = 8
 
     var sourceDraftTrimmed: String {
@@ -122,6 +127,7 @@ final class AppState: ObservableObject {
         startNetworkMonitor()
         reloadProviders()
         loadPlugins()
+        refreshLearningHistory()
     }
 
     func reloadProviders() {
@@ -129,6 +135,7 @@ final class AppState: ObservableObject {
         EngineBootstrap.registerAll(into: registry, settings: settings)
         ocrCoordinator.applySettings(settings)
         ttsCoordinator.applySettings(settings)
+        refreshProviderCaches()
     }
 
     private func startNetworkMonitor() {
@@ -168,6 +175,24 @@ final class AppState: ObservableObject {
     private func loadPlugins() {
         for plugin in PluginLoader.loadAll() {
             registry.register(plugin, enabled: true)
+        }
+        refreshProviderCaches()
+    }
+
+    private func refreshProviderCaches() {
+        let configuredOrder = EngineBootstrap.resolvedProviderOrder(settings: settings)
+        let configuredIDs = Set(configuredOrder)
+        let activeRuntimeIDs = registry.providerIDsInDisplayOrder()
+        providerDisplayOrder = configuredOrder + activeRuntimeIDs.filter { !configuredIDs.contains($0) }
+        missingConfigurationOutcomes = EngineCatalog.missingConfigurationDescriptors(settings: settings).map {
+            AggregatedOutcome(
+                providerId: $0.id,
+                displayName: $0.name,
+                modelName: configuredModelName(for: $0),
+                result: nil,
+                error: .notConfigured,
+                latencyMs: 0
+            )
         }
     }
 
@@ -356,8 +381,6 @@ final class AppState: ObservableObject {
         didSaveCurrentTranslation = false
         currentMode = mode
 
-        reloadProviders()
-        loadPlugins()
         sourceText = trimmed
         sourceDraft = trimmed
         let direction = directionResolver.resolve(
@@ -370,16 +393,7 @@ final class AppState: ObservableObject {
         detectedSource = direction.detected
         isTranslating = true
         let activeProviders = registry.activeProviders()
-        outcomes = EngineCatalog.missingConfigurationDescriptors(settings: settings).map {
-            AggregatedOutcome(
-                providerId: $0.id,
-                displayName: $0.name,
-                modelName: configuredModelName(for: $0),
-                result: nil,
-                error: .notConfigured,
-                latencyMs: 0
-            )
-        }
+        outcomes = missingConfigurationOutcomes
         slowProviderIDs = Set(activeProviders.filter(Self.isSlowProvider).map(\.id))
         pendingProviders = activeProviders.map {
             PendingProviderViewState(
@@ -523,6 +537,31 @@ final class AppState: ObservableObject {
         await history.add(record)
         guard currentTranslationID == runID else { return }
         savedRecordId = record.id
+        refreshLearningHistory()
+    }
+
+    func refreshLearningHistory() {
+        learningHistoryRefreshGeneration += 1
+        let generation = learningHistoryRefreshGeneration
+        let historyStore = history
+        Task {
+            let records = await historyStore.all()
+            let counts = await Task.detached(priority: .utility) {
+                LearningRecommendationEngine.occurrenceCounts(records: records)
+            }.value
+            guard generation == learningHistoryRefreshGeneration else { return }
+            self.learningHistoryRecords = records
+            self.learningOccurrenceCounts = counts
+        }
+    }
+
+    var learningVocabularyItems: [LearningVocabularyItem] {
+        LearningRecommendationEngine.vocabularyItems(
+            records: learningHistoryRecords,
+            occurrenceCounts: learningOccurrenceCounts,
+            vocabularyEntries: settings.learningVocabularyEntries,
+            includeHistoryRecommendations: false
+        )
     }
 
     private func log(_ outcome: AggregatedOutcome) {
@@ -551,7 +590,6 @@ final class AppState: ObservableObject {
         }
         let trimmed = committedSourceTrimmed
         guard !trimmed.isEmpty else { return }
-        reloadProviders()
         let direction = directionResolver.resolve(
             text: trimmed,
             from: settings.sourceLanguage,
