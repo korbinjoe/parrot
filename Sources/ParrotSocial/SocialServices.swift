@@ -60,19 +60,22 @@ public struct TranslationAugmentedSocialService<Base: SocialUnderstandingService
     private let directionResolver: TranslationDirectionResolver
     private let defaultTarget: Language
     private let translationTimeout: TimeInterval
+    private let terminologySnapshot: @Sendable () -> TerminologySnapshot?
 
     public init(
         base: Base,
         translationProvider: TranslationProvider,
         directionResolver: TranslationDirectionResolver = TranslationDirectionResolver(),
         defaultTarget: Language = .zh,
-        translationTimeout: TimeInterval = 8
+        translationTimeout: TimeInterval = 8,
+        terminologySnapshot: @escaping @Sendable () -> TerminologySnapshot? = { nil }
     ) {
         self.base = base
         self.translationProvider = translationProvider
         self.directionResolver = directionResolver
         self.defaultTarget = defaultTarget
         self.translationTimeout = translationTimeout
+        self.terminologySnapshot = terminologySnapshot
     }
 
     public func understand(session: SocialTextSession) async throws -> UnderstandResult {
@@ -113,7 +116,8 @@ public struct TranslationAugmentedSocialService<Base: SocialUnderstandingService
             text: text,
             from: direction.from,
             to: direction.to,
-            mode: .translate
+            mode: .translate,
+            terminology: terminologySnapshot()
         )
         return try await withTimeout(translationTimeout) {
             (try await translationProvider.translate(request)).translated
