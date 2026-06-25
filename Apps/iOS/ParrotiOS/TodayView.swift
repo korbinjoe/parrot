@@ -64,6 +64,15 @@ struct TodayView: View {
 
                         HStack(spacing: 8) {
                             quickTile(
+                                title: "Native Polish",
+                                subtitle: "Rewrite draft",
+                                icon: "sparkles"
+                            ) {
+                                state.openNativePolish()
+                            }
+                            .accessibilityIdentifier("NativePolishButton")
+
+                            quickTile(
                                 title: "Screenshot OCR",
                                 subtitle: "Quick Lens",
                                 icon: "viewfinder"
@@ -144,7 +153,7 @@ struct TodayView: View {
                 ForEach(state.recentSessions.prefix(4)) { session in
                     recentButton(
                         title: session.sourceDraft,
-                        subtitle: "\(session.platform.displayName) · \(session.mode.rawValue) · editable"
+                        subtitle: "\(session.platform.displayName) · \(session.mode.displayName) · editable"
                     ) {
                         state.reopen(session)
                     }

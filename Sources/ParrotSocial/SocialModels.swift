@@ -5,7 +5,17 @@ import ParrotCore
 public enum SocialMode: String, Codable, Sendable, CaseIterable {
     case understand
     case express
+    case polish
     case ocr
+
+    public var displayName: String {
+        switch self {
+        case .understand: return "Understand"
+        case .express: return "Reply"
+        case .polish: return "Polish"
+        case .ocr: return "OCR"
+        }
+    }
 }
 
 public enum SourceOrigin: String, Codable, Sendable, CaseIterable {

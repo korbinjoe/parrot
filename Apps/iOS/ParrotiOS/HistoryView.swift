@@ -84,7 +84,7 @@ struct HistoryView: View {
         return filteredSessions.map { session in
             HistoryRowModel(
                 title: session.sourceDraft,
-                subtitle: "\(session.platform.displayName) · \(session.mode.rawValue) · reopen editable",
+                subtitle: "\(session.platform.displayName) · \(session.mode.displayName) · reopen editable",
                 action: { state.reopen(session) }
             )
         }

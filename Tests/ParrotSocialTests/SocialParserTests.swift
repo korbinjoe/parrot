@@ -156,6 +156,37 @@ private struct FailingTranslationProvider: TranslationProvider {
     #expect(express.contains(session.userIntentDraft))
 }
 
+@Test func promptBuilderUsesPolishContractForPolishMode() {
+    let session = SocialTextSession(
+        mode: .polish,
+        origin: .manualInput,
+        sourceDraft: "this product useful but onboarding make me confused",
+        selectedTone: .firm
+    )
+
+    let prompt = SocialPromptBuilder().expressPrompt(for: session)
+
+    #expect(prompt.contains("Rewrite the rough draft"))
+    #expect(prompt.contains("\"Native polish\""))
+    #expect(prompt.contains("Firm"))
+    #expect(prompt.contains(session.sourceDraft))
+}
+
+@Test func promptBuilderUsesPolishRefinementLanguageForPolishMode() {
+    let session = SocialTextSession(
+        mode: .polish,
+        origin: .manualInput,
+        sourceDraft: "rough draft"
+    )
+    let candidate = ReplyCandidate(title: "Native polish", text: "Polished draft.", tone: .natural)
+
+    let prompt = SocialPromptBuilder().refinePrompt(candidate: candidate, action: .shorter, session: session)
+
+    #expect(prompt.contains("polished draft"))
+    #expect(prompt.contains("Original draft"))
+    #expect(!prompt.contains("social reply"))
+}
+
 @Test func socialSessionSwitchesToExpressWithoutLosingSource() {
     var session = SocialTextSession(
         origin: .shareExtension,
@@ -188,6 +219,23 @@ private struct FailingTranslationProvider: TranslationProvider {
     #expect(understand.meaningSummary.contains("首次使用流程"))
     #expect(result.candidates.count >= 3)
     #expect(result.candidates.contains { $0.tone == .xShort })
+}
+
+@Test func ruleBasedServicePolishesSourceDraftInPolishMode() async throws {
+    let service = RuleBasedSocialService()
+    let session = SocialTextSession(
+        mode: .polish,
+        origin: .manualInput,
+        sourceDraft: "i think this product useful but onboarding make me confused",
+        selectedTone: .firm
+    )
+
+    let result = try await service.generateReplies(session: session)
+
+    #expect(result.candidates.count >= 3)
+    #expect(result.candidates.first?.title == "Native polish")
+    #expect(result.candidates.first?.text.contains("onboarding") == true)
+    #expect(result.candidates.first?.tone == .firm)
 }
 
 @Test func translationAugmentedServiceAutoTranslatesEnglishToChinese() async throws {

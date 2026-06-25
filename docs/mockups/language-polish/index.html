@@ -1,0 +1,1839 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Parrot Native Polish Mockup</title>
+  <script src="https://unpkg.com/lucide@latest/dist/umd/lucide.min.js"></script>
+  <style>
+    :root {
+      color-scheme: light;
+      --ink: #101214;
+      --muted: #686f6c;
+      --soft: #929b96;
+      --paper: #f6f8f4;
+      --surface: #fffef9;
+      --surface-2: #edf4ed;
+      --green: #22c767;
+      --green-deep: #087642;
+      --cyan: #1789e8;
+      --coral: #f06c58;
+      --amber: #d69a22;
+      --line: rgba(0, 0, 0, 0.1);
+      --subtle: rgba(0, 0, 0, 0.055);
+      --shadow: 0 14px 32px rgba(20, 30, 24, 0.12);
+      --radius-card: 8px;
+      --radius-control: 10px;
+      --device-width: 390px;
+      --device-height: 844px;
+    }
+
+    [data-theme="dark"] {
+      color-scheme: dark;
+      --ink: #eef4ea;
+      --muted: #b7c0af;
+      --soft: #93a08c;
+      --paper: #111610;
+      --surface: #1d231b;
+      --surface-2: #263021;
+      --line: rgba(255, 255, 255, 0.12);
+      --subtle: rgba(255, 255, 255, 0.09);
+      --shadow: 0 18px 42px rgba(0, 0, 0, 0.34);
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", "SF Pro Text", Segoe UI, sans-serif;
+      color: var(--ink);
+      background:
+        radial-gradient(circle at 12% 16%, rgba(34, 199, 103, 0.13), transparent 28%),
+        linear-gradient(135deg, #eef7f2 0%, var(--paper) 46%, #f7f3ed 100%);
+      min-height: 100vh;
+    }
+
+    [data-theme="dark"] body,
+    body[data-theme="dark"] {
+      background:
+        radial-gradient(circle at 12% 16%, rgba(34, 199, 103, 0.11), transparent 28%),
+        linear-gradient(135deg, #0b120f 0%, var(--paper) 52%, #15110d 100%);
+    }
+
+    button,
+    textarea {
+      font: inherit;
+    }
+
+    button {
+      border: 0;
+      cursor: pointer;
+    }
+
+    .mockup-shell {
+      min-height: 100vh;
+      padding: 24px;
+      display: grid;
+      grid-template-rows: auto 1fr;
+      gap: 18px;
+    }
+
+    .topbar {
+      width: min(1180px, 100%);
+      margin: 0 auto;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 16px;
+    }
+
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      min-width: 0;
+    }
+
+    .brand-mark {
+      width: 34px;
+      height: 34px;
+      display: grid;
+      place-items: center;
+      color: #02180a;
+      background: var(--green);
+      border-radius: 10px;
+      box-shadow: 0 10px 22px rgba(34, 199, 103, 0.28);
+    }
+
+    .brand-copy {
+      min-width: 0;
+    }
+
+    .brand-copy strong {
+      display: block;
+      font-size: 14px;
+      line-height: 1.2;
+    }
+
+    .brand-copy span {
+      display: block;
+      margin-top: 2px;
+      color: var(--muted);
+      font-size: 11px;
+      font-weight: 800;
+    }
+
+    .global-controls {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      flex-wrap: wrap;
+      justify-content: flex-end;
+    }
+
+    .icon-button,
+    .mini-icon,
+    .copy-icon {
+      display: inline-grid;
+      place-items: center;
+      color: #173a2a;
+      background: var(--subtle);
+      border: 1px solid var(--line);
+      border-radius: var(--radius-control);
+      transition: transform 0.16s ease, background 0.16s ease, color 0.16s ease;
+    }
+
+    .icon-button {
+      width: 36px;
+      height: 36px;
+    }
+
+    .icon-button:hover,
+    .mini-icon:hover,
+    .copy-icon:hover {
+      transform: translateY(-1px);
+      background: rgba(34, 199, 103, 0.15);
+    }
+
+    .stage {
+      width: min(1180px, 100%);
+      margin: 0 auto;
+      display: grid;
+      grid-template-columns: minmax(390px, 430px) minmax(420px, 1fr);
+      gap: 28px;
+      align-items: center;
+    }
+
+    .device {
+      width: var(--device-width);
+      height: var(--device-height);
+      margin: 0 auto;
+      padding: 12px;
+      border-radius: 42px;
+      background: linear-gradient(145deg, #1d211f, #090b0a);
+      box-shadow: 0 32px 80px rgba(10, 18, 12, 0.36);
+      position: relative;
+    }
+
+    .device::before {
+      content: "";
+      position: absolute;
+      top: 9px;
+      left: 50%;
+      width: 116px;
+      height: 25px;
+      transform: translateX(-50%);
+      border-radius: 0 0 17px 17px;
+      background: #090b0a;
+      z-index: 6;
+    }
+
+    .screen {
+      height: 100%;
+      overflow: hidden;
+      position: relative;
+      border-radius: 32px;
+      background: var(--paper);
+      border: 1px solid rgba(255, 255, 255, 0.16);
+    }
+
+    .statusbar {
+      height: 34px;
+      display: flex;
+      align-items: end;
+      justify-content: space-between;
+      padding: 0 25px 6px;
+      font-size: 12px;
+      font-weight: 900;
+      color: var(--ink);
+      position: relative;
+      z-index: 5;
+    }
+
+    .status-icons {
+      display: flex;
+      gap: 4px;
+      align-items: center;
+    }
+
+    .app-header {
+      height: 38px;
+      padding: 0 16px;
+      display: grid;
+      grid-template-columns: 64px 1fr 64px;
+      align-items: center;
+      color: var(--ink);
+    }
+
+    .app-header strong {
+      text-align: center;
+      font-size: 14px;
+      font-weight: 900;
+    }
+
+    .back-button,
+    .settings-button {
+      height: 32px;
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      color: var(--cyan);
+      background: transparent;
+      font-size: 12px;
+      font-weight: 800;
+    }
+
+    .settings-button {
+      justify-content: end;
+      color: #173a2a;
+    }
+
+    .views {
+      height: calc(100% - 34px - 38px - 61px);
+      position: relative;
+      overflow: hidden;
+    }
+
+    .view {
+      position: absolute;
+      inset: 0;
+      overflow: auto;
+      padding: 10px 14px 78px;
+      opacity: 0;
+      pointer-events: none;
+      transform: translateX(12px);
+      transition: opacity 0.22s ease, transform 0.22s ease;
+      scrollbar-width: none;
+    }
+
+    .view::-webkit-scrollbar {
+      width: 0;
+    }
+
+    .view.is-active {
+      opacity: 1;
+      pointer-events: auto;
+      transform: translateX(0);
+    }
+
+    .bottom-tabs {
+      position: absolute;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      height: 61px;
+      display: grid;
+      grid-template-columns: repeat(5, 1fr);
+      gap: 4px;
+      padding: 4px 8px 8px;
+      background: color-mix(in srgb, var(--surface) 86%, transparent);
+      border-top: 1px solid var(--line);
+      backdrop-filter: blur(18px);
+      z-index: 5;
+    }
+
+    .tab-button {
+      min-width: 0;
+      min-height: 48px;
+      display: grid;
+      place-items: center;
+      gap: 2px;
+      color: var(--soft);
+      background: transparent;
+      border-radius: var(--radius-control);
+      font-size: 9px;
+      font-weight: 900;
+    }
+
+    .tab-button svg {
+      width: 15px;
+      height: 15px;
+      stroke-width: 3;
+    }
+
+    .tab-button.is-active {
+      color: var(--green-deep);
+      background: rgba(34, 199, 103, 0.15);
+    }
+
+    .card {
+      background: var(--surface);
+      border: 1px solid var(--line);
+      border-radius: var(--radius-card);
+      box-shadow: var(--shadow);
+    }
+
+    .subtle-card {
+      background: var(--surface-2);
+      border: 1px solid var(--line);
+      border-radius: var(--radius-card);
+    }
+
+    .section-title {
+      margin: 0 0 8px;
+      color: var(--muted);
+      font-size: 10px;
+      font-weight: 900;
+      text-transform: uppercase;
+    }
+
+    .today-title {
+      margin: 0 0 8px;
+      font-size: 18px;
+      font-weight: 950;
+      line-height: 1.2;
+    }
+
+    .pill-row,
+    .chip-row,
+    .action-row {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      flex-wrap: wrap;
+    }
+
+    .status-pill,
+    .mode-pill,
+    .tone-chip,
+    .small-chip {
+      min-height: 22px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      border-radius: 999px;
+      padding: 0 8px;
+      white-space: nowrap;
+      font-size: 9.5px;
+      font-weight: 900;
+      color: var(--muted);
+      background: var(--subtle);
+    }
+
+    .status-pill.good,
+    .tone-chip.is-active,
+    .mode-pill.is-active {
+      color: var(--green-deep);
+      background: rgba(34, 199, 103, 0.15);
+    }
+
+    .status-pill.blue {
+      color: #173a2a;
+      background: rgba(23, 137, 232, 0.11);
+    }
+
+    .status-pill.warn,
+    .small-chip.warn {
+      color: #704908;
+      background: rgba(214, 154, 34, 0.18);
+    }
+
+    .large-entry {
+      width: 100%;
+      margin: 8px 0;
+      padding: 9px;
+      min-height: 62px;
+      display: grid;
+      grid-template-columns: 34px 1fr 20px;
+      align-items: center;
+      gap: 9px;
+      text-align: left;
+      color: var(--ink);
+      background: linear-gradient(135deg, rgba(34, 199, 103, 0.24), rgba(23, 137, 232, 0.1));
+      border: 1px solid rgba(34, 199, 103, 0.24);
+      border-radius: var(--radius-card);
+    }
+
+    .entry-icon {
+      width: 30px;
+      height: 30px;
+      display: grid;
+      place-items: center;
+      color: var(--green-deep);
+      background: rgba(255, 255, 255, 0.68);
+      border-radius: 8px;
+    }
+
+    .entry-title {
+      display: block;
+      font-size: 13px;
+      font-weight: 950;
+      line-height: 1.2;
+    }
+
+    .entry-subtitle {
+      display: block;
+      margin-top: 2px;
+      color: var(--green-deep);
+      font-size: 10px;
+      font-weight: 900;
+    }
+
+    .quick-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 8px;
+      margin-bottom: 13px;
+    }
+
+    .quick-tile {
+      min-height: 84px;
+      padding: 8px;
+      text-align: left;
+      color: var(--ink);
+      background: var(--surface);
+      border: 1px solid var(--line);
+      border-radius: var(--radius-card);
+      box-shadow: var(--shadow);
+      display: grid;
+      align-content: space-between;
+    }
+
+    .quick-tile strong {
+      display: block;
+      margin-top: 8px;
+      font-size: 11px;
+      font-weight: 950;
+    }
+
+    .quick-tile span {
+      color: var(--muted);
+      font-size: 9.5px;
+      font-weight: 800;
+    }
+
+    .recent-list {
+      display: grid;
+      gap: 7px;
+    }
+
+    .recent-button {
+      padding: 8px;
+      text-align: left;
+      color: var(--ink);
+      background: var(--surface);
+      border: 1px solid var(--line);
+      border-radius: var(--radius-card);
+      box-shadow: var(--shadow);
+    }
+
+    .recent-button strong {
+      display: block;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      font-size: 11px;
+      font-weight: 950;
+    }
+
+    .recent-button span {
+      display: block;
+      margin-top: 4px;
+      color: var(--muted);
+      font-size: 9.5px;
+      font-weight: 800;
+    }
+
+    .workspace-stack {
+      display: grid;
+      gap: 8px;
+    }
+
+    .source-card,
+    .result-card,
+    .variant-card,
+    .compare-block,
+    .history-card {
+      padding: 9px;
+    }
+
+    .card-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+      margin-bottom: 7px;
+    }
+
+    .label {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      color: var(--muted);
+      font-size: 10px;
+      font-weight: 950;
+      text-transform: uppercase;
+    }
+
+    .label-dot {
+      width: 7px;
+      height: 7px;
+      border-radius: 50%;
+      background: var(--green);
+    }
+
+    .mini-icon,
+    .copy-icon {
+      width: 32px;
+      height: 32px;
+    }
+
+    .copy-icon {
+      width: 28px;
+      height: 28px;
+      color: var(--green-deep);
+    }
+
+    .mode-switch {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 5px;
+      margin-bottom: 8px;
+      padding: 4px;
+      background: var(--subtle);
+      border-radius: var(--radius-control);
+    }
+
+    .mode-pill {
+      min-height: 28px;
+      border-radius: 8px;
+      background: transparent;
+    }
+
+    .mode-pill.is-active {
+      background: var(--surface);
+      box-shadow: 0 8px 16px rgba(15, 25, 18, 0.08);
+    }
+
+    .source-editor {
+      width: 100%;
+      min-height: 112px;
+      resize: vertical;
+      border: 0;
+      outline: 0;
+      color: var(--ink);
+      background: var(--surface-2);
+      border-radius: var(--radius-card);
+      padding: 9px;
+      line-height: 1.45;
+      font-size: 12px;
+      font-weight: 750;
+    }
+
+    .source-editor:focus {
+      box-shadow: 0 0 0 2px rgba(34, 199, 103, 0.25);
+    }
+
+    .source-footer {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+      margin-top: 7px;
+      color: var(--soft);
+      font-size: 10px;
+      font-weight: 850;
+    }
+
+    .primary-button,
+    .secondary-button,
+    .ghost-button {
+      min-height: 30px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 6px;
+      border-radius: var(--radius-control);
+      padding: 0 10px;
+      font-size: 10px;
+      font-weight: 950;
+      transition: transform 0.16s ease, filter 0.16s ease;
+    }
+
+    .primary-button:hover,
+    .secondary-button:hover,
+    .ghost-button:hover {
+      transform: translateY(-1px);
+      filter: brightness(1.02);
+    }
+
+    .primary-button {
+      color: #02180a;
+      background: var(--green);
+    }
+
+    .secondary-button {
+      color: #173a2a;
+      background: rgba(23, 137, 232, 0.1);
+    }
+
+    .ghost-button {
+      color: var(--muted);
+      background: var(--subtle);
+    }
+
+    .tone-row {
+      display: flex;
+      gap: 6px;
+      overflow: auto;
+      padding-bottom: 1px;
+      scrollbar-width: none;
+    }
+
+    .tone-row::-webkit-scrollbar {
+      width: 0;
+      height: 0;
+    }
+
+    .tone-chip {
+      flex: 0 0 auto;
+      min-height: 27px;
+      border-radius: 999px;
+      padding: 0 10px;
+      background: var(--subtle);
+    }
+
+    .result-card {
+      background: color-mix(in srgb, var(--surface) 68%, rgba(34, 199, 103, 0.14));
+    }
+
+    .result-text {
+      margin: 0;
+      color: var(--ink);
+      font-size: 13px;
+      line-height: 1.48;
+      font-weight: 850;
+    }
+
+    .result-meta {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 7px;
+      margin-top: 9px;
+    }
+
+    .meta-tile {
+      padding: 8px;
+      background: color-mix(in srgb, var(--surface) 82%, rgba(255, 255, 255, 0.1));
+      border: 1px solid var(--line);
+      border-radius: var(--radius-card);
+    }
+
+    .meta-tile strong {
+      display: block;
+      color: var(--green-deep);
+      font-size: 9.5px;
+      font-weight: 950;
+      text-transform: uppercase;
+    }
+
+    .meta-tile span {
+      display: block;
+      margin-top: 4px;
+      color: var(--muted);
+      font-size: 10px;
+      font-weight: 750;
+      line-height: 1.3;
+    }
+
+    .variant-list {
+      display: grid;
+      gap: 7px;
+    }
+
+    .variant-card {
+      text-align: left;
+      color: var(--ink);
+      background: var(--surface);
+      border: 1px solid var(--line);
+      border-radius: var(--radius-card);
+      box-shadow: var(--shadow);
+    }
+
+    .variant-card.is-selected {
+      border-color: rgba(34, 199, 103, 0.62);
+      box-shadow: 0 14px 30px rgba(34, 199, 103, 0.16);
+    }
+
+    .variant-card strong {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+      color: var(--coral);
+      font-size: 10px;
+      font-weight: 950;
+      text-transform: uppercase;
+    }
+
+    .variant-card p {
+      margin: 6px 0 0;
+      color: var(--ink);
+      font-size: 11px;
+      font-weight: 750;
+      line-height: 1.4;
+    }
+
+    .refine-strip {
+      display: flex;
+      gap: 6px;
+      overflow: auto;
+      padding-bottom: 2px;
+      scrollbar-width: none;
+    }
+
+    .refine-strip::-webkit-scrollbar {
+      width: 0;
+      height: 0;
+    }
+
+    .refine-button {
+      flex: 0 0 auto;
+      min-height: 27px;
+      padding: 0 9px;
+      border-radius: 999px;
+      color: #3a1811;
+      background: rgba(240, 108, 88, 0.16);
+      font-size: 9.5px;
+      font-weight: 950;
+    }
+
+    .compare-block {
+      margin-bottom: 8px;
+    }
+
+    .compare-heading {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+      margin-bottom: 8px;
+    }
+
+    .compare-heading strong {
+      font-size: 11px;
+      font-weight: 950;
+    }
+
+    .diff-text {
+      margin: 0;
+      font-size: 12px;
+      line-height: 1.62;
+      font-weight: 780;
+    }
+
+    .diff-remove {
+      color: #9b2f22;
+      background: rgba(240, 108, 88, 0.15);
+      text-decoration: line-through;
+      border-radius: 4px;
+      padding: 1px 3px;
+    }
+
+    .diff-add {
+      color: #075e34;
+      background: rgba(34, 199, 103, 0.18);
+      border-radius: 4px;
+      padding: 1px 3px;
+    }
+
+    .change-list {
+      display: grid;
+      gap: 7px;
+    }
+
+    .change-item {
+      display: grid;
+      grid-template-columns: 26px 1fr;
+      gap: 8px;
+      align-items: start;
+      padding: 9px;
+      background: var(--surface);
+      border: 1px solid var(--line);
+      border-radius: var(--radius-card);
+    }
+
+    .change-item svg {
+      color: var(--amber);
+      width: 18px;
+      height: 18px;
+      margin-top: 1px;
+    }
+
+    .change-item strong {
+      display: block;
+      font-size: 10.5px;
+      font-weight: 950;
+    }
+
+    .change-item span {
+      display: block;
+      margin-top: 3px;
+      color: var(--muted);
+      font-size: 10px;
+      line-height: 1.3;
+      font-weight: 780;
+    }
+
+    .history-stack {
+      display: grid;
+      gap: 8px;
+    }
+
+    .history-card {
+      text-align: left;
+      color: var(--ink);
+    }
+
+    .history-card strong {
+      display: block;
+      font-size: 11px;
+      font-weight: 950;
+      line-height: 1.3;
+    }
+
+    .history-card span {
+      display: block;
+      margin-top: 4px;
+      color: var(--muted);
+      font-size: 9.5px;
+      font-weight: 800;
+    }
+
+    .settings-list {
+      display: grid;
+      gap: 8px;
+    }
+
+    .settings-row {
+      padding: 10px;
+      display: grid;
+      grid-template-columns: 28px 1fr auto;
+      gap: 9px;
+      align-items: center;
+    }
+
+    .settings-row strong {
+      display: block;
+      font-size: 11px;
+      font-weight: 950;
+    }
+
+    .settings-row span {
+      display: block;
+      margin-top: 3px;
+      color: var(--muted);
+      font-size: 9.5px;
+      font-weight: 800;
+    }
+
+    .toggle {
+      width: 38px;
+      height: 22px;
+      padding: 2px;
+      border-radius: 999px;
+      background: rgba(34, 199, 103, 0.26);
+    }
+
+    .toggle::after {
+      content: "";
+      display: block;
+      width: 18px;
+      height: 18px;
+      margin-left: 16px;
+      border-radius: 50%;
+      background: var(--green);
+      box-shadow: 0 5px 10px rgba(34, 199, 103, 0.28);
+    }
+
+    .toast {
+      position: absolute;
+      left: 50%;
+      bottom: 72px;
+      transform: translate(-50%, 14px);
+      min-width: 118px;
+      padding: 8px 12px;
+      color: var(--green-deep);
+      background: color-mix(in srgb, var(--surface) 78%, transparent);
+      border: 1px solid var(--line);
+      border-radius: 999px;
+      box-shadow: var(--shadow);
+      backdrop-filter: blur(16px);
+      text-align: center;
+      font-size: 11px;
+      font-weight: 950;
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity 0.2s ease, transform 0.2s ease;
+      z-index: 9;
+    }
+
+    .toast.is-visible {
+      opacity: 1;
+      transform: translate(-50%, 0);
+    }
+
+    .side-panel {
+      display: grid;
+      gap: 16px;
+    }
+
+    .desktop-preview {
+      min-height: 536px;
+      padding: 18px;
+      background: color-mix(in srgb, var(--surface) 82%, transparent);
+      border: 1px solid var(--line);
+      border-radius: 24px;
+      box-shadow: 0 28px 80px rgba(25, 35, 25, 0.16);
+      backdrop-filter: blur(20px);
+      display: grid;
+      align-content: center;
+      justify-items: center;
+      overflow: hidden;
+    }
+
+    .mac-panel {
+      width: min(100%, 530px);
+      background: color-mix(in srgb, var(--surface) 92%, transparent);
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      box-shadow: 0 22px 58px rgba(20, 30, 24, 0.24);
+      overflow: hidden;
+    }
+
+    .mac-toolbar {
+      min-height: 52px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 12px;
+      border-bottom: 1px solid var(--line);
+      background: color-mix(in srgb, var(--surface) 84%, transparent);
+    }
+
+    .traffic {
+      display: flex;
+      gap: 6px;
+      margin-right: 4px;
+    }
+
+    .traffic span {
+      width: 11px;
+      height: 11px;
+      border-radius: 50%;
+      background: #ff5f57;
+    }
+
+    .traffic span:nth-child(2) {
+      background: #ffbd2e;
+    }
+
+    .traffic span:nth-child(3) {
+      background: #28c840;
+    }
+
+    .lang-control {
+      height: 26px;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 0 10px;
+      color: var(--muted);
+      background: var(--subtle);
+      border: 1px solid var(--line);
+      border-radius: 999px;
+      font-size: 11px;
+      font-weight: 850;
+    }
+
+    .mac-body {
+      padding: 12px;
+      display: grid;
+      gap: 8px;
+    }
+
+    .mac-source {
+      padding: 12px;
+      background: var(--surface-2);
+      border: 1px solid var(--line);
+      border-radius: var(--radius-card);
+    }
+
+    .mac-source p,
+    .mac-result p {
+      margin: 8px 0 0;
+      font-size: 13px;
+      line-height: 1.45;
+      font-weight: 760;
+    }
+
+    .mac-result {
+      padding: 12px;
+      background: color-mix(in srgb, var(--surface) 78%, rgba(34, 199, 103, 0.14));
+      border: 1px solid rgba(34, 199, 103, 0.34);
+      border-radius: var(--radius-card);
+    }
+
+    .preview-actions {
+      display: flex;
+      gap: 8px;
+      align-items: center;
+      justify-content: space-between;
+      margin-top: 10px;
+      flex-wrap: wrap;
+    }
+
+    .scenario-board {
+      padding: 14px;
+      background: var(--surface);
+      border: 1px solid var(--line);
+      border-radius: 16px;
+      box-shadow: var(--shadow);
+    }
+
+    .scenario-board h2 {
+      margin: 0 0 10px;
+      font-size: 14px;
+      line-height: 1.2;
+    }
+
+    .scenario-grid {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 8px;
+    }
+
+    .scenario-button {
+      min-height: 86px;
+      padding: 10px;
+      text-align: left;
+      color: var(--ink);
+      background: var(--surface-2);
+      border: 1px solid var(--line);
+      border-radius: var(--radius-card);
+    }
+
+    .scenario-button.is-active {
+      border-color: rgba(34, 199, 103, 0.64);
+      background: rgba(34, 199, 103, 0.12);
+    }
+
+    .scenario-button strong {
+      display: block;
+      font-size: 11px;
+      font-weight: 950;
+    }
+
+    .scenario-button span {
+      display: block;
+      margin-top: 6px;
+      color: var(--muted);
+      font-size: 10px;
+      line-height: 1.32;
+      font-weight: 780;
+    }
+
+    .segmented {
+      display: inline-flex;
+      padding: 4px;
+      gap: 4px;
+      background: var(--subtle);
+      border-radius: 999px;
+    }
+
+    .segmented button {
+      min-height: 28px;
+      padding: 0 10px;
+      border-radius: 999px;
+      color: var(--muted);
+      background: transparent;
+      font-size: 10px;
+      font-weight: 900;
+    }
+
+    .segmented button.is-active {
+      color: var(--green-deep);
+      background: var(--surface);
+    }
+
+    .is-hidden {
+      display: none !important;
+    }
+
+    svg {
+      width: 16px;
+      height: 16px;
+      stroke-width: 2.6;
+    }
+
+    @media (max-width: 980px) {
+      .stage {
+        grid-template-columns: 1fr;
+      }
+
+      .desktop-preview {
+        min-height: auto;
+      }
+    }
+
+    @media (max-width: 520px) {
+      .mockup-shell {
+        padding: 10px;
+      }
+
+      .topbar {
+        align-items: flex-start;
+      }
+
+      .brand-copy span {
+        display: none;
+      }
+
+      .device {
+        width: min(100%, var(--device-width));
+        height: min(844px, calc(100vh - 118px));
+        min-height: 720px;
+        padding: 7px;
+        border-radius: 30px;
+      }
+
+      .screen {
+        border-radius: 24px;
+      }
+
+      .scenario-grid {
+        grid-template-columns: 1fr;
+      }
+    }
+  </style>
+</head>
+<body>
+  <main class="mockup-shell" data-theme="light">
+    <div class="topbar">
+      <div class="brand">
+        <div class="brand-mark" aria-hidden="true"><i data-lucide="sparkles"></i></div>
+        <div class="brand-copy">
+          <strong>Parrot Native Polish</strong>
+          <span>iOS workspace plus macOS floating panel</span>
+        </div>
+      </div>
+      <div class="global-controls">
+        <div class="segmented" aria-label="Preview density">
+          <button class="is-active" data-density="focused">Focused</button>
+          <button data-density="review">Review</button>
+        </div>
+        <button class="icon-button" id="themeToggle" aria-label="Toggle dark mode" title="Toggle dark mode">
+          <i data-lucide="moon"></i>
+        </button>
+      </div>
+    </div>
+
+    <section class="stage">
+      <div class="device" aria-label="iPhone app mockup">
+        <div class="screen">
+          <div class="statusbar">
+            <span>9:41</span>
+            <span class="status-icons">
+              <i data-lucide="signal"></i>
+              <i data-lucide="wifi"></i>
+              <i data-lucide="battery-full"></i>
+            </span>
+          </div>
+
+          <header class="app-header">
+            <button class="back-button" data-nav="today" aria-label="Back to Today">
+              <i data-lucide="chevron-left"></i>
+              Back
+            </button>
+            <strong id="headerTitle">Workspace</strong>
+            <button class="settings-button" data-nav="settings" aria-label="Settings">
+              <i data-lucide="settings"></i>
+            </button>
+          </header>
+
+          <div class="views">
+            <section class="view" data-view="today" aria-label="Today">
+              <h1 class="today-title">New session</h1>
+              <div class="pill-row" style="margin-bottom: 6px;">
+                <span class="status-pill good">Ready</span>
+                <span class="status-pill">Editable draft</span>
+                <span class="status-pill blue">Native English</span>
+              </div>
+
+              <button class="large-entry" data-action="open-polish">
+                <span class="entry-icon"><i data-lucide="wand-sparkles"></i></span>
+                <span>
+                  <span class="entry-title">Native Polish</span>
+                  <span class="entry-subtitle">Rough paragraph to publish-ready English</span>
+                </span>
+                <i data-lucide="arrow-right"></i>
+              </button>
+
+              <div class="quick-grid">
+                <button class="quick-tile" data-scenario="product" data-action="open-polish">
+                  <span class="entry-icon"><i data-lucide="clipboard"></i></span>
+                  <span>
+                    <strong>Clipboard</strong>
+                    <span>Draft available</span>
+                  </span>
+                </button>
+                <button class="quick-tile" data-scenario="academic" data-action="open-polish">
+                  <span class="entry-icon"><i data-lucide="scan-text"></i></span>
+                  <span>
+                    <strong>Screenshot OCR</strong>
+                    <span>Clean then polish</span>
+                  </span>
+                </button>
+              </div>
+
+              <p class="section-title">Recent</p>
+              <div class="recent-list">
+                <button class="recent-button" data-scenario="product" data-action="open-polish">
+                  <strong>The onboarding is useful but first time...</strong>
+                  <span>X draft · polished 8 min ago · editable</span>
+                </button>
+                <button class="recent-button" data-scenario="professional" data-action="open-polish">
+                  <strong>I checked this plan, my concern is...</strong>
+                  <span>Work message · natural tone</span>
+                </button>
+                <button class="recent-button" data-scenario="academic" data-action="open-polish">
+                  <strong>这个段落想说模型不是不好...</strong>
+                  <span>Paper note · clearer variant</span>
+                </button>
+              </div>
+            </section>
+
+            <section class="view is-active" data-view="work" aria-label="Workspace">
+              <div class="workspace-stack">
+                <div class="pill-row">
+                  <span class="status-pill blue">Manual input</span>
+                  <span class="status-pill good">Draft preserved</span>
+                  <span class="status-pill">Auto detect -> English</span>
+                </div>
+
+                <section class="source-card card">
+                  <div class="mode-switch" aria-label="Workspace mode">
+                    <button class="mode-pill" data-mode="understand">Understand</button>
+                    <button class="mode-pill" data-mode="translate">Translate</button>
+                    <button class="mode-pill is-active" data-mode="polish">Polish</button>
+                  </div>
+
+                  <div class="card-header">
+                    <span class="label">Source draft</span>
+                    <button class="mini-icon" data-action="copy-source" aria-label="Copy source">
+                      <i data-lucide="copy"></i>
+                    </button>
+                  </div>
+
+                  <textarea id="sourceDraft" class="source-editor" spellcheck="false"></textarea>
+
+                  <div class="source-footer">
+                    <span id="draftState">Native polish ready</span>
+                    <button class="primary-button" data-action="polish">
+                      <i data-lucide="sparkles"></i>
+                      Polish
+                    </button>
+                  </div>
+                </section>
+
+                <div class="tone-row" aria-label="Tone presets">
+                  <button class="tone-chip is-active" data-tone="natural">Natural</button>
+                  <button class="tone-chip" data-tone="clearer">Clearer</button>
+                  <button class="tone-chip" data-tone="professional">Professional</button>
+                  <button class="tone-chip" data-tone="friendly">Friendly</button>
+                  <button class="tone-chip" data-tone="sharper">Sharper</button>
+                  <button class="tone-chip" data-tone="shorter">Shorter</button>
+                </div>
+
+                <section class="result-card card">
+                  <div class="card-header">
+                    <span class="label"><span class="label-dot"></span> Native version</span>
+                    <button class="copy-icon" data-action="copy-result" aria-label="Copy result">
+                      <i data-lucide="copy"></i>
+                    </button>
+                  </div>
+                  <p class="result-text" id="primaryResult"></p>
+
+                  <div class="result-meta">
+                    <div class="meta-tile">
+                      <strong>Kept</strong>
+                      <span id="keptMeta"></span>
+                    </div>
+                    <div class="meta-tile">
+                      <strong>Changed</strong>
+                      <span id="changedMeta"></span>
+                    </div>
+                  </div>
+
+                  <div class="preview-actions">
+                    <button class="secondary-button" data-action="replace-draft">
+                      <i data-lucide="replace"></i>
+                      Replace draft
+                    </button>
+                    <button class="ghost-button" data-nav="compare">
+                      <i data-lucide="git-compare"></i>
+                      Compare
+                    </button>
+                  </div>
+                </section>
+
+                <div class="refine-strip" aria-label="Refinement actions">
+                  <button class="refine-button" data-refine="shorter">Shorter</button>
+                  <button class="refine-button" data-refine="friendly">Warmer</button>
+                  <button class="refine-button" data-refine="sharper">Sharper</button>
+                  <button class="refine-button" data-refine="professional">More professional</button>
+                </div>
+
+                <p class="section-title">Variants</p>
+                <div class="variant-list" id="variantList"></div>
+              </div>
+            </section>
+
+            <section class="view" data-view="compare" aria-label="Compare">
+              <section class="compare-block card">
+                <div class="compare-heading">
+                  <strong>Original to native</strong>
+                  <span class="small-chip warn">Key edits only</span>
+                </div>
+                <p class="diff-text" id="diffText"></p>
+              </section>
+
+              <p class="section-title">Change notes</p>
+              <div class="change-list">
+                <div class="change-item">
+                  <i data-lucide="badge-check"></i>
+                  <span>
+                    <strong>Intent preserved</strong>
+                    <span id="compareKept"></span>
+                  </span>
+                </div>
+                <div class="change-item">
+                  <i data-lucide="refresh-cw"></i>
+                  <span>
+                    <strong>Flow rebuilt</strong>
+                    <span id="compareChanged"></span>
+                  </span>
+                </div>
+                <div class="change-item">
+                  <i data-lucide="message-circle"></i>
+                  <span>
+                    <strong>Native signal</strong>
+                    <span id="nativeSignal"></span>
+                  </span>
+                </div>
+              </div>
+            </section>
+
+            <section class="view" data-view="history" aria-label="History">
+              <p class="section-title">Polished drafts</p>
+              <div class="history-stack">
+                <button class="history-card card" data-scenario="professional" data-action="open-polish">
+                  <strong>Thanks for sending this over. My main concern is not the idea itself...</strong>
+                  <span>Professional · copied yesterday</span>
+                </button>
+                <button class="history-card card" data-scenario="product" data-action="open-polish">
+                  <strong>That's a fair take. The feature is useful, but the first-run experience...</strong>
+                  <span>Natural · X reply · favorite</span>
+                </button>
+                <button class="history-card card" data-scenario="academic" data-action="open-polish">
+                  <strong>The model is not weak in general; rather, its failure mode appears...</strong>
+                  <span>Clearer · research note</span>
+                </button>
+              </div>
+            </section>
+
+            <section class="view" data-view="settings" aria-label="Settings">
+              <p class="section-title">Writing defaults</p>
+              <div class="settings-list">
+                <div class="settings-row card">
+                  <span class="entry-icon"><i data-lucide="languages"></i></span>
+                  <span>
+                    <strong>Default target</strong>
+                    <span>Native English</span>
+                  </span>
+                  <span class="status-pill good">On</span>
+                </div>
+                <div class="settings-row card">
+                  <span class="entry-icon"><i data-lucide="fingerprint-pattern"></i></span>
+                  <span>
+                    <strong>Keep my attitude</strong>
+                    <span>Preserve stance before polish</span>
+                  </span>
+                  <span class="toggle" aria-hidden="true"></span>
+                </div>
+                <div class="settings-row card">
+                  <span class="entry-icon"><i data-lucide="shield-check"></i></span>
+                  <span>
+                    <strong>Ask before replacing draft</strong>
+                    <span>Never overwrite rough text automatically</span>
+                  </span>
+                  <span class="toggle" aria-hidden="true"></span>
+                </div>
+              </div>
+            </section>
+          </div>
+
+          <nav class="bottom-tabs" aria-label="Bottom navigation">
+            <button class="tab-button" data-nav="today">
+              <i data-lucide="sparkles"></i>
+              <span>Today</span>
+            </button>
+            <button class="tab-button is-active" data-nav="work">
+              <i data-lucide="pencil-line"></i>
+              <span>Work</span>
+            </button>
+            <button class="tab-button" data-nav="compare">
+              <i data-lucide="git-compare"></i>
+              <span>Compare</span>
+            </button>
+            <button class="tab-button" data-nav="history">
+              <i data-lucide="history"></i>
+              <span>History</span>
+            </button>
+            <button class="tab-button" data-nav="settings">
+              <i data-lucide="settings"></i>
+              <span>Engines</span>
+            </button>
+          </nav>
+
+          <div class="toast" id="toast" role="status" aria-live="polite">Copied</div>
+        </div>
+      </div>
+
+      <aside class="side-panel">
+        <section class="desktop-preview" aria-label="macOS floating panel preview">
+          <div class="mac-panel">
+            <div class="mac-toolbar">
+              <div class="traffic" aria-hidden="true"><span></span><span></span><span></span></div>
+              <span class="lang-control">Auto <i data-lucide="arrow-left-right"></i> English</span>
+              <span class="status-pill good">Polish</span>
+              <span style="flex: 1;"></span>
+              <button class="mini-icon" data-action="copy-result" aria-label="Copy desktop result"><i data-lucide="copy"></i></button>
+              <button class="mini-icon" aria-label="Pin panel"><i data-lucide="pin"></i></button>
+            </div>
+            <div class="mac-body">
+              <section class="mac-source">
+                <div class="card-header">
+                  <span class="label">Source composer</span>
+                  <span class="small-chip" id="desktopChars">0 chars</span>
+                </div>
+                <p id="desktopSource"></p>
+                <div class="preview-actions">
+                  <button class="ghost-button" data-refine="shorter"><i data-lucide="scissors"></i> Shorter</button>
+                  <button class="primary-button" data-action="polish"><i data-lucide="sparkles"></i> Polish</button>
+                </div>
+              </section>
+              <section class="mac-result">
+                <div class="card-header">
+                  <span class="label"><span class="label-dot"></span> Native version</span>
+                  <span class="status-pill blue" id="desktopTone">Natural</span>
+                </div>
+                <p id="desktopResult"></p>
+              </section>
+            </div>
+          </div>
+        </section>
+
+        <section class="scenario-board">
+          <h2>Sample drafts</h2>
+          <div class="scenario-grid">
+            <button class="scenario-button is-active" data-scenario="product">
+              <strong>Social reply</strong>
+              <span>Chinese plus rough English for a product critique.</span>
+            </button>
+            <button class="scenario-button" data-scenario="professional">
+              <strong>Work message</strong>
+              <span>A direct but polite paragraph for a team discussion.</span>
+            </button>
+            <button class="scenario-button" data-scenario="academic">
+              <strong>Research note</strong>
+              <span>Mixed-language analysis that needs clearer English.</span>
+            </button>
+          </div>
+        </section>
+      </aside>
+    </section>
+  </main>
+
+  <script>
+    const scenarios = {
+      product: {
+        label: "Social reply",
+        source: "我觉得这个评价挺公平. The feature is useful, but new users first time use it will get lost because onboarding ask too much before they know value.",
+        kept: "your fair criticism and the product's value",
+        changed: "grammar, sentence rhythm, and public-post tone",
+        signal: "Sounds like a native product-minded reply, not a translated sentence.",
+        tones: {
+          natural: "That's a fair take. The feature is useful, but the first-run experience makes new users work too hard before they understand the value.",
+          clearer: "I think the criticism is fair. The feature has real value, but the onboarding asks new users to do too much before that value is obvious.",
+          professional: "I think that is a fair assessment. The feature is valuable, but the first-run flow asks too much of new users before the product value is clear.",
+          friendly: "Yeah, that feels fair. The feature is useful, but new users can get lost when the onboarding asks for too much before showing the value.",
+          sharper: "Good feature, rough first run. New users are being asked to handle complexity before they understand why it matters.",
+          shorter: "Fair take. The feature is useful, but onboarding asks too much before users see the value."
+        },
+        variants: [
+          ["Short version", "Fair take. The feature is useful, but onboarding asks too much before users see the value."],
+          ["More polished", "The feature itself is useful, but the onboarding creates friction by asking new users to make decisions before the value is clear."],
+          ["Keep my attitude", "I agree with the criticism. The product is not bad; the issue is that new users are asked to do too much too early."]
+        ],
+        diff: [
+          ["remove", "new users first time use it will get lost"],
+          ["add", "the first-run experience makes new users work too hard"],
+          ["remove", "onboarding ask too much"],
+          ["add", "before they understand the value"]
+        ]
+      },
+      professional: {
+        label: "Work message",
+        source: "Thanks sending this. I checked the plan and my worry is not idea itself, it is execution sequence. If we launch like this, user maybe confused and support team will take pressure.",
+        kept: "your concern about sequence and support load",
+        changed: "politeness, tense, and executive clarity",
+        signal: "Reads like a concise team comment that stays direct without sounding harsh.",
+        tones: {
+          natural: "Thanks for sending this over. I reviewed the plan, and my main concern is not the idea itself, but the execution sequence. If we launch it this way, users may get confused and the support team will likely absorb the pressure.",
+          clearer: "Thanks for sharing this. After reviewing the plan, I think the main risk is the rollout sequence rather than the idea itself. If we launch this version, users may be confused and support volume could increase.",
+          professional: "Thank you for sending this over. I have reviewed the plan, and my primary concern is the execution sequence, not the underlying idea. Launching in the current form may confuse users and increase pressure on the support team.",
+          friendly: "Thanks for sharing this. I like the direction, but I am a little worried about the sequence. If we launch it as is, users might feel confused and support may end up carrying the load.",
+          sharper: "The idea is fine. The risk is the launch sequence: users may be confused, and support will likely pay for that confusion.",
+          shorter: "Thanks for sharing. My concern is the sequence, not the idea. This launch path may confuse users and increase support pressure."
+        },
+        variants: [
+          ["Short version", "Thanks for sharing. My concern is the sequence, not the idea. This launch path may confuse users and increase support pressure."],
+          ["More diplomatic", "Thanks for sending this over. I like the direction, but I think we should revisit the launch sequence to reduce user confusion and support load."],
+          ["Decision-ready", "The idea is sound, but the launch sequence needs adjustment before release because it may create avoidable confusion and support demand."]
+        ],
+        diff: [
+          ["remove", "Thanks sending this"],
+          ["add", "Thanks for sending this over"],
+          ["remove", "my worry is not idea itself"],
+          ["add", "my main concern is not the idea itself"],
+          ["add", "support team will likely absorb the pressure"]
+        ]
+      },
+      academic: {
+        label: "Research note",
+        source: "这个段落想说 model 不是整体不好, but in long context it often lose earlier constraint. So conclusion should not be model weak, it is memory alignment in long task has unstable behavior.",
+        kept: "the distinction between overall model quality and long-context behavior",
+        changed: "argument structure and research-style precision",
+        signal: "Feels like a research note with a clear claim and bounded conclusion.",
+        tones: {
+          natural: "The point is not that the model is weak overall, but that it often loses earlier constraints in long-context tasks. The conclusion should focus on unstable memory alignment during extended workflows.",
+          clearer: "This paragraph should argue that the model is not generally weak. Instead, its failure mode appears in long-context tasks, where it can lose earlier constraints and show unstable memory alignment.",
+          professional: "The intended claim is not that the model is broadly weak, but that its long-context behavior is unstable. In extended tasks, it may lose earlier constraints, suggesting a memory-alignment issue rather than a general capability gap.",
+          friendly: "I would frame it this way: the model is not bad overall, but in long-context tasks it can lose earlier constraints. The issue is unstable memory alignment, not general weakness.",
+          sharper: "This is not a general model-quality problem. It is a long-context failure mode: earlier constraints decay, and memory alignment becomes unstable.",
+          shorter: "The model is not broadly weak; it shows unstable memory alignment in long-context tasks."
+        },
+        variants: [
+          ["Short version", "The model is not broadly weak; it shows unstable memory alignment in long-context tasks."],
+          ["Paper tone", "The evidence points to instability in long-context memory alignment, not a broad deficiency in model capability."],
+          ["Plain English", "The model is not bad overall. The problem is that in long tasks, it can forget earlier constraints."]
+        ],
+        diff: [
+          ["remove", "model 不是整体不好"],
+          ["add", "not that the model is weak overall"],
+          ["remove", "it often lose earlier constraint"],
+          ["add", "it often loses earlier constraints in long-context tasks"],
+          ["add", "unstable memory alignment during extended workflows"]
+        ]
+      }
+    };
+
+    const state = {
+      view: "work",
+      scenario: "product",
+      tone: "natural",
+      selectedVariant: 0,
+      density: "focused",
+      dark: false,
+      draftDirty: false
+    };
+
+    const sourceDraft = document.getElementById("sourceDraft");
+    const primaryResult = document.getElementById("primaryResult");
+    const keptMeta = document.getElementById("keptMeta");
+    const changedMeta = document.getElementById("changedMeta");
+    const variantList = document.getElementById("variantList");
+    const diffText = document.getElementById("diffText");
+    const compareKept = document.getElementById("compareKept");
+    const compareChanged = document.getElementById("compareChanged");
+    const nativeSignal = document.getElementById("nativeSignal");
+    const draftState = document.getElementById("draftState");
+    const toast = document.getElementById("toast");
+    const desktopSource = document.getElementById("desktopSource");
+    const desktopResult = document.getElementById("desktopResult");
+    const desktopTone = document.getElementById("desktopTone");
+    const desktopChars = document.getElementById("desktopChars");
+
+    function activeScenario() {
+      return scenarios[state.scenario];
+    }
+
+    function activeResult() {
+      return activeScenario().tones[state.tone] || activeScenario().tones.natural;
+    }
+
+    function setView(view) {
+      state.view = view;
+      document.querySelectorAll(".view").forEach(node => {
+        node.classList.toggle("is-active", node.dataset.view === view);
+      });
+      document.querySelectorAll(".tab-button").forEach(node => {
+        node.classList.toggle("is-active", node.dataset.nav === view);
+      });
+      const titles = {
+        today: "Parrot",
+        work: "Workspace",
+        compare: "Compare",
+        history: "History",
+        settings: "Engines"
+      };
+      document.getElementById("headerTitle").textContent = titles[view] || "Workspace";
+    }
+
+    function setScenario(key, openWork = false) {
+      if (!scenarios[key]) return;
+      state.scenario = key;
+      state.tone = "natural";
+      state.selectedVariant = 0;
+      state.draftDirty = false;
+      sourceDraft.value = activeScenario().source;
+      document.querySelectorAll("[data-scenario]").forEach(node => {
+        node.classList.toggle("is-active", node.dataset.scenario === key);
+      });
+      if (openWork) setView("work");
+      render();
+    }
+
+    function setTone(tone) {
+      state.tone = tone;
+      state.selectedVariant = 0;
+      render();
+    }
+
+    function render() {
+      const data = activeScenario();
+      primaryResult.textContent = activeResult();
+      keptMeta.textContent = data.kept;
+      changedMeta.textContent = data.changed;
+      compareKept.textContent = data.kept;
+      compareChanged.textContent = data.changed;
+      nativeSignal.textContent = data.signal;
+      desktopSource.textContent = sourceDraft.value;
+      desktopResult.textContent = activeResult();
+      desktopTone.textContent = labelForTone(state.tone);
+      desktopChars.textContent = `${sourceDraft.value.length} chars`;
+      draftState.textContent = state.draftDirty ? "Edited - polish current draft" : "Native polish ready";
+
+      document.querySelectorAll(".tone-chip").forEach(node => {
+        node.classList.toggle("is-active", node.dataset.tone === state.tone);
+      });
+
+      variantList.innerHTML = "";
+      data.variants.forEach((variant, index) => {
+        const card = document.createElement("button");
+        card.className = `variant-card${state.selectedVariant === index ? " is-selected" : ""}`;
+        card.type = "button";
+        card.innerHTML = `<strong>${variant[0]}<i data-lucide="arrow-up-right"></i></strong><p>${variant[1]}</p>`;
+        card.addEventListener("click", () => {
+          state.selectedVariant = index;
+          primaryResult.textContent = variant[1];
+          desktopResult.textContent = variant[1];
+          showToast("Variant selected");
+          renderVariantSelection();
+          refreshIcons();
+        });
+        variantList.appendChild(card);
+      });
+
+      diffText.innerHTML = data.diff
+        .map(part => `<span class="${part[0] === "remove" ? "diff-remove" : "diff-add"}">${part[1]}</span>`)
+        .join(" ");
+
+      refreshIcons();
+    }
+
+    function renderVariantSelection() {
+      [...variantList.children].forEach((node, index) => {
+        node.classList.toggle("is-selected", state.selectedVariant === index);
+      });
+    }
+
+    function labelForTone(tone) {
+      return tone.charAt(0).toUpperCase() + tone.slice(1).replace("-", " ");
+    }
+
+    function polishCurrentDraft() {
+      draftState.textContent = "Polishing...";
+      showToast("Polishing draft");
+      setTimeout(() => {
+        state.draftDirty = false;
+        render();
+        showToast("Native version ready");
+      }, 420);
+    }
+
+    function copyText(text) {
+      if (navigator.clipboard && window.isSecureContext) {
+        navigator.clipboard.writeText(text).catch(() => {});
+      }
+      showToast("Copied");
+    }
+
+    function showToast(message) {
+      toast.textContent = message;
+      toast.classList.add("is-visible");
+      clearTimeout(showToast.timer);
+      showToast.timer = setTimeout(() => toast.classList.remove("is-visible"), 1300);
+    }
+
+    function refreshIcons() {
+      if (window.lucide) {
+        window.lucide.createIcons();
+      }
+    }
+
+    document.addEventListener("click", event => {
+      const nav = event.target.closest("[data-nav]");
+      if (nav) {
+        setView(nav.dataset.nav);
+        return;
+      }
+
+      const scenario = event.target.closest("[data-scenario]");
+      if (scenario) {
+        setScenario(scenario.dataset.scenario, scenario.dataset.action === "open-polish");
+        return;
+      }
+
+      const tone = event.target.closest("[data-tone]");
+      if (tone) {
+        setTone(tone.dataset.tone);
+        return;
+      }
+
+      const refine = event.target.closest("[data-refine]");
+      if (refine) {
+        setTone(refine.dataset.refine);
+        showToast(`${labelForTone(refine.dataset.refine)} applied`);
+        return;
+      }
+
+      const mode = event.target.closest("[data-mode]");
+      if (mode) {
+        document.querySelectorAll(".mode-pill").forEach(node => node.classList.toggle("is-active", node === mode));
+        showToast(mode.dataset.mode === "polish" ? "Polish mode" : `${labelForTone(mode.dataset.mode)} preview`);
+        return;
+      }
+
+      const action = event.target.closest("[data-action]");
+      if (!action) return;
+
+      if (action.dataset.action === "open-polish") {
+        setView("work");
+      }
+      if (action.dataset.action === "polish") {
+        polishCurrentDraft();
+      }
+      if (action.dataset.action === "copy-result") {
+        copyText(primaryResult.textContent);
+      }
+      if (action.dataset.action === "copy-source") {
+        copyText(sourceDraft.value);
+      }
+      if (action.dataset.action === "replace-draft") {
+        sourceDraft.value = primaryResult.textContent;
+        state.draftDirty = true;
+        render();
+        showToast("Draft replaced");
+      }
+    });
+
+    document.querySelectorAll("[data-density]").forEach(button => {
+      button.addEventListener("click", () => {
+        state.density = button.dataset.density;
+        document.querySelectorAll("[data-density]").forEach(node => node.classList.toggle("is-active", node === button));
+        document.querySelector(".device").style.setProperty("--device-height", state.density === "review" ? "760px" : "844px");
+      });
+    });
+
+    document.getElementById("themeToggle").addEventListener("click", () => {
+      state.dark = !state.dark;
+      document.body.dataset.theme = state.dark ? "dark" : "light";
+      document.querySelector(".mockup-shell").dataset.theme = state.dark ? "dark" : "light";
+      showToast(state.dark ? "Dark mode" : "Light mode");
+    });
+
+    sourceDraft.addEventListener("input", () => {
+      state.draftDirty = true;
+      render();
+    });
+
+    setScenario("product", false);
+    setView("work");
+    refreshIcons();
+  </script>
+</body>
+</html>

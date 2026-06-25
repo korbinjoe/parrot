@@ -9,6 +9,7 @@ final class ParrotiOSUITests: XCTestCase {
         XCTAssertTrue(app.staticTexts["Workspace"].waitForExistence(timeout: 5))
         XCTAssertTrue(app.textViews["UnderstandSourceEditor"].waitForExistence(timeout: 5))
 
+        app.buttons["WorkspaceModeReply"].tap()
         XCTAssertTrue(app.buttons["Generate replies"].exists)
         XCTAssertTrue(app.textViews["ExpressIntentEditor"].exists)
     }
@@ -17,6 +18,7 @@ final class ParrotiOSUITests: XCTestCase {
         let app = launchApp(arguments: ["--ui-test-work"])
 
         XCTAssertTrue(app.staticTexts["Workspace"].waitForExistence(timeout: 5))
+        app.buttons["WorkspaceModeReply"].tap()
         XCTAssertTrue(app.textViews["ExpressIntentEditor"].waitForExistence(timeout: 5))
         app.buttons["Friendly"].tap()
         app.buttons["Generate replies"].tap()
@@ -24,6 +26,80 @@ final class ParrotiOSUITests: XCTestCase {
         XCTAssertTrue(app.buttons["Copy"].waitForExistence(timeout: 5))
         app.buttons["Copy"].firstMatch.tap()
         XCTAssertTrue(app.staticTexts["Copied"].waitForExistence(timeout: 3))
+    }
+
+    func testNativePolishReplacesDraft() {
+        let app = launchApp(arguments: ["--ui-test-polish"])
+
+        XCTAssertTrue(app.staticTexts["Workspace"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.buttons["WorkspaceModePolish"].exists)
+        XCTAssertTrue(app.staticTexts["NativePolishPrimary"].waitForExistence(timeout: 5))
+
+        app.buttons["NativePolishReplaceDraftPrimary"].tap()
+        XCTAssertTrue(app.staticTexts["Draft replaced"].waitForExistence(timeout: 3))
+
+        let editor = app.textViews["UnderstandSourceEditor"]
+        XCTAssertTrue(editor.waitForExistence(timeout: 5))
+        XCTAssertTrue(String(describing: editor.value ?? "").contains("onboarding"))
+    }
+
+    func testNativePolishTodayEntryOpensEditablePolishWorkspace() {
+        let app = launchApp()
+
+        XCTAssertTrue(app.staticTexts["Parrot"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.buttons["NativePolishButton"].waitForExistence(timeout: 5))
+        app.buttons["NativePolishButton"].tap()
+
+        XCTAssertTrue(app.staticTexts["Workspace"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.buttons["WorkspaceModePolish"].exists)
+        XCTAssertTrue(app.textViews["UnderstandSourceEditor"].exists)
+        XCTAssertTrue(app.buttons["NativePolishRun"].exists)
+
+        app.buttons["NativePolishRun"].tap()
+        XCTAssertTrue(app.staticTexts["Add a draft to polish."].waitForExistence(timeout: 3))
+    }
+
+    func testNativePolishGeneratesFromDraftAndPreservesSource() {
+        let app = launchApp(arguments: ["--ui-test-polish-draft"])
+
+        XCTAssertTrue(app.staticTexts["Workspace"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.buttons["NativePolishRun"].waitForExistence(timeout: 5))
+        XCTAssertFalse(app.staticTexts["NativePolishPrimary"].exists)
+
+        app.buttons["NativePolishRun"].tap()
+
+        XCTAssertTrue(app.staticTexts["NativePolishPrimary"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.staticTexts["NativePolishVariant"].waitForExistence(timeout: 5))
+        let editor = app.textViews["UnderstandSourceEditor"]
+        XCTAssertTrue(editor.waitForExistence(timeout: 5))
+        XCTAssertTrue(String(describing: editor.value ?? "").contains("i think this product"))
+    }
+
+    func testNativePolishCopyAndRefinementFeedback() {
+        let app = launchApp(arguments: ["--ui-test-polish"])
+
+        XCTAssertTrue(app.staticTexts["Workspace"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.staticTexts["NativePolishPrimary"].waitForExistence(timeout: 5))
+
+        app.buttons["NativePolishCopyPrimary"].tap()
+        XCTAssertTrue(app.staticTexts["Copied"].waitForExistence(timeout: 3))
+
+        app.buttons["NativePolishRefinePrimaryshorter"].tap()
+        XCTAssertTrue(app.staticTexts["Refined"].waitForExistence(timeout: 3))
+        XCTAssertTrue(app.staticTexts.containing(NSPredicate(format: "label CONTAINS %@", "Useful product, confusing onboarding.")).firstMatch.waitForExistence(timeout: 5))
+    }
+
+    func testNativePolishHistoryItemReopensPolishSession() {
+        let app = launchApp(arguments: ["--ui-test-polish-history"])
+
+        XCTAssertTrue(app.staticTexts["History"].waitForExistence(timeout: 5))
+        app.buttons.containing(NSPredicate(format: "label CONTAINS %@", "History polish seed")).firstMatch.tap()
+
+        XCTAssertTrue(app.staticTexts["Workspace"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.buttons["WorkspaceModePolish"].exists)
+        XCTAssertTrue(app.textViews["UnderstandSourceEditor"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.staticTexts["NativePolishPrimary"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.buttons["NativePolishReplaceDraftPrimary"].exists)
     }
 
     func testOCRCleanupMutatesTextAndKeepsDraftEditable() {

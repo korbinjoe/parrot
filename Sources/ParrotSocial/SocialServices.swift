@@ -192,6 +192,10 @@ public struct RuleBasedSocialService: SocialUnderstandingService, SocialExpressi
     }
 
     public func generateReplies(session: SocialTextSession) async throws -> ExpressResult {
+        if session.mode == .polish {
+            return polishDraft(session: session)
+        }
+
         let intent = session.userIntentTrimmed.isEmpty ? session.sourceDraftTrimmed : session.userIntentTrimmed
         let base = englishReply(from: intent, platform: session.platform)
         let candidates = [
@@ -203,6 +207,10 @@ public struct RuleBasedSocialService: SocialUnderstandingService, SocialExpressi
     }
 
     public func refine(candidate: ReplyCandidate, action: RefinementAction, session: SocialTextSession) async throws -> ReplyCandidate {
+        if session.mode == .polish {
+            return refinePolish(candidate: candidate, action: action)
+        }
+
         var updated = candidate
         switch action {
         case .shorter:
@@ -218,6 +226,44 @@ public struct RuleBasedSocialService: SocialUnderstandingService, SocialExpressi
             updated.text = candidate.text
         case .addContext:
             updated.text = candidate.text + " That sequencing matters because users need confidence before they commit to configuration."
+        }
+        return updated
+    }
+
+    private func polishDraft(session: SocialTextSession) -> ExpressResult {
+        let base = polishedDraft(from: session.sourceDraftTrimmed, tone: session.selectedTone)
+        let candidates = [
+            ReplyCandidate(title: "Native polish", text: base, tone: session.selectedTone),
+            ReplyCandidate(
+                title: "Warmer",
+                text: "I can see the value in this, but the onboarding still leaves me a bit unsure about where to start.",
+                tone: .friendly
+            ),
+            ReplyCandidate(
+                title: "Sharper",
+                text: "The product has value, but the onboarding makes it harder to understand than it should be.",
+                tone: .firm
+            )
+        ]
+        return ExpressResult(candidates: candidates)
+    }
+
+    private func refinePolish(candidate: ReplyCandidate, action: RefinementAction) -> ReplyCandidate {
+        var updated = candidate
+        switch action {
+        case .shorter:
+            updated.text = "Useful product, confusing onboarding."
+            updated.tone = .xShort
+        case .moreCasual:
+            updated.text = "I like the idea, but the onboarding still makes it harder to get started than it should."
+            updated.tone = .friendly
+        case .morePolite:
+            updated.text = "The product seems useful, but the onboarding could do more to help new users understand the value sooner."
+            updated.tone = .politeDisagreement
+        case .keepMyAttitude:
+            updated.text = candidate.text
+        case .addContext:
+            updated.text = candidate.text + " A clearer first step would make the value easier to see."
         }
         return updated
     }
@@ -250,6 +296,35 @@ public struct RuleBasedSocialService: SocialUnderstandingService, SocialExpressi
             return "Good feature, bad first-run flow."
         case .politeDisagreement:
             return "I would frame it slightly differently: " + text.prefix(1).lowercased() + text.dropFirst()
+        }
+    }
+
+    private func polishedDraft(from draft: String, tone: TonePreset) -> String {
+        let lower = draft.lowercased()
+        let base: String
+        if lower.contains("onboarding") || lower.contains("first-run") || lower.contains("新用户") || lower.contains("第一次") {
+            base = "The product is useful, but the onboarding still makes new users work too hard before they understand the value."
+        } else if lower.contains("roadmap") {
+            base = "The roadmap sounds promising, but the experience needs to hold up when real users try it."
+        } else if draft.isEmpty {
+            base = ""
+        } else {
+            base = draft.prefix(1).uppercased() + draft.dropFirst()
+        }
+
+        switch tone {
+        case .natural:
+            return base
+        case .friendly:
+            return "I think " + base.prefix(1).lowercased() + base.dropFirst()
+        case .firm:
+            return "The core issue is clear: " + base.prefix(1).lowercased() + base.dropFirst()
+        case .redditStyle:
+            return "This reads like a solid idea running into a messy first-run experience."
+        case .xShort:
+            return "Useful product, confusing onboarding."
+        case .politeDisagreement:
+            return "I would phrase it this way: " + base.prefix(1).lowercased() + base.dropFirst()
         }
     }
 }

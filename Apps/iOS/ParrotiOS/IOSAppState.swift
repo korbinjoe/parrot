@@ -181,6 +181,69 @@ final class IOSAppState: ObservableObject {
             return true
         }
 
+        if args.contains("--ui-test-polish-draft") {
+            activeSession = SocialTextSession(
+                mode: .polish,
+                origin: .manualInput,
+                platform: .general,
+                sourceDraft: "i think this product useful but onboarding make me confused",
+                selectedTone: .natural
+            )
+            selectedTab = .work
+            return true
+        }
+
+        if args.contains("--ui-test-polish-history") {
+            var session = SocialTextSession(
+                mode: .polish,
+                origin: .history,
+                platform: .general,
+                sourceDraft: "History polish seed: onboarding make new user confused.",
+                selectedTone: .natural
+            )
+            session.apply(ExpressResult(candidates: [
+                ReplyCandidate(
+                    title: "Native polish",
+                    text: "The onboarding makes new users feel confused before they understand the product's value.",
+                    tone: .natural
+                ),
+                ReplyCandidate(
+                    title: "Warmer",
+                    text: "The product has value, but the onboarding could make the first step feel clearer.",
+                    tone: .friendly
+                )
+            ]))
+            activeSession = nil
+            recentSessions = [session]
+            selectedTab = .history
+            return true
+        }
+
+        if args.contains("--ui-test-polish") {
+            var session = SocialTextSession(
+                mode: .polish,
+                origin: .manualInput,
+                platform: .general,
+                sourceDraft: "i think this product useful but onboarding make me confused",
+                selectedTone: .natural
+            )
+            session.apply(ExpressResult(candidates: [
+                ReplyCandidate(
+                    title: "Native polish",
+                    text: "The product is useful, but the onboarding still makes new users work too hard before they understand the value.",
+                    tone: .natural
+                ),
+                ReplyCandidate(
+                    title: "Warmer",
+                    text: "I can see the value in this, but the onboarding still leaves me a bit unsure about where to start.",
+                    tone: .friendly
+                )
+            ]))
+            activeSession = session
+            selectedTab = .work
+            return true
+        }
+
         if args.contains("--ui-test-engines") || args.contains("--ui-test-keys") {
             selectedTab = .engines
             return true
@@ -219,12 +282,52 @@ final class IOSAppState: ObservableObject {
 
     func openManualExpress() {
         var session = activeSession ?? SocialTextSession(origin: .manualInput, sourceDraft: "")
+        let previousMode = session.mode
         session.switchToExpress()
+        if previousMode == .polish {
+            session.express = nil
+        }
         if session.userIntentDraft.isEmpty {
             session.userIntentDraft = "我觉得这个评价挺公平，产品不差，但是新用户第一次用确实会迷路。"
         }
         activeSession = session
         selectedTab = .work
+    }
+
+    func openNativePolish() {
+        var session = activeSession ?? SocialTextSession(
+            mode: .polish,
+            origin: .manualInput,
+            platform: .general,
+            sourceDraft: ""
+        )
+        if session.mode != .polish {
+            session.express = nil
+        }
+        session.mode = .polish
+        session.updatedAt = Date()
+        activeSession = session
+        selectedTab = .work
+    }
+
+    func selectWorkspaceMode(_ mode: SocialMode) {
+        ensureWorkSession()
+        guard var session = activeSession else { return }
+        switch mode {
+        case .express:
+            let previousMode = session.mode
+            session.switchToExpress()
+            if previousMode == .polish {
+                session.express = nil
+            }
+        case .understand, .polish, .ocr:
+            if mode == .polish, session.mode != .polish {
+                session.express = nil
+            }
+            session.mode = mode
+            session.updatedAt = Date()
+        }
+        activeSession = session
     }
 
     func updateSourceDraft(_ text: String) {
@@ -279,6 +382,29 @@ final class IOSAppState: ObservableObject {
         isProcessing = false
     }
 
+    func polishActiveDraft() async {
+        guard var session = activeSession else { return }
+        guard !session.sourceDraftTrimmed.isEmpty else {
+            errorNotice = "Add a draft to polish."
+            return
+        }
+        session.mode = .polish
+        activeSession = session
+        isProcessing = true
+        errorNotice = nil
+        do {
+            let result = try await socialService.generateReplies(session: session)
+            session.apply(result)
+            session.mode = .polish
+            activeSession = session
+            try await sessionStore.save(session)
+            await loadRecent()
+        } catch {
+            errorNotice = "Unable to polish this draft. Your text is still here."
+        }
+        isProcessing = false
+    }
+
     func refine(_ candidate: ReplyCandidate, action: RefinementAction) async {
         guard var session = activeSession else { return }
         do {
@@ -312,6 +438,19 @@ final class IOSAppState: ObservableObject {
         }
         activeSession = session
         showFeedback("OCR text cleaned")
+    }
+
+    func replaceSourceDraft(with candidate: ReplyCandidate) {
+        guard var session = activeSession else { return }
+        session.mode = .polish
+        session.sourceDraft = candidate.text
+        session.updatedAt = Date()
+        activeSession = session
+        showFeedback("Draft replaced")
+        Task {
+            try? await sessionStore.save(session)
+            await loadRecent()
+        }
     }
 
     func reopen(_ session: SocialTextSession) {

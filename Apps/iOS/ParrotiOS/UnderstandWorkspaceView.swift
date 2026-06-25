@@ -18,12 +18,12 @@ struct UnderstandWorkspaceView: View {
             ScrollView {
                 VStack(alignment: .leading, spacing: 8) {
                     originStrip
+                    modeSelector
                     sourceComposer
                     if let error = state.errorNotice {
                         notice(error)
                     }
-                    resultStack
-                    replyDock
+                    contentStack
                 }
                 .padding(.horizontal, 14)
                 .padding(.bottom, 78)
@@ -34,18 +34,49 @@ struct UnderstandWorkspaceView: View {
         .onAppear { state.ensureWorkSession() }
     }
 
+    private var activeMode: SocialMode {
+        state.activeSession?.mode ?? .understand
+    }
+
     private var originStrip: some View {
         HStack(spacing: 6) {
             StatusPill(text: state.activeSession?.origin.displayName ?? "Manual input")
-            StatusPill(text: "Draft preserved", tone: .good)
+            StatusPill(text: activeMode.displayName, tone: activeMode == .polish ? .good : .blue)
             Spacer()
+        }
+    }
+
+    private var modeSelector: some View {
+        HStack(spacing: 6) {
+            ForEach([SocialMode.understand, .express, .polish], id: \.self) { mode in
+                Button {
+                    state.selectWorkspaceMode(mode)
+                } label: {
+                    HStack(spacing: 5) {
+                        Image(systemName: modeIcon(mode))
+                            .font(.system(size: 10, weight: .heavy))
+                        Text(mode.displayName)
+                            .font(.system(size: 10, weight: .heavy, design: .rounded))
+                    }
+                    .foregroundStyle(activeMode == mode ? IOSTheme.greenDeep : IOSTheme.muted)
+                    .frame(maxWidth: .infinity, minHeight: 30)
+                    .background(activeMode == mode ? IOSTheme.green.opacity(0.16) : IOSTheme.subtleFill)
+                    .clipShape(RoundedRectangle(cornerRadius: IOSTheme.controlRadius, style: .continuous))
+                    .overlay(
+                        RoundedRectangle(cornerRadius: IOSTheme.controlRadius, style: .continuous)
+                            .stroke(activeMode == mode ? IOSTheme.green.opacity(0.28) : IOSTheme.line)
+                    )
+                }
+                .buttonStyle(.plain)
+                .accessibilityIdentifier("WorkspaceMode\(mode.displayName)")
+            }
         }
     }
 
     private var sourceComposer: some View {
         VStack(alignment: .leading, spacing: 7) {
             HStack {
-                Text("Source")
+                Text(sourceTitle)
                     .font(.system(size: 10, weight: .heavy, design: .rounded))
                     .foregroundStyle(IOSTheme.muted)
                     .textCase(.uppercase)
@@ -70,7 +101,7 @@ struct UnderstandWorkspaceView: View {
             .clipShape(RoundedRectangle(cornerRadius: IOSTheme.cardRadius, style: .continuous))
 
             FlowLayout(spacing: 6) {
-                StatusPill(text: "Auto -> 中文")
+                StatusPill(text: sourceRouteLabel)
                 Button("Google + OpenAI") {
                     state.selectedTab = .engines
                 }
@@ -85,24 +116,63 @@ struct UnderstandWorkspaceView: View {
                 .buttonStyle(.compactMuted)
             }
 
-            Button {
-                Task { await state.understandActiveSession() }
-            } label: {
-                HStack {
-                    Spacer()
-                    if state.isProcessing {
-                        ProgressView()
-                            .controlSize(.small)
+            if activeMode == .polish {
+                Button {
+                    Task { await state.polishActiveDraft() }
+                } label: {
+                    HStack {
+                        Spacer()
+                        if state.isProcessing {
+                            ProgressView()
+                                .controlSize(.small)
+                        }
+                        Text(state.isProcessing ? "Polishing current draft" : "Native Polish")
+                        Spacer()
                     }
-                    Text(state.isProcessing ? "Translating current draft" : "Translate current draft")
-                    Spacer()
                 }
+                .buttonStyle(.compactGreen)
+                .accessibilityLabel("Native Polish")
+                .accessibilityIdentifier("NativePolishRun")
+            } else if activeMode == .understand || activeMode == .ocr {
+                Button {
+                    Task { await state.understandActiveSession() }
+                } label: {
+                    HStack {
+                        Spacer()
+                        if state.isProcessing {
+                            ProgressView()
+                                .controlSize(.small)
+                        }
+                        Text(state.isProcessing ? "Translating current draft" : "Translate current draft")
+                        Spacer()
+                    }
+                }
+                .buttonStyle(.compactGreen)
+                .accessibilityLabel("Understand")
             }
-            .buttonStyle(.compactGreen)
-            .accessibilityLabel("Understand")
         }
         .padding(9)
         .parrotCard()
+    }
+
+    private var sourceTitle: String {
+        activeMode == .polish ? "Draft" : "Source"
+    }
+
+    private var sourceRouteLabel: String {
+        activeMode == .polish ? "Native -> English" : "Auto -> 中文"
+    }
+
+    @ViewBuilder
+    private var contentStack: some View {
+        switch activeMode {
+        case .express:
+            replyDock
+        case .polish:
+            polishStack
+        case .understand, .ocr:
+            resultStack
+        }
     }
 
     @ViewBuilder
@@ -197,6 +267,138 @@ struct UnderstandWorkspaceView: View {
         .background(primary ? IOSTheme.meaningTint : IOSTheme.surface)
         .clipShape(RoundedRectangle(cornerRadius: IOSTheme.cardRadius, style: .continuous))
         .overlay(RoundedRectangle(cornerRadius: IOSTheme.cardRadius, style: .continuous).stroke(IOSTheme.line))
+    }
+
+    @ViewBuilder
+    private var polishStack: some View {
+        let candidates = state.activeSession?.express?.candidates ?? []
+
+        if state.isProcessing && candidates.isEmpty {
+            HStack(spacing: 8) {
+                ProgressView()
+                    .controlSize(.small)
+                Text("Writing native version...")
+                    .font(.system(size: 11, weight: .bold, design: .rounded))
+                    .foregroundStyle(IOSTheme.muted)
+                Spacer()
+            }
+            .padding(9)
+            .parrotCard()
+        }
+
+        if let primary = candidates.first {
+            polishCandidateCard(primary, primary: true)
+
+            if candidates.count > 1 {
+                SectionTitle(left: "Variants")
+                    .padding(.top, 2)
+                ForEach(Array(candidates.dropFirst())) { candidate in
+                    polishCandidateCard(candidate, primary: false)
+                }
+            }
+
+            polishNotes(for: primary)
+        } else if !state.isProcessing {
+            VStack(alignment: .leading, spacing: 6) {
+                Text("Native result")
+                    .font(.system(size: 10, weight: .heavy, design: .rounded))
+                    .foregroundStyle(IOSTheme.muted)
+                    .textCase(.uppercase)
+                Text("Run Native Polish to create a copy-ready version from the current draft.")
+                    .font(.system(size: 11, weight: .semibold, design: .rounded))
+                    .foregroundStyle(IOSTheme.ink)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            .padding(9)
+            .parrotCard()
+        }
+    }
+
+    private func polishCandidateCard(_ candidate: ReplyCandidate, primary: Bool) -> some View {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack(spacing: 7) {
+                Circle()
+                    .fill(primary ? IOSTheme.green : IOSTheme.coral)
+                    .frame(width: 7, height: 7)
+                Text(candidate.title)
+                    .font(.system(size: 10, weight: .heavy, design: .rounded))
+                    .foregroundStyle(primary ? IOSTheme.greenDeep : IOSTheme.coral)
+                    .textCase(.uppercase)
+                Spacer()
+                MiniIconButton(systemName: "doc.on.doc") {
+                    state.copy(candidate.text)
+                }
+                .accessibilityLabel("Copy")
+                .accessibilityIdentifier(primary ? "NativePolishCopyPrimary" : "NativePolishCopyVariant")
+                Button("Replace draft") {
+                    state.replaceSourceDraft(with: candidate)
+                }
+                .buttonStyle(.compactGreen)
+                .accessibilityIdentifier(primary ? "NativePolishReplaceDraftPrimary" : "NativePolishReplaceDraftVariant")
+            }
+
+            Text(candidate.text)
+                .font(.system(size: primary ? 13 : 11, weight: primary ? .bold : .semibold, design: .rounded))
+                .foregroundStyle(IOSTheme.ink)
+                .fixedSize(horizontal: false, vertical: true)
+                .accessibilityIdentifier(primary ? "NativePolishPrimary" : "NativePolishVariant")
+
+            FlowLayout(spacing: 6) {
+                ForEach(RefinementAction.allCases) { action in
+                    Button(action.displayName) {
+                        Task { await state.refine(candidate, action: action) }
+                    }
+                    .font(.system(size: 9.5, weight: .heavy, design: .rounded))
+                    .foregroundStyle(IOSTheme.blueDeep)
+                    .padding(.horizontal, 8)
+                    .frame(minHeight: 24)
+                    .background(IOSTheme.cyan.opacity(0.10))
+                    .clipShape(Capsule())
+                    .accessibilityIdentifier("NativePolishRefine\(primary ? "Primary" : "Variant")\(action.rawValue)")
+                }
+            }
+        }
+        .padding(9)
+        .background(primary ? IOSTheme.meaningTint : IOSTheme.surface)
+        .clipShape(RoundedRectangle(cornerRadius: IOSTheme.cardRadius, style: .continuous))
+        .overlay(RoundedRectangle(cornerRadius: IOSTheme.cardRadius, style: .continuous).stroke(IOSTheme.line))
+    }
+
+    private func polishNotes(for candidate: ReplyCandidate) -> some View {
+        VStack(alignment: .leading, spacing: 7) {
+            SectionTitle(left: "Compare")
+            ForEach(polishNoteTexts(for: candidate), id: \.self) { note in
+                HStack(alignment: .top, spacing: 7) {
+                    Image(systemName: "checkmark.circle.fill")
+                        .font(.system(size: 11, weight: .bold))
+                        .foregroundStyle(IOSTheme.greenDeep)
+                    Text(note)
+                        .font(.system(size: 10, weight: .semibold, design: .rounded))
+                        .foregroundStyle(IOSTheme.muted)
+                        .fixedSize(horizontal: false, vertical: true)
+                    Spacer(minLength: 0)
+                }
+            }
+        }
+        .padding(9)
+        .parrotCard()
+    }
+
+    private func polishNoteTexts(for candidate: ReplyCandidate) -> [String] {
+        [
+            "Kept the original stance and claims.",
+            "Smoothed grammar, word order, and rhythm.",
+            "Matched the current tone: \(candidate.tone.displayName)."
+        ]
+    }
+
+    private func modeIcon(_ mode: SocialMode) -> String {
+        switch mode {
+        case .understand: return "text.magnifyingglass"
+        case .express: return "bubble.left.and.text.bubble.right"
+        case .polish: return "sparkles"
+        case .ocr: return "viewfinder"
+        }
     }
 
     private var replyDock: some View {

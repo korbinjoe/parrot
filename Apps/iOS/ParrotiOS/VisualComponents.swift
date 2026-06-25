@@ -73,8 +73,8 @@ struct StatusPill: View {
         switch tone {
         case .neutral: return IOSTheme.muted
         case .good: return IOSTheme.greenDeep
-        case .warn: return Color(red: 0.45, green: 0.29, blue: 0.02)
-        case .blue: return Color(red: 0.09, green: 0.23, blue: 0.34)
+        case .warn: return IOSTheme.warnDeep
+        case .blue: return IOSTheme.blueDeep
         }
     }
 
@@ -126,7 +126,7 @@ struct MiniIconButton: View {
         Button(action: action) {
             Image(systemName: systemName)
                 .font(.system(size: 12, weight: .bold))
-                .foregroundStyle(Color(red: 0.09, green: 0.23, blue: 0.34))
+                .foregroundStyle(IOSTheme.blueDeep)
                 .frame(width: 32, height: 32)
                 .background(IOSTheme.subtleFill)
                 .clipShape(RoundedRectangle(cornerRadius: 9, style: .continuous))
@@ -155,7 +155,7 @@ struct CompactButtonStyle: ButtonStyle {
 
     private var foreground: Color {
         switch tone {
-        case .blue: return Color(red: 0.09, green: 0.23, blue: 0.34)
+        case .blue: return IOSTheme.blueDeep
         case .green: return Color(red: 0.02, green: 0.18, blue: 0.09)
         case .muted: return IOSTheme.muted
         }
