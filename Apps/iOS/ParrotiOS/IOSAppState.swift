@@ -261,6 +261,12 @@ final class IOSAppState: ObservableObject {
             return true
         }
 
+        if args.contains("--ui-test-terminology") {
+            terminologyStore.saveState(TerminologyStoreState(entries: []))
+            selectedTab = .engines
+            return true
+        }
+
         if args.contains("--ui-test-engines") || args.contains("--ui-test-keys") {
             selectedTab = .engines
             return true

@@ -102,6 +102,27 @@ final class ParrotiOSUITests: XCTestCase {
         XCTAssertTrue(app.buttons["NativePolishReplaceDraftPrimary"].exists)
     }
 
+    func testTerminologySettingsAddsTerm() {
+        let app = launchApp(arguments: ["--ui-test-terminology"])
+
+        XCTAssertTrue(app.staticTexts["Engines"].waitForExistence(timeout: 5))
+        app.buttons["Terms"].tap()
+
+        let source = app.textFields["源词"]
+        let target = app.textFields["译法"]
+        XCTAssertTrue(source.waitForExistence(timeout: 5))
+        source.tap()
+        source.typeText("AI Agent")
+        target.tap()
+        target.typeText("AI Agent")
+
+        app.buttons["保存术语"].tap()
+
+        XCTAssertTrue(app.staticTexts["术语已保存。"].waitForExistence(timeout: 3))
+        XCTAssertTrue(app.staticTexts["AI Agent"].waitForExistence(timeout: 3))
+        XCTAssertTrue(app.staticTexts["English -> 中文"].exists)
+    }
+
     func testOCRCleanupMutatesTextAndKeepsDraftEditable() {
         let app = launchApp(arguments: ["--ui-test-ocr"])
 
