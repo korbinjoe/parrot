@@ -67,7 +67,7 @@ struct ParrotiOSRootView: View {
                     .background {
                         if state.selectedTab == tab {
                             RoundedRectangle(cornerRadius: IOSTheme.controlRadius, style: .continuous)
-                                .fill(IOSTheme.green.opacity(0.15))
+                                .fill(IOSTheme.green.opacity(state.selectedTab == .engines ? 0.08 : 0.15))
                         }
                     }
                 }
@@ -80,6 +80,7 @@ struct ParrotiOSRootView: View {
         .padding(.top, 4)
         .padding(.bottom, 8)
         .background(.regularMaterial)
+        .opacity(state.selectedTab == .engines ? 0.84 : 1)
         .overlay(alignment: .top) {
             Rectangle()
                 .fill(IOSTheme.line)
