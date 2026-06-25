@@ -53,19 +53,28 @@ final class IOSAppState: ObservableObject {
     private let ocr = IOSOCRService()
     private let clusterer = OCRTextBlockClusterer()
     private let latestScreenshotProvider = LatestScreenshotProvider()
-    private let container = AppGroupContainer(identifier: "group.dev.parrot.shared")
+    private let container: AppGroupContainer
+    private let terminologyStore: TerminologyStore
     private lazy var sessionStore = AppGroupStoreFactory.socialSessionStore(container: container)
     private lazy var handoffStore = AppGroupStoreFactory.handoffStore(container: container)
     private let clipboard = IOSClipboardService()
 
     init() {
+        let sharedContainer = AppGroupContainer(identifier: "group.dev.parrot.shared")
+        let sharedTerminologyStore = AppGroupStoreFactory.terminologyStore(container: sharedContainer)
+        container = sharedContainer
+        terminologyStore = sharedTerminologyStore
+
         let baseService = RuleBasedSocialService()
         if ProcessInfo.processInfo.arguments.contains("--ui-test-offline-social") {
             socialService = baseService
         } else {
             socialService = TranslationAugmentedSocialService(
                 base: baseService,
-                translationProvider: GoogleEngine()
+                translationProvider: GoogleEngine(),
+                terminologySnapshot: {
+                    sharedTerminologyStore.snapshot()
+                }
             )
         }
     }
@@ -79,6 +88,14 @@ final class IOSAppState: ObservableObject {
             return
         }
         clipboardSuggestionText = text
+    }
+
+    func loadTerminologyState() -> TerminologyStoreState {
+        terminologyStore.loadState()
+    }
+
+    func saveTerminologyState(_ next: TerminologyStoreState) {
+        terminologyStore.saveState(next)
     }
 
     func bootstrap() async {

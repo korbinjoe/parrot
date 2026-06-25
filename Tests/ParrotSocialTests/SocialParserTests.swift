@@ -42,6 +42,29 @@ private struct DirectionEchoProvider: TranslationProvider {
     }
 }
 
+private final class RecordingTranslationProvider: TranslationProvider, @unchecked Sendable {
+    private let lock = NSLock()
+    private var recordedRequests: [TranslateRequest] = []
+
+    var id: String { "recording-translation" }
+    var displayName: String { "Recording Translation" }
+    var supportedLanguages: [Language] { [.auto, .zh, .en] }
+    var capabilities: ProviderCapabilities { ProviderCapabilities() }
+
+    var lastRequest: TranslateRequest? {
+        lock.lock()
+        defer { lock.unlock() }
+        return recordedRequests.last
+    }
+
+    func translate(_ req: TranslateRequest) async throws -> TranslateResult {
+        lock.lock()
+        recordedRequests.append(req)
+        lock.unlock()
+        return TranslateResult(providerId: id, translated: req.text)
+    }
+}
+
 private struct FailingTranslationProvider: TranslationProvider {
     var id: String { "failing-translation" }
     var displayName: String { "Failing Translation" }
@@ -266,6 +289,27 @@ private struct FailingTranslationProvider: TranslationProvider {
     let result = try await service.understand(session: session)
 
     #expect(result.fullTranslation?.hasPrefix("zh->en:") == true)
+}
+
+@Test func translationAugmentedServicePassesTerminologySnapshot() async throws {
+    let provider = RecordingTranslationProvider()
+    let term = TerminologyEntry(source: "AI Agent", target: "AI Agent", from: .en, to: .zh)
+    let service = TranslationAugmentedSocialService(
+        base: RuleBasedSocialService(),
+        translationProvider: provider,
+        terminologySnapshot: {
+            TerminologySnapshot(entries: [term], strictMode: true)
+        }
+    )
+    let session = SocialTextSession(
+        origin: .manualInput,
+        sourceDraft: "AI Agent onboarding needs clearer wording."
+    )
+
+    _ = try await service.understand(session: session)
+
+    #expect(provider.lastRequest?.terminology?.entries == [term])
+    #expect(provider.lastRequest?.terminology?.strictMode == true)
 }
 
 @Test func translationAugmentedServiceDoesNotEchoSourceWhenTranslationFails() async throws {

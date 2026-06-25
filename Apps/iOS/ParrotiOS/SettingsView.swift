@@ -1,3 +1,4 @@
+import ParrotCore
 import ParrotPlatformiOS
 import SwiftUI
 
@@ -17,6 +18,10 @@ struct SettingsView: View {
     @State private var expandedCredentialIDs: Set<String> = []
     @State private var credentialDrafts: [String: String] = [:]
     @State private var storedCredentialIDs: Set<String> = []
+    @State private var terminologyState = TerminologyStoreState()
+    @State private var terminologyDraft = IOSTerminologyDraft()
+    @State private var terminologySearch = ""
+    @State private var terminologyNote = ""
 
     private let store = IOSKeychainSecretStore()
     private let openAIAccount = "engine.openai.apiKey"
@@ -61,6 +66,8 @@ struct SettingsView: View {
                             enginesPane
                         case .keys:
                             keysPane
+                        case .terminology:
+                            terminologyPane
                         case .media:
                             mediaPane
                         }
@@ -72,7 +79,10 @@ struct SettingsView: View {
             .scrollIndicators(.hidden)
         }
         .background(IOSTheme.paper.ignoresSafeArea())
-        .task { await loadStoredCredentials() }
+        .task {
+            await loadStoredCredentials()
+            loadTerminologyState()
+        }
     }
 
     private var contextBanner: some View {
@@ -81,10 +91,10 @@ struct SettingsView: View {
                 .font(.system(size: 11, weight: .heavy))
                 .foregroundStyle(IOSTheme.greenDeep)
             VStack(alignment: .leading, spacing: 1) {
-                Text(pane == .keys ? "修复当前服务配置" : "为当前工作区配置服务")
+                Text(contextTitle)
                     .font(.system(size: 10, weight: .heavy, design: .rounded))
                     .foregroundStyle(IOSTheme.ink)
-                Text(pane == .keys ? "先处理缺 Key 的服务，保存后返回工作区继续。" : "翻译、Key、OCR/TTS 在这里集中管理。")
+                Text(contextSubtitle)
                     .font(.system(size: 9, weight: .semibold, design: .rounded))
                     .foregroundStyle(IOSTheme.muted)
                     .lineLimit(1)
@@ -97,6 +107,28 @@ struct SettingsView: View {
         .clipShape(RoundedRectangle(cornerRadius: IOSTheme.cardRadius, style: .continuous))
     }
 
+    private var contextTitle: String {
+        switch pane {
+        case .keys:
+            return "修复当前服务配置"
+        case .terminology:
+            return "同步桌面端术语能力"
+        default:
+            return "为当前工作区配置服务"
+        }
+    }
+
+    private var contextSubtitle: String {
+        switch pane {
+        case .keys:
+            return "先处理缺 Key 的服务，保存后返回工作区继续。"
+        case .terminology:
+            return "术语会写入 App Group，并随 Quick Lens / Understand 翻译请求使用。"
+        default:
+            return "翻译、Key、OCR/TTS 在这里集中管理。"
+        }
+    }
+
     private var segmentedControl: some View {
         HStack(spacing: 3) {
             ForEach(SettingsPane.allCases) { item in
@@ -105,6 +137,8 @@ struct SettingsView: View {
                 }
                 .font(.system(size: 10, weight: .heavy, design: .rounded))
                 .foregroundStyle(pane == item ? IOSTheme.greenDeep : IOSTheme.muted)
+                .lineLimit(1)
+                .minimumScaleFactor(0.82)
                 .frame(maxWidth: .infinity)
                 .frame(height: 28)
                 .background(pane == item ? IOSTheme.green.opacity(0.20) : Color.clear)
@@ -238,6 +272,220 @@ struct SettingsView: View {
                 showKeyFilters = true
             }
             .buttonStyle(.compactBlue)
+        }
+        .padding(9)
+        .parrotCard()
+    }
+
+    private var terminologyPane: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text("术语表保证产品名、团队词和专业名词保持固定译法；禁用后不会随翻译请求发送。")
+                .font(.system(size: 10, weight: .semibold, design: .rounded))
+                .foregroundStyle(IOSTheme.muted)
+                .fixedSize(horizontal: false, vertical: true)
+
+            VStack(alignment: .leading, spacing: 7) {
+                HStack {
+                    Text("启用术语表")
+                        .font(.system(size: 11, weight: .heavy, design: .rounded))
+                        .foregroundStyle(IOSTheme.ink)
+                    Spacer()
+                    Toggle("", isOn: Binding(
+                        get: { terminologyState.isEnabled },
+                        set: { value in
+                            terminologyState.isEnabled = value
+                            persistTerminologyState(note: value ? "术语表已启用。" : "术语表已禁用。")
+                        }
+                    ))
+                    .labelsHidden()
+                }
+                HStack {
+                    Text("严格模式")
+                        .font(.system(size: 11, weight: .heavy, design: .rounded))
+                        .foregroundStyle(terminologyState.isEnabled ? IOSTheme.ink : IOSTheme.muted)
+                    Spacer()
+                    Toggle("", isOn: Binding(
+                        get: { terminologyState.strictMode },
+                        set: { value in
+                            terminologyState.strictMode = value
+                            persistTerminologyState(note: value ? "严格模式已开启。" : "严格模式已关闭。")
+                        }
+                    ))
+                    .labelsHidden()
+                    .disabled(!terminologyState.isEnabled)
+                }
+            }
+            .padding(9)
+            .parrotCard()
+
+            terminologyEditor
+
+            HStack(spacing: 7) {
+                TextField("搜索源词、译法或备注", text: $terminologySearch)
+                    .textInputAutocapitalization(.never)
+                    .autocorrectionDisabled()
+                    .font(.system(size: 10, weight: .bold, design: .rounded))
+                    .padding(.horizontal, 9)
+                    .frame(height: 30)
+                    .background(IOSTheme.surface2)
+                    .clipShape(RoundedRectangle(cornerRadius: IOSTheme.cardRadius, style: .continuous))
+                    .overlay(RoundedRectangle(cornerRadius: IOSTheme.cardRadius, style: .continuous).stroke(IOSTheme.line))
+                StatusPill(text: "\(visibleTerminologyEntries.count)/\(terminologyState.entries.count)")
+            }
+
+            if visibleTerminologyEntries.isEmpty {
+                VStack(alignment: .leading, spacing: 5) {
+                    Text(terminologyState.entries.isEmpty ? "还没有术语" : "没有匹配的术语")
+                        .font(.system(size: 11, weight: .heavy, design: .rounded))
+                        .foregroundStyle(IOSTheme.ink)
+                    Text("添加一个源词和目标译法后，Understand 和 Quick Lens 的翻译会使用同一份规则。")
+                        .font(.system(size: 9.5, weight: .semibold, design: .rounded))
+                        .foregroundStyle(IOSTheme.muted)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+                .padding(9)
+                .parrotCard()
+            } else {
+                VStack(spacing: 7) {
+                    ForEach(visibleTerminologyEntries) { entry in
+                        terminologyRow(entry)
+                    }
+                }
+            }
+
+            if !terminologyNote.isEmpty {
+                Text(terminologyNote)
+                    .font(.system(size: 9.5, weight: .semibold, design: .rounded))
+                    .foregroundStyle(terminologyNote.contains("重复") || terminologyNote.contains("不能为空") ? IOSTheme.warnDeep : IOSTheme.muted)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+        }
+    }
+
+    private var terminologyEditor: some View {
+        VStack(alignment: .leading, spacing: 7) {
+            SectionTitle(left: terminologyDraft.editingID == nil ? "新增术语" : "编辑术语")
+            HStack(spacing: 7) {
+                TextField("源词", text: $terminologyDraft.source)
+                    .textInputAutocapitalization(.never)
+                    .autocorrectionDisabled()
+                    .font(.system(size: 10, weight: .bold, design: .rounded))
+                    .padding(.horizontal, 8)
+                    .frame(height: 30)
+                    .background(IOSTheme.surface2)
+                    .clipShape(RoundedRectangle(cornerRadius: IOSTheme.cardRadius, style: .continuous))
+                    .overlay(RoundedRectangle(cornerRadius: IOSTheme.cardRadius, style: .continuous).stroke(IOSTheme.line))
+                TextField("译法", text: $terminologyDraft.target)
+                    .textInputAutocapitalization(.never)
+                    .autocorrectionDisabled()
+                    .font(.system(size: 10, weight: .bold, design: .rounded))
+                    .padding(.horizontal, 8)
+                    .frame(height: 30)
+                    .background(IOSTheme.surface2)
+                    .clipShape(RoundedRectangle(cornerRadius: IOSTheme.cardRadius, style: .continuous))
+                    .overlay(RoundedRectangle(cornerRadius: IOSTheme.cardRadius, style: .continuous).stroke(IOSTheme.line))
+            }
+
+            HStack(spacing: 7) {
+                Picker("From", selection: $terminologyDraft.from) {
+                    ForEach(IOSTerminologyDraft.sourceLanguages, id: \.self) { language in
+                        Text(languageTitle(language)).tag(language)
+                    }
+                }
+                .labelsHidden()
+                .frame(maxWidth: .infinity)
+                .frame(height: 30)
+                .background(IOSTheme.subtleFill)
+                .clipShape(RoundedRectangle(cornerRadius: IOSTheme.controlRadius, style: .continuous))
+
+                Image(systemName: "arrow.right")
+                    .font(.system(size: 10, weight: .heavy))
+                    .foregroundStyle(IOSTheme.muted)
+
+                Picker("To", selection: $terminologyDraft.to) {
+                    ForEach(IOSTerminologyDraft.targetLanguages, id: \.self) { language in
+                        Text(languageTitle(language)).tag(language)
+                    }
+                }
+                .labelsHidden()
+                .frame(maxWidth: .infinity)
+                .frame(height: 30)
+                .background(IOSTheme.subtleFill)
+                .clipShape(RoundedRectangle(cornerRadius: IOSTheme.controlRadius, style: .continuous))
+            }
+
+            TextField("备注（可选）", text: $terminologyDraft.note)
+                .font(.system(size: 10, weight: .semibold, design: .rounded))
+                .padding(.horizontal, 8)
+                .frame(height: 30)
+                .background(IOSTheme.surface2)
+                .clipShape(RoundedRectangle(cornerRadius: IOSTheme.cardRadius, style: .continuous))
+                .overlay(RoundedRectangle(cornerRadius: IOSTheme.cardRadius, style: .continuous).stroke(IOSTheme.line))
+
+            FlowLayout(spacing: 6) {
+                Button(terminologyDraft.caseSensitive ? "区分大小写" : "忽略大小写") {
+                    terminologyDraft.caseSensitive.toggle()
+                }
+                .buttonStyle(.compactMuted)
+                Button(terminologyDraft.enabled ? "已启用" : "已停用") {
+                    terminologyDraft.enabled.toggle()
+                }
+                .buttonStyle(terminologyDraft.enabled ? .compactBlue : .compactMuted)
+                Button(terminologyDraft.editingID == nil ? "保存术语" : "保存修改") {
+                    saveTerminologyDraft()
+                }
+                .buttonStyle(.compactGreen)
+                Button("清空") {
+                    terminologyDraft = IOSTerminologyDraft()
+                    terminologyNote = ""
+                }
+                .buttonStyle(.compactMuted)
+            }
+        }
+        .padding(9)
+        .parrotCard()
+    }
+
+    private func terminologyRow(_ entry: TerminologyEntry) -> some View {
+        HStack(alignment: .top, spacing: 8) {
+            VStack(alignment: .leading, spacing: 3) {
+                HStack(spacing: 6) {
+                    Text(entry.trimmedSource)
+                        .font(.system(size: 11, weight: .heavy, design: .rounded))
+                        .foregroundStyle(IOSTheme.ink)
+                        .lineLimit(1)
+                    Image(systemName: "arrow.right")
+                        .font(.system(size: 9, weight: .heavy))
+                        .foregroundStyle(IOSTheme.muted)
+                    Text(entry.trimmedTarget)
+                        .font(.system(size: 11, weight: .heavy, design: .rounded))
+                        .foregroundStyle(IOSTheme.greenDeep)
+                        .lineLimit(1)
+                }
+                FlowLayout(spacing: 5) {
+                    StatusPill(text: "\(languageTitle(entry.from)) -> \(languageTitle(entry.to))")
+                    StatusPill(text: entry.caseSensitive ? "Aa" : "aa")
+                    StatusPill(text: entry.enabled ? "Enabled" : "Off", tone: entry.enabled ? .good : .neutral)
+                }
+                if let note = entry.note, !note.isEmpty {
+                    Text(note)
+                        .font(.system(size: 9.5, weight: .semibold, design: .rounded))
+                        .foregroundStyle(IOSTheme.muted)
+                        .lineLimit(2)
+                }
+            }
+            Spacer(minLength: 0)
+            VStack(spacing: 6) {
+                Button("Edit") {
+                    terminologyDraft = IOSTerminologyDraft(entry: entry)
+                    terminologyNote = ""
+                }
+                .buttonStyle(.compactBlue)
+                Button("Delete") {
+                    deleteTerminologyEntry(entry.id)
+                }
+                .buttonStyle(.compactMuted)
+            }
         }
         .padding(9)
         .parrotCard()
@@ -762,6 +1010,78 @@ struct SettingsView: View {
         }
     }
 
+    private var visibleTerminologyEntries: [TerminologyEntry] {
+        let query = terminologySearch.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        let entries = terminologyState.entries.sorted {
+            if $0.enabled != $1.enabled { return $0.enabled && !$1.enabled }
+            return $0.trimmedSource.localizedCaseInsensitiveCompare($1.trimmedSource) == .orderedAscending
+        }
+        guard !query.isEmpty else { return entries }
+        return entries.filter { entry in
+            entry.trimmedSource.lowercased().contains(query)
+                || entry.trimmedTarget.lowercased().contains(query)
+                || (entry.note?.lowercased().contains(query) ?? false)
+        }
+    }
+
+    private func loadTerminologyState() {
+        terminologyState = state.loadTerminologyState()
+    }
+
+    private func persistTerminologyState(note: String) {
+        state.saveTerminologyState(terminologyState)
+        terminologyNote = note
+    }
+
+    private func saveTerminologyDraft() {
+        let entry = terminologyDraft.entry()
+        do {
+            try TerminologyStore.validate(entry, against: terminologyState.entries)
+        } catch TerminologyStoreError.emptySourceOrTarget {
+            terminologyNote = "源词和译法不能为空。"
+            return
+        } catch TerminologyStoreError.duplicate {
+            terminologyNote = "同一语言对里已经有重复源词。"
+            return
+        } catch {
+            terminologyNote = "无法保存这个术语。"
+            return
+        }
+
+        var next = terminologyState
+        if let idx = next.entries.firstIndex(where: { $0.id == entry.id }) {
+            next.entries[idx] = entry
+        } else {
+            next.entries.append(entry)
+        }
+        terminologyState = next
+        persistTerminologyState(note: "术语已保存。")
+        terminologyDraft = IOSTerminologyDraft()
+    }
+
+    private func deleteTerminologyEntry(_ id: UUID) {
+        terminologyState.entries.removeAll { $0.id == id }
+        persistTerminologyState(note: "术语已删除。")
+        if terminologyDraft.editingID == id {
+            terminologyDraft = IOSTerminologyDraft()
+        }
+    }
+
+    private func languageTitle(_ language: Language) -> String {
+        switch language {
+        case .auto: return "Auto"
+        case .zh: return "中文"
+        case .en: return "English"
+        case .ja: return "日本語"
+        case .ko: return "한국어"
+        case .fr: return "Français"
+        case .de: return "Deutsch"
+        case .es: return "Español"
+        case .ru: return "Русский"
+        case .custom(let code): return code
+        }
+    }
+
     private func loadStoredCredentials() async {
         await loadOpenAIKey()
         var loaded: Set<String> = []
@@ -817,6 +1137,7 @@ struct SettingsView: View {
 private enum SettingsPane: String, CaseIterable, Identifiable {
     case engines
     case keys
+    case terminology
     case media
 
     var id: String { rawValue }
@@ -824,8 +1145,51 @@ private enum SettingsPane: String, CaseIterable, Identifiable {
         switch self {
         case .engines: return "Engines"
         case .keys: return "Keys"
+        case .terminology: return "Terms"
         case .media: return "OCR/TTS"
         }
+    }
+}
+
+private struct IOSTerminologyDraft: Equatable {
+    var source = ""
+    var target = ""
+    var from: Language = .en
+    var to: Language = .zh
+    var note = ""
+    var caseSensitive = false
+    var enabled = true
+    var editingID: UUID?
+
+    static let sourceLanguages: [Language] = [.auto, .en, .zh, .ja, .ko]
+    static let targetLanguages: [Language] = [.zh, .en, .ja, .ko]
+
+    init() {}
+
+    init(entry: TerminologyEntry) {
+        source = entry.source
+        target = entry.target
+        from = entry.from
+        to = entry.to
+        note = entry.note ?? ""
+        caseSensitive = entry.caseSensitive
+        enabled = entry.enabled
+        editingID = entry.id
+    }
+
+    func entry() -> TerminologyEntry {
+        TerminologyEntry(
+            id: editingID ?? UUID(),
+            source: source.trimmingCharacters(in: .whitespacesAndNewlines),
+            target: target.trimmingCharacters(in: .whitespacesAndNewlines),
+            from: from,
+            to: to,
+            note: note.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+                ? nil
+                : note.trimmingCharacters(in: .whitespacesAndNewlines),
+            caseSensitive: caseSensitive,
+            enabled: enabled
+        )
     }
 }
 
