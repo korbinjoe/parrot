@@ -237,6 +237,71 @@ import ParrotCore
     #expect(expression.meaning.contains("专有"))
 }
 
+@Test func manualLearningSelectionUsesLookupDefinitionsForUnknownSourceTerm() throws {
+    let source = "Network latency increased after the release."
+    let expression = try #require(LearningRecommendationEngine.expressionForManualSelection(
+        "latency",
+        contextText: source,
+        sourceText: source,
+        occurrenceCounts: [:],
+        definitions: [
+            Definition(partOfSpeech: "n.", meanings: ["延迟", "潜伏期"])
+        ],
+        phonetics: [
+            Phonetic(type: "US", value: "/ˈleɪtənsi/")
+        ]
+    ))
+
+    #expect(expression.term == "latency")
+    #expect(expression.kind == "查词")
+    #expect(expression.meaning == "n. 延迟；潜伏期")
+    #expect(expression.phonetic == "US /ˈleɪtənsi/")
+    #expect(!expression.meaning.contains("当前译文中的英文表达"))
+}
+
+@Test func manualLearningSelectionUsesLookupTextWhenDefinitionsAreMissing() throws {
+    let source = "I'm intrigued. If you've codes to spare please could I have one?"
+    let expression = try #require(LearningRecommendationEngine.expressionForManualSelection(
+        "spare",
+        contextText: source,
+        sourceText: source,
+        occurrenceCounts: [:],
+        lookupText: "adj. 多余的、备用的；在句中表示有富余可提供的。"
+    ))
+
+    #expect(expression.term == "spare")
+    #expect(expression.kind == "查词")
+    #expect(expression.meaning.contains("多余"))
+    #expect(!expression.meaning.contains("当前译文中的英文表达"))
+}
+
+@Test func manualLearningSelectionCanWaitForLookupBeforeGenericFallback() throws {
+    let source = "Network latency increased after the release."
+    let expression = LearningRecommendationEngine.expressionForManualSelection(
+        "latency",
+        contextText: source,
+        sourceText: source,
+        occurrenceCounts: [:],
+        allowGenericFallback: false
+    )
+
+    #expect(expression == nil)
+}
+
+@Test func manualLearningSelectionFallsBackToGenericMeaningWithoutLookupDefinitions() throws {
+    let source = "Network latency increased after the release."
+    let expression = try #require(LearningRecommendationEngine.expressionForManualSelection(
+        "latency",
+        contextText: source,
+        sourceText: source,
+        occurrenceCounts: [:]
+    ))
+
+    #expect(expression.term == "latency")
+    #expect(expression.kind == "新词")
+    #expect(expression.meaning.contains("当前译文中的英文表达"))
+}
+
 @MainActor
 @Test func learningVocabularyEntriesPersistAndDriveVocabularyItems() throws {
     let suiteName = "parrot.test.learning-vocab.\(UUID().uuidString)"

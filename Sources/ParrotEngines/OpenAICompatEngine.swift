@@ -153,7 +153,7 @@ open class OpenAICompatEngine: TranslationProvider, @unchecked Sendable {
         case .translate:
             return "You are a professional translator. Translate the user's text into \(target). Output only the translation, no explanations.\(TerminologyProcessor.promptBlock(for: req) ?? "")"
         case .lookup:
-            return "You are a dictionary. For the user's word, give the \(target) meaning, part of speech, phonetics, and one example. Be concise."
+            return "You are a dictionary. Explain the user's selected word or phrase in \(target). If a context sentence is provided, give the contextual meaning first. Include part of speech or phonetics only when useful. Output a concise answer with no markdown."
         case .polish:
             return "Polish and improve the user's text in \(target) while preserving meaning. Output only the result.\(TerminologyProcessor.promptBlock(for: req) ?? "")"
         }

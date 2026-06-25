@@ -85,6 +85,14 @@ struct ResultView: View {
                                                            sourceSelection: sourceLearningSelection,
                                                            onSpeak: { state.speakTranslation($0) },
                                                            onCopy: { copy($0) },
+                                                           onLookupSelection: { selection, contextText, usesTranslation in
+                                                               await state.lookupLearningSelection(
+                                                                   selection,
+                                                                   contextText: contextText,
+                                                                   providerID: outcome.providerId,
+                                                                   usesTranslation: usesTranslation
+                                                               )
+                                                           },
                                                            onRetry: { state.retryProvider(outcome.providerId) },
                                                            onConfigure: { onConfigureProvider(outcome.providerId) })
                                 case .pending(let provider):
@@ -732,6 +740,18 @@ private struct SourceComposerTextView: NSViewRepresentable {
 // MARK: - Provider slots
 
 private struct TranslationOutcomeCard: View {
+    private enum ManualLearningState {
+        case resolved(LearningExpression)
+        case pending(LearningExpression)
+    }
+
+    private struct ManualSelectionContext: Equatable {
+        let key: String
+        let selection: String
+        let contextText: String
+        let usesTranslation: Bool
+    }
+
     let outcome: AggregatedOutcome
     let isSlow: Bool
     @ObservedObject var settings: AppSettings
@@ -742,10 +762,14 @@ private struct TranslationOutcomeCard: View {
     let sourceSelection: String
     let onSpeak: (String) -> Void
     let onCopy: (String) -> Void
+    let onLookupSelection: (String, String, Bool) async -> TranslateResult?
     let onRetry: () -> Void
     let onConfigure: () -> Void
     @State private var showTerminologyDetails = false
     @State private var translatedSelection: String = ""
+    @State private var manualLookupResults: [String: TranslateResult] = [:]
+    @State private var manualLookupFailures: Set<String> = []
+    @State private var manualLookupInFlight: Set<String> = []
 
     var body: some View {
         VStack(alignment: .leading, spacing: Theme.Spacing.s8) {
@@ -829,14 +853,26 @@ private struct TranslationOutcomeCard: View {
                 translatedSelection = selection
             }
 
-            if learningEnabled, let selected = manualLearningExpression(for: result) {
-                manualLearningPanel(expression: selected, origin: manualSelectionOrigin)
+            if learningEnabled, let selectionState = manualLearningState(for: result) {
+                switch selectionState {
+                case .resolved(let selected):
+                    manualLearningPanel(expression: selected, origin: manualSelectionOrigin)
+                case .pending(let selected):
+                    manualLearningPanel(expression: selected, origin: manualSelectionOrigin, isPending: true)
+                }
             }
+        }
+        .task(id: manualLookupTaskID(for: result)) {
+            await runManualLookupIfNeeded(for: result)
         }
     }
 
     @ViewBuilder
-    private func manualLearningPanel(expression selected: LearningExpression, origin: String) -> some View {
+    private func manualLearningPanel(
+        expression selected: LearningExpression,
+        origin: String,
+        isPending: Bool = false
+    ) -> some View {
         VStack(alignment: .leading, spacing: Theme.Spacing.s8) {
             HStack {
                 LearningStatusChip(text: origin)
@@ -850,10 +886,11 @@ private struct TranslationOutcomeCard: View {
                 expression: selected,
                 saved: savedLearningIDs.contains(selected.id),
                 mastered: masteredLearningIDs.contains(selected.id),
+                actionsEnabled: !isPending,
                 onKnown: { settings.markLearningMastered(selected) },
                 onSave: { settings.markLearningSaved(selected) }
             )
-            if microPracticeEnabled {
+            if microPracticeEnabled && !isPending {
                 LearningMicroPracticeView(expression: selected) {
                     settings.recordLearningReview(selected, correct: true)
                 } onWrong: {
@@ -868,17 +905,6 @@ private struct TranslationOutcomeCard: View {
         .overlay(RoundedRectangle(cornerRadius: Theme.Radius.control).strokeBorder(Theme.Palette.separator, lineWidth: 0.5))
     }
 
-    private func manualLearningExpression(for result: TranslateResult) -> LearningExpression? {
-        let selection = manualSelectionText
-        guard !selection.isEmpty else { return nil }
-        return LearningRecommendationEngine.expressionForManualSelection(
-            selection,
-            contextText: manualSelectionUsesTranslation ? result.translated : sourceText,
-            sourceText: sourceText,
-            occurrenceCounts: occurrenceCounts
-        )
-    }
-
     private var manualSelectionText: String {
         let translated = translatedSelection.trimmingCharacters(in: .whitespacesAndNewlines)
         if !translated.isEmpty { return translated }
@@ -891,6 +917,125 @@ private struct TranslationOutcomeCard: View {
 
     private var manualSelectionOrigin: String {
         manualSelectionUsesTranslation ? "译文选词" : "原文选词"
+    }
+
+    private func manualLearningState(for result: TranslateResult) -> ManualLearningState? {
+        guard let selectionContext = manualSelectionContext(for: result) else { return nil }
+        if let directExpression = manualLearningExpression(
+            for: result,
+            selectionContext: selectionContext,
+            lookupResult: nil,
+            allowGenericFallback: false
+        ) {
+            return .resolved(directExpression)
+        }
+        if let lookupResult = manualLookupResults[selectionContext.key],
+           let lookupExpression = manualLearningExpression(
+                for: result,
+                selectionContext: selectionContext,
+                lookupResult: lookupResult,
+                allowGenericFallback: true
+           ) {
+            return .resolved(lookupExpression)
+        }
+        if manualLookupFailures.contains(selectionContext.key),
+           let fallbackExpression = manualLearningExpression(
+                for: result,
+                selectionContext: selectionContext,
+                lookupResult: nil,
+                allowGenericFallback: true
+           ) {
+            return .resolved(fallbackExpression)
+        }
+        guard let pendingExpression = LearningRecommendationEngine.pendingManualSelectionExpression(
+            selectionContext.selection,
+            contextText: selectionContext.contextText,
+            sourceText: sourceText,
+            occurrenceCounts: occurrenceCounts
+        ) else { return nil }
+        return .pending(pendingExpression)
+    }
+
+    private func manualLearningExpression(
+        for result: TranslateResult,
+        selectionContext: ManualSelectionContext,
+        lookupResult: TranslateResult?,
+        allowGenericFallback: Bool
+    ) -> LearningExpression? {
+        LearningRecommendationEngine.expressionForManualSelection(
+            selectionContext.selection,
+            contextText: selectionContext.contextText,
+            sourceText: sourceText,
+            occurrenceCounts: occurrenceCounts,
+            definitions: selectionContext.usesTranslation
+                ? lookupResult?.definitions
+                : (lookupResult?.definitions ?? result.definitions),
+            phonetics: selectionContext.usesTranslation
+                ? lookupResult?.phonetics
+                : (lookupResult?.phonetics ?? result.phonetics),
+            lookupText: lookupResult?.translated,
+            allowGenericFallback: allowGenericFallback
+        )
+    }
+
+    private func manualSelectionContext(for result: TranslateResult) -> ManualSelectionContext? {
+        let selection = manualSelectionText
+        guard !selection.isEmpty else { return nil }
+        let usesTranslation = manualSelectionUsesTranslation
+        let contextText = usesTranslation ? result.translated : sourceText
+        return ManualSelectionContext(
+            key: manualLookupKey(selection: selection, contextText: contextText, usesTranslation: usesTranslation),
+            selection: selection,
+            contextText: contextText,
+            usesTranslation: usesTranslation
+        )
+    }
+
+    private func manualLookupTaskID(for result: TranslateResult) -> String? {
+        manualLookupRequest(for: result)?.key
+    }
+
+    private func manualLookupRequest(for result: TranslateResult) -> ManualSelectionContext? {
+        guard learningEnabled,
+              let selectionContext = manualSelectionContext(for: result),
+              manualLookupResults[selectionContext.key] == nil,
+              !manualLookupFailures.contains(selectionContext.key),
+              manualLearningExpression(
+                for: result,
+                selectionContext: selectionContext,
+                lookupResult: nil,
+                allowGenericFallback: false
+              ) == nil else { return nil }
+        return selectionContext
+    }
+
+    @MainActor
+    private func runManualLookupIfNeeded(for result: TranslateResult) async {
+        guard let request = manualLookupRequest(for: result),
+              !manualLookupInFlight.contains(request.key) else { return }
+        manualLookupInFlight.insert(request.key)
+        let lookupResult = await onLookupSelection(request.selection, request.contextText, request.usesTranslation)
+        manualLookupInFlight.remove(request.key)
+        if let lookupResult,
+           manualLearningExpression(
+                for: result,
+                selectionContext: request,
+                lookupResult: lookupResult,
+                allowGenericFallback: false
+           ) != nil {
+            manualLookupResults[request.key] = lookupResult
+        } else {
+            manualLookupFailures.insert(request.key)
+        }
+    }
+
+    private func manualLookupKey(selection: String, contextText: String, usesTranslation: Bool) -> String {
+        [
+            outcome.providerId,
+            usesTranslation ? "translated" : "source",
+            LearningRecommendationEngine.key(for: selection),
+            LearningRecommendationEngine.key(for: contextText)
+        ].joined(separator: "|")
     }
 
     @ViewBuilder

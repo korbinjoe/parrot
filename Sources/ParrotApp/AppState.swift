@@ -426,6 +426,27 @@ final class AppState: ObservableObject {
         }
     }
 
+    func lookupLearningSelection(
+        _ selection: String,
+        contextText: String,
+        providerID: String,
+        usesTranslation: Bool
+    ) async -> TranslateResult? {
+        let term = selection.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !term.isEmpty,
+              let provider = lookupProvider(preferredID: providerID) else { return nil }
+        let direction = lookupDirection(usesTranslation: usesTranslation)
+        let req = TranslateRequest(
+            text: lookupRequestText(term: term, contextText: contextText, providerID: provider.id),
+            from: direction.from,
+            to: direction.to,
+            mode: .lookup,
+            terminology: nil
+        )
+        let outcome = await TranslationCoordinator.runProvider(provider, req: req, baseTimeout: 15)
+        return outcome.result
+    }
+
     private func resetTranslationSession(keepDraft: Bool) {
         translationTask?.cancel()
         slowHintTasks.forEach { $0.cancel() }
@@ -444,6 +465,40 @@ final class AppState: ObservableObject {
         didSaveCurrentTranslation = false
         currentTranslationID = UUID()
     }
+
+    private func lookupProvider(preferredID: String) -> TranslationProvider? {
+        if let provider = registry.provider(id: preferredID),
+           provider.capabilities.supportsLookup {
+            return provider
+        }
+        return registry.activeProviders().first { $0.capabilities.supportsLookup }
+    }
+
+    private func lookupDirection(usesTranslation: Bool) -> (from: Language, to: Language) {
+        let resolvedSource = sourceLanguage == .auto ? detectedSource : sourceLanguage
+        if usesTranslation {
+            let target = resolvedSource == .auto ? Language.en : resolvedSource
+            return (from: targetLanguage, to: target)
+        }
+        return (from: resolvedSource, to: targetLanguage)
+    }
+
+    private func lookupRequestText(term: String, contextText: String, providerID: String) -> String {
+        let context = contextText.trimmingCharacters(in: .whitespacesAndNewlines)
+        let baseID = EngineModelConfig.baseEngineID(forProviderID: providerID)
+        guard !context.isEmpty, Self.contextualLookupProviderIDs.contains(baseID) else {
+            return term
+        }
+        return """
+        Selected expression: \(term)
+        Context sentence: \(context)
+        """
+    }
+
+    private static let contextualLookupProviderIDs: Set<String> = [
+        "openai", "opencode", "deepseek", "gemini", "groq", "ollama", "qwen",
+        "doubao", "kimi", "zhipu", "siliconflow", "ernie", "hunyuan", "yi", "azure-openai"
+    ]
 
     private static func isSlowProvider(_ provider: TranslationProvider) -> Bool {
         provider.id == "opencode" || provider.capabilities.supportsStream

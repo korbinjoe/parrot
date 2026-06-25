@@ -282,7 +282,11 @@ enum LearningRecommendationEngine {
         _ rawSelection: String,
         contextText: String,
         sourceText: String,
-        occurrenceCounts: [String: Int]
+        occurrenceCounts: [String: Int],
+        definitions: [Definition]? = nil,
+        phonetics: [Phonetic]? = nil,
+        lookupText: String? = nil,
+        allowGenericFallback: Bool = true
     ) -> LearningExpression? {
         let selected = normalizedManualSelection(rawSelection)
         guard !selected.isEmpty else { return nil }
@@ -303,11 +307,60 @@ enum LearningRecommendationEngine {
             )
         }
 
+        if let lookupExpression = lookupExpression(
+            term: selected,
+            text: text,
+            sourceText: source,
+            occurrenceCounts: occurrenceCounts,
+            definitions: definitions,
+            phonetics: phonetics
+        ) {
+            return lookupExpression
+        }
+
+        if let lookupTextExpression = lookupTextExpression(
+            term: selected,
+            text: text,
+            sourceText: source,
+            occurrenceCounts: occurrenceCounts,
+            phonetics: phonetics,
+            lookupText: lookupText
+        ) {
+            return lookupTextExpression
+        }
+
+        guard allowGenericFallback else { return nil }
         return genericExpression(
             term: selected,
             text: text,
             sourceText: source,
             occurrenceCounts: occurrenceCounts
+        )
+    }
+
+    static func pendingManualSelectionExpression(
+        _ rawSelection: String,
+        contextText: String,
+        sourceText: String,
+        occurrenceCounts: [String: Int]
+    ) -> LearningExpression? {
+        let selected = normalizedManualSelection(rawSelection)
+        guard !selected.isEmpty else { return nil }
+        let context = contextText.trimmingCharacters(in: .whitespacesAndNewlines)
+        let source = sourceText.trimmingCharacters(in: .whitespacesAndNewlines)
+        let text = context.isEmpty ? (source.isEmpty ? selected : source) : context
+        let count = max(1, occurrenceCounts[key(for: selected)] ?? countOccurrences(of: selected, in: text))
+        return LearningExpression(
+            id: key(for: selected),
+            term: selected,
+            phonetic: nil,
+            kind: "查词",
+            meaning: "正在查询当前语境中的释义…",
+            chunk: chunk(for: selected, text: text, sourceText: source),
+            pairs: defaultPairs(for: selected),
+            occurrenceCount: count,
+            masteryStage: masteryStage(for: count),
+            sourceSentence: text
         )
     }
 
@@ -524,6 +577,90 @@ enum LearningRecommendationEngine {
             masteryStage: masteryStage(for: count),
             sourceSentence: text
         )
+    }
+
+    private static func lookupExpression(
+        term: String,
+        text: String,
+        sourceText: String,
+        occurrenceCounts: [String: Int],
+        definitions: [Definition]?,
+        phonetics: [Phonetic]?
+    ) -> LearningExpression? {
+        guard let meaning = lookupMeaning(from: definitions) else { return nil }
+        let count = max(1, occurrenceCounts[key(for: term)] ?? countOccurrences(of: term, in: text))
+        return LearningExpression(
+            id: key(for: term),
+            term: term,
+            phonetic: lookupPhonetic(from: phonetics),
+            kind: count >= 3 ? "高频" : "查词",
+            meaning: meaning,
+            chunk: chunk(for: term, text: text, sourceText: sourceText),
+            pairs: defaultPairs(for: term),
+            occurrenceCount: count,
+            masteryStage: masteryStage(for: count),
+            sourceSentence: text
+        )
+    }
+
+    private static func lookupTextExpression(
+        term: String,
+        text: String,
+        sourceText: String,
+        occurrenceCounts: [String: Int],
+        phonetics: [Phonetic]?,
+        lookupText: String?
+    ) -> LearningExpression? {
+        guard let meaning = cleanedLookupText(lookupText, term: term) else { return nil }
+        let count = max(1, occurrenceCounts[key(for: term)] ?? countOccurrences(of: term, in: text))
+        return LearningExpression(
+            id: key(for: term),
+            term: term,
+            phonetic: lookupPhonetic(from: phonetics),
+            kind: count >= 3 ? "高频" : "查词",
+            meaning: meaning,
+            chunk: chunk(for: term, text: text, sourceText: sourceText),
+            pairs: defaultPairs(for: term),
+            occurrenceCount: count,
+            masteryStage: masteryStage(for: count),
+            sourceSentence: text
+        )
+    }
+
+    private static func cleanedLookupText(_ lookupText: String?, term: String) -> String? {
+        let lines = lookupText?
+            .components(separatedBy: .newlines)
+            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+            .filter { !$0.isEmpty } ?? []
+        let text = lines.joined(separator: "\n")
+            .trimmingCharacters(in: CharacterSet(charactersIn: "` \n\t"))
+        guard !text.isEmpty else { return nil }
+        return key(for: text) == key(for: term) ? nil : text
+    }
+
+    private static func lookupMeaning(from definitions: [Definition]?) -> String? {
+        let rows = definitions?.compactMap { definition -> String? in
+            let meanings = definition.meanings
+                .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+                .filter { !$0.isEmpty }
+                .joined(separator: "；")
+            guard !meanings.isEmpty else { return nil }
+            let partOfSpeech = definition.partOfSpeech.trimmingCharacters(in: .whitespacesAndNewlines)
+            return partOfSpeech.isEmpty ? meanings : "\(partOfSpeech) \(meanings)"
+        } ?? []
+        let meaning = rows.joined(separator: "\n").trimmingCharacters(in: .whitespacesAndNewlines)
+        return meaning.isEmpty ? nil : meaning
+    }
+
+    private static func lookupPhonetic(from phonetics: [Phonetic]?) -> String? {
+        let values = phonetics?.compactMap { phonetic -> String? in
+            let value = phonetic.value.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !value.isEmpty else { return nil }
+            let type = phonetic.type.trimmingCharacters(in: .whitespacesAndNewlines)
+            return type.isEmpty ? value : "\(type) \(value)"
+        } ?? []
+        let text = values.joined(separator: "  ").trimmingCharacters(in: .whitespacesAndNewlines)
+        return text.isEmpty ? nil : text
     }
 
     private static func extractedWords(from text: String) -> [String] {
@@ -970,6 +1107,7 @@ struct LearningContextCard: View {
     let expression: LearningExpression
     let saved: Bool
     let mastered: Bool
+    var actionsEnabled: Bool = true
     let onKnown: () -> Void
     let onSave: () -> Void
 
@@ -994,23 +1132,34 @@ struct LearningContextCard: View {
             }
             meaningBlock
             contextLine
-            HStack(spacing: Theme.Spacing.s8) {
-                FrequencyBadge(count: expression.occurrenceCount)
-                Text(mastered ? "已认识" : expression.masteryText)
-                    .font(Theme.Font.caption)
-                    .foregroundStyle(Theme.Palette.label3)
-                    .lineLimit(1)
-                Spacer()
-                Button(mastered ? L("已标记认识") : L("认识")) { onKnown() }
-                    .buttonStyle(.borderless)
-                    .font(Theme.Font.callout)
-                    .foregroundStyle(mastered ? Theme.Palette.success : Theme.Palette.label2)
-                    .padding(.horizontal, 10)
-                    .frame(height: 28)
-                    .background(Theme.Palette.bgControl)
-                    .clipShape(RoundedRectangle(cornerRadius: Theme.Radius.control))
-                Button(saved ? L("已加入词库") : L("加入词库")) { onSave() }
-                    .buttonStyle(PrimaryActionButtonStyle())
+            if actionsEnabled {
+                HStack(spacing: Theme.Spacing.s8) {
+                    FrequencyBadge(count: expression.occurrenceCount)
+                    Text(mastered ? "已认识" : expression.masteryText)
+                        .font(Theme.Font.caption)
+                        .foregroundStyle(Theme.Palette.label3)
+                        .lineLimit(1)
+                    Spacer()
+                    Button(mastered ? L("已标记认识") : L("认识")) { onKnown() }
+                        .buttonStyle(.borderless)
+                        .font(Theme.Font.callout)
+                        .foregroundStyle(mastered ? Theme.Palette.success : Theme.Palette.label2)
+                        .padding(.horizontal, 10)
+                        .frame(height: 28)
+                        .background(Theme.Palette.bgControl)
+                        .clipShape(RoundedRectangle(cornerRadius: Theme.Radius.control))
+                    Button(saved ? L("已加入词库") : L("加入词库")) { onSave() }
+                        .buttonStyle(PrimaryActionButtonStyle())
+                }
+            } else {
+                HStack(spacing: Theme.Spacing.s8) {
+                    ProgressView()
+                        .controlSize(.small)
+                    Text("正在查询释义")
+                        .font(Theme.Font.caption)
+                        .foregroundStyle(Theme.Palette.label3)
+                    Spacer(minLength: 0)
+                }
             }
         }
         .padding(Theme.Spacing.s12)
