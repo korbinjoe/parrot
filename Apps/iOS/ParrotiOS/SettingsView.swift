@@ -1,6 +1,7 @@
 import ParrotCore
 import ParrotPlatformiOS
 import SwiftUI
+import UIKit
 
 struct SettingsView: View {
     @EnvironmentObject private var state: IOSAppState
@@ -1048,6 +1049,7 @@ struct SettingsView: View {
             return
         }
 
+        dismissKeyboard()
         var next = terminologyState
         if let idx = next.entries.firstIndex(where: { $0.id == entry.id }) {
             next.entries[idx] = entry
@@ -1057,6 +1059,10 @@ struct SettingsView: View {
         terminologyState = next
         persistTerminologyState(note: "术语已保存。")
         terminologyDraft = IOSTerminologyDraft()
+    }
+
+    private func dismissKeyboard() {
+        UIApplication.shared.sendAction(#selector(UIResponder.resignFirstResponder), to: nil, from: nil, for: nil)
     }
 
     private func deleteTerminologyEntry(_ id: UUID) {
