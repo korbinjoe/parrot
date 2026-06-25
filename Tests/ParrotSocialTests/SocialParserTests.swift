@@ -43,24 +43,14 @@ private struct DirectionEchoProvider: TranslationProvider {
 }
 
 private final class RecordingTranslationProvider: TranslationProvider, @unchecked Sendable {
-    private let lock = NSLock()
-    private var recordedRequests: [TranslateRequest] = []
-
     var id: String { "recording-translation" }
     var displayName: String { "Recording Translation" }
     var supportedLanguages: [Language] { [.auto, .zh, .en] }
     var capabilities: ProviderCapabilities { ProviderCapabilities() }
-
-    var lastRequest: TranslateRequest? {
-        lock.lock()
-        defer { lock.unlock() }
-        return recordedRequests.last
-    }
+    private(set) var lastRequest: TranslateRequest?
 
     func translate(_ req: TranslateRequest) async throws -> TranslateResult {
-        lock.lock()
-        recordedRequests.append(req)
-        lock.unlock()
+        lastRequest = req
         return TranslateResult(providerId: id, translated: req.text)
     }
 }
