@@ -125,6 +125,7 @@ final class FloatingPanel {
             onWorkspaceNoticeAction: onWorkspaceNoticeAction,
             onClose: { [weak self] in self?.hide(force: true) }
         ))
+        hosting.sizingOptions = []
         self.hosting = hosting
         let p = NSPanel(contentViewController: hosting)
         p.styleMask = [.titled, .closable, .resizable, .fullSizeContentView]
@@ -262,16 +263,17 @@ final class FloatingPanel {
 
     private func preservePlacementAfterResize() {
         guard let panel else { return }
-        guard let previous = lastStableFrame else {
-            keepCurrentPlacement()
+        guard !isProgrammaticMove else { return }
+
+        let clamped = WindowPlacement.clampedFrame(panel.frame)
+        guard !NSEqualRects(panel.frame, clamped) else {
+            userPositionedPanel = true
+            lastStableFrame = panel.frame
             return
         }
 
-        var frame = panel.frame
-        frame.origin.x = previous.origin.x
-        frame.origin.y = previous.maxY - frame.height
         moveProgrammatically {
-            panel.setFrame(WindowPlacement.clampedFrame(frame), display: true)
+            panel.setFrame(clamped, display: true)
         }
     }
 

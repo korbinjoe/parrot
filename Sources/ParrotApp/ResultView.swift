@@ -1181,7 +1181,7 @@ private struct SelectableResultTextView: NSViewRepresentable {
     }
 
     func makeNSView(context: Context) -> NSTextView {
-        let textView = NSTextView()
+        let textView = SizingTextView()
         textView.delegate = context.coordinator
         textView.isEditable = false
         textView.isSelectable = true
@@ -1196,6 +1196,8 @@ private struct SelectableResultTextView: NSViewRepresentable {
         textView.isHorizontallyResizable = false
         textView.isVerticallyResizable = false
         textView.autoresizingMask = [.width]
+        textView.setContentHuggingPriority(.required, for: .vertical)
+        textView.setContentCompressionResistancePriority(.required, for: .vertical)
         textView.setAccessibilityElement(true)
         textView.setAccessibilityLabel(L("译文，可选择表达加入学习"))
         textView.string = text
@@ -1213,21 +1215,37 @@ private struct SelectableResultTextView: NSViewRepresentable {
             onSelectionChange("")
         }
         configure(textView)
+        textView.invalidateIntrinsicContentSize()
     }
 
     func sizeThatFits(_ proposal: ProposedViewSize, nsView: NSTextView, context: Context) -> CGSize? {
-        let width = max(proposal.width ?? nsView.bounds.width, 1)
+        let width = Self.resolvedWidth(proposed: proposal.width, bounds: nsView.bounds.width)
         return CGSize(width: width, height: Self.measuredHeight(for: text, width: width, lineLimit: lineLimit))
     }
 
     private func configure(_ textView: NSTextView) {
+        if let sizingTextView = textView as? SizingTextView {
+            sizingTextView.lineLimit = lineLimit
+        }
         textView.textContainer?.maximumNumberOfLines = lineLimit ?? 0
         textView.textContainer?.lineBreakMode = lineLimit == nil ? .byWordWrapping : .byTruncatingTail
-        textView.textContainer?.containerSize = NSSize(width: max(textView.bounds.width, 1), height: .greatestFiniteMagnitude)
+        textView.textContainer?.containerSize = NSSize(
+            width: Self.resolvedWidth(bounds: textView.bounds.width),
+            height: .greatestFiniteMagnitude
+        )
     }
 
     private static var font: NSFont {
         NSFont.systemFont(ofSize: 15)
+    }
+
+    private static func resolvedWidth(proposed: CGFloat? = nil, bounds: CGFloat? = nil) -> CGFloat {
+        for candidate in [proposed, bounds] {
+            if let candidate, candidate.isFinite, candidate > 1 {
+                return candidate
+            }
+        }
+        return 448
     }
 
     private static func measuredHeight(for text: String, width: CGFloat, lineLimit: Int?) -> CGFloat {
@@ -1245,6 +1263,27 @@ private struct SelectableResultTextView: NSViewRepresentable {
         let usedRect = layoutManager.usedRect(for: textContainer)
         let lineHeight = ceil(font.ascender - font.descender + font.leading)
         return max(ceil(usedRect.height), lineHeight) + 2
+    }
+
+    final class SizingTextView: NSTextView {
+        var lineLimit: Int? {
+            didSet { invalidateIntrinsicContentSize() }
+        }
+
+        override var intrinsicContentSize: NSSize {
+            let width = SelectableResultTextView.resolvedWidth(bounds: bounds.width)
+            let height = SelectableResultTextView.measuredHeight(for: string, width: width, lineLimit: lineLimit)
+            return NSSize(width: NSView.noIntrinsicMetric, height: height)
+        }
+
+        override func setFrameSize(_ newSize: NSSize) {
+            super.setFrameSize(newSize)
+            textContainer?.containerSize = NSSize(
+                width: SelectableResultTextView.resolvedWidth(bounds: newSize.width),
+                height: .greatestFiniteMagnitude
+            )
+            invalidateIntrinsicContentSize()
+        }
     }
 
     final class Coordinator: NSObject, NSTextViewDelegate {
