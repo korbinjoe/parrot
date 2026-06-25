@@ -1,0 +1,1327 @@
+<!doctype html>
+<html lang="zh-CN" data-theme="light">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Parrot macOS Settings Keys Provider Picker Prototype</title>
+<style>
+:root {
+  color-scheme: light;
+  --font: -apple-system, BlinkMacSystemFont, "SF Pro Text", "SF Pro Display", "PingFang SC", "Helvetica Neue", Arial, sans-serif;
+  --desktop-a: #d9e2f0;
+  --desktop-b: #f0f4ec;
+  --desktop-c: #b9c9dc;
+  --menubar: rgb(255 255 255 / 72%);
+  --window: #fbfcff;
+  --canvas: #f4f6fa;
+  --sidebar: #edf1f6;
+  --content: #ffffff;
+  --control: #edf1f5;
+  --control-hover: #e3eaf2;
+  --selection: rgb(92 128 201 / 14%);
+  --separator: rgb(24 31 38 / 13%);
+  --hairline: rgb(24 31 38 / 8%);
+  --label: #1d1d1f;
+  --label-2: rgb(60 60 67 / 68%);
+  --label-3: rgb(60 60 67 / 42%);
+  --accent: #6d85c9;
+  --accent-strong: #536eb9;
+  --accent-soft: rgb(109 133 201 / 14%);
+  --green: #34c759;
+  --green-soft: rgb(52 199 89 / 14%);
+  --warning: #ff9f0a;
+  --warning-soft: rgb(255 159 10 / 16%);
+  --danger: #ff3b30;
+  --danger-soft: rgb(255 59 48 / 12%);
+  --blue: #0a84ff;
+  --blue-soft: rgb(10 132 255 / 12%);
+  --violet: #8b6be8;
+  --shadow-window: 0 28px 80px rgb(31 41 55 / 24%), 0 0 0 .5px var(--separator);
+  --shadow-pop: 0 18px 46px rgb(31 41 55 / 22%), 0 0 0 .5px var(--separator);
+  --radius-window: 12px;
+  --radius-card: 8px;
+  --radius-control: 7px;
+  --ease: cubic-bezier(.16, 1, .3, 1);
+}
+
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --desktop-a: #151925;
+  --desktop-b: #1d2520;
+  --desktop-c: #2a3855;
+  --menubar: rgb(30 33 39 / 78%);
+  --window: #22252c;
+  --canvas: #191c22;
+  --sidebar: #20242c;
+  --content: #2a2e36;
+  --control: #333944;
+  --control-hover: #3c4350;
+  --selection: rgb(109 133 201 / 20%);
+  --separator: rgb(255 255 255 / 13%);
+  --hairline: rgb(255 255 255 / 8%);
+  --label: #f5f5f7;
+  --label-2: rgb(235 235 245 / 68%);
+  --label-3: rgb(235 235 245 / 42%);
+  --accent: #8fa2dc;
+  --accent-strong: #a8b7ef;
+  --accent-soft: rgb(143 162 220 / 18%);
+  --green: #30d158;
+  --green-soft: rgb(48 209 88 / 16%);
+  --warning: #ffb340;
+  --warning-soft: rgb(255 179 64 / 16%);
+  --danger: #ff6961;
+  --danger-soft: rgb(255 105 97 / 14%);
+  --blue: #73a7ff;
+  --blue-soft: rgb(115 167 255 / 15%);
+  --violet: #a695ff;
+  --shadow-window: 0 30px 84px rgb(0 0 0 / 54%), 0 0 0 .5px var(--separator);
+  --shadow-pop: 0 22px 52px rgb(0 0 0 / 46%), 0 0 0 .5px var(--separator);
+}
+
+* { box-sizing: border-box; }
+html, body { min-height: 100%; margin: 0; }
+body {
+  font-family: var(--font);
+  color: var(--label);
+  background: #111;
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+button, input {
+  font: inherit;
+  color: inherit;
+}
+button {
+  border: 0;
+  cursor: pointer;
+}
+
+.desktop {
+  min-height: 100dvh;
+  position: relative;
+  overflow: hidden;
+  background:
+    linear-gradient(135deg, var(--desktop-a), var(--desktop-b) 48%, var(--desktop-c)),
+    var(--desktop-a);
+}
+.desktop::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  background:
+    linear-gradient(120deg, transparent 0 24%, rgb(255 255 255 / 13%) 24% 25%, transparent 25% 100%),
+    linear-gradient(42deg, transparent 0 66%, rgb(255 255 255 / 9%) 66% 67%, transparent 67% 100%);
+  opacity: .62;
+}
+.menubar {
+  height: 28px;
+  position: relative;
+  z-index: 10;
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 0 14px;
+  background: var(--menubar);
+  -webkit-backdrop-filter: blur(24px) saturate(180%);
+  backdrop-filter: blur(24px) saturate(180%);
+  border-bottom: .5px solid rgb(0 0 0 / 12%);
+  color: var(--label);
+  font-size: 13px;
+  line-height: 1;
+}
+.menubar b { font-weight: 760; }
+.menubar .right {
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  gap: 13px;
+  color: var(--label-2);
+  font-variant-numeric: tabular-nums;
+}
+
+.workspace {
+  position: relative;
+  z-index: 2;
+  width: min(1120px, calc(100vw - 56px));
+  min-height: calc(100dvh - 28px);
+  margin: 0 auto;
+  display: grid;
+  grid-template-columns: minmax(720px, 820px) 280px;
+  gap: 20px;
+  align-items: center;
+  padding: 34px 0;
+}
+.window {
+  border-radius: var(--radius-window);
+  background: var(--window);
+  border: .5px solid var(--separator);
+  box-shadow: var(--shadow-window);
+  overflow: hidden;
+}
+.settings-window {
+  height: min(650px, calc(100dvh - 92px));
+  min-height: 560px;
+}
+.titlebar {
+  height: 40px;
+  display: grid;
+  grid-template-columns: 84px 1fr 120px;
+  align-items: center;
+  padding: 0 12px;
+  background: color-mix(in srgb, var(--window) 92%, var(--sidebar));
+  border-bottom: .5px solid var(--separator);
+}
+.traffic {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+.traffic i {
+  width: 12px;
+  height: 12px;
+  border-radius: 999px;
+  display: block;
+}
+.traffic i:nth-child(1) { background: #ff5f57; }
+.traffic i:nth-child(2) { background: #ffbd2e; }
+.traffic i:nth-child(3) { background: #28c840; }
+.window-title {
+  margin: 0;
+  text-align: center;
+  font-size: 13px;
+  font-weight: 720;
+}
+.toolbar {
+  display: flex;
+  justify-content: flex-end;
+  gap: 7px;
+}
+.icon-button {
+  width: 28px;
+  height: 28px;
+  display: inline-grid;
+  place-items: center;
+  border-radius: var(--radius-control);
+  background: transparent;
+  color: var(--label-2);
+  font-size: 14px;
+  font-weight: 760;
+}
+.icon-button:hover { background: var(--control); color: var(--label); }
+
+.settings-body {
+  height: calc(100% - 40px);
+  display: grid;
+  grid-template-columns: 188px 1fr;
+  min-height: 0;
+}
+.sidebar {
+  background: var(--sidebar);
+  border-right: .5px solid var(--separator);
+  padding: 10px 8px;
+}
+.side-row {
+  width: 100%;
+  min-height: 32px;
+  display: grid;
+  grid-template-columns: 22px 1fr auto;
+  align-items: center;
+  gap: 8px;
+  padding: 0 9px;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--label);
+  text-align: left;
+  font-size: 13px;
+}
+.side-row:hover { background: var(--selection); }
+.side-row.active {
+  background: var(--selection);
+  color: var(--label);
+}
+.side-icon {
+  width: 20px;
+  height: 20px;
+  display: grid;
+  place-items: center;
+  border-radius: 6px;
+  background: var(--control);
+  color: var(--label-2);
+  font-size: 12px;
+  font-weight: 820;
+}
+.side-row.active .side-icon {
+  background: var(--accent);
+  color: #07101f;
+}
+.side-count {
+  min-width: 18px;
+  height: 18px;
+  display: grid;
+  place-items: center;
+  border-radius: 999px;
+  background: var(--warning-soft);
+  color: var(--warning);
+  font-size: 11px;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+}
+
+.settings-content {
+  min-width: 0;
+  min-height: 0;
+  overflow: auto;
+  background: var(--canvas);
+  padding: 22px 26px 30px;
+}
+.settings-content::-webkit-scrollbar { width: 10px; }
+.settings-content::-webkit-scrollbar-thumb {
+  border-radius: 999px;
+  background: var(--separator);
+  border: 3px solid transparent;
+  background-clip: content-box;
+}
+.pane {
+  display: none;
+}
+.pane.active {
+  display: block;
+  animation: paneIn .18s var(--ease);
+}
+@keyframes paneIn {
+  from { opacity: 0; transform: translateX(8px); }
+  to { opacity: 1; transform: translateX(0); }
+}
+.pane-header {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 16px;
+  align-items: start;
+  margin-bottom: 14px;
+}
+.pane-header h1 {
+  margin: 0;
+  font-size: 22px;
+  line-height: 28px;
+  font-weight: 740;
+  letter-spacing: 0;
+}
+.pane-header p {
+  margin: 3px 0 0;
+  max-width: 520px;
+  color: var(--label-2);
+  font-size: 13px;
+  line-height: 18px;
+}
+.button {
+  min-height: 30px;
+  border-radius: var(--radius-control);
+  padding: 0 12px;
+  background: var(--control);
+  color: var(--label);
+  border: .5px solid var(--separator);
+  font-size: 13px;
+  font-weight: 650;
+}
+.button:hover { background: var(--control-hover); }
+.button.primary {
+  background: var(--accent);
+  color: #07101f;
+  border-color: transparent;
+}
+.button.danger {
+  background: var(--danger-soft);
+  color: var(--danger);
+  border-color: transparent;
+}
+.button.ghost {
+  background: transparent;
+}
+
+.summary-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 10px;
+  margin-bottom: 14px;
+}
+.summary-card,
+.group,
+.provider-card,
+.form-card,
+.notice,
+.empty-state {
+  border-radius: var(--radius-card);
+  background: var(--content);
+  border: .5px solid var(--hairline);
+}
+.summary-card {
+  min-height: 74px;
+  padding: 12px;
+}
+.summary-card strong {
+  display: block;
+  font-size: 24px;
+  line-height: 28px;
+  font-weight: 760;
+  font-variant-numeric: tabular-nums;
+}
+.summary-card span {
+  display: block;
+  margin-top: 4px;
+  color: var(--label-2);
+  font-size: 12px;
+  line-height: 16px;
+}
+.summary-card.need strong { color: var(--warning); }
+.summary-card.ready strong { color: var(--green); }
+.summary-card.env strong { color: var(--blue); }
+
+.key-toolbar {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 10px;
+  margin-bottom: 10px;
+  position: relative;
+}
+.search {
+  position: relative;
+}
+.search input {
+  width: 100%;
+  height: 32px;
+  border: .5px solid var(--separator);
+  border-radius: var(--radius-control);
+  background: var(--content);
+  color: var(--label);
+  outline: none;
+  padding: 0 10px 0 30px;
+  font-size: 13px;
+}
+.search::before {
+  content: "⌕";
+  position: absolute;
+  left: 10px;
+  top: 50%;
+  transform: translateY(-52%);
+  color: var(--label-3);
+  font-size: 16px;
+  font-weight: 800;
+}
+.filter-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 7px;
+  margin-bottom: 12px;
+}
+.chip {
+  height: 25px;
+  border-radius: 999px;
+  padding: 0 10px;
+  background: var(--control);
+  color: var(--label-2);
+  border: .5px solid transparent;
+  font-size: 12px;
+  font-weight: 680;
+}
+.chip:hover { color: var(--label); }
+.chip.active {
+  background: var(--accent-soft);
+  color: var(--accent-strong);
+  border-color: color-mix(in srgb, var(--accent) 24%, transparent);
+}
+.section-title {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  margin: 14px 0 8px;
+}
+.section-title h2 {
+  margin: 0;
+  font-size: 13px;
+  line-height: 18px;
+  font-weight: 760;
+}
+.section-title span {
+  color: var(--label-3);
+  font-size: 12px;
+}
+.provider-list {
+  display: grid;
+  gap: 8px;
+}
+.provider-card {
+  width: 100%;
+  min-height: 64px;
+  display: grid;
+  grid-template-columns: 38px 1fr auto;
+  align-items: center;
+  gap: 10px;
+  padding: 10px;
+  text-align: left;
+  transition: background .16s var(--ease), border-color .16s var(--ease), transform .16s var(--ease);
+}
+.provider-card:hover,
+.provider-card.selected {
+  background: color-mix(in srgb, var(--content) 84%, var(--accent-soft));
+  border-color: color-mix(in srgb, var(--accent) 36%, transparent);
+}
+.provider-card:active { transform: translateY(1px); }
+.logo {
+  width: 38px;
+  height: 38px;
+  display: grid;
+  place-items: center;
+  border-radius: 8px;
+  background: var(--control);
+  color: var(--label-2);
+  font-size: 12px;
+  font-weight: 780;
+}
+.provider-card.need .logo,
+.picker-row.need .logo { background: var(--warning-soft); color: var(--warning); }
+.provider-card.ready .logo,
+.picker-row.ready .logo { background: var(--green-soft); color: var(--green); }
+.provider-card.env .logo,
+.picker-row.env .logo { background: var(--blue-soft); color: var(--blue); }
+.provider-title {
+  min-width: 0;
+}
+.provider-title strong {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 13px;
+  line-height: 17px;
+  font-weight: 760;
+}
+.provider-title span {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  margin-top: 2px;
+  color: var(--label-3);
+  font-size: 12px;
+  line-height: 16px;
+}
+.pill {
+  min-width: 58px;
+  height: 24px;
+  display: inline-grid;
+  place-items: center;
+  padding: 0 9px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 720;
+}
+.pill.need { background: var(--warning-soft); color: var(--warning); }
+.pill.ready { background: var(--green-soft); color: var(--green); }
+.pill.env { background: var(--blue-soft); color: var(--blue); }
+.pill.plain { background: var(--control); color: var(--label-2); }
+
+.form-card {
+  padding: 14px;
+  margin: 12px 0;
+  outline: 2px solid color-mix(in srgb, var(--accent) 18%, transparent);
+}
+.form-head {
+  display: grid;
+  grid-template-columns: 38px 1fr auto;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 12px;
+}
+.form-head h2 {
+  margin: 0;
+  font-size: 15px;
+  line-height: 20px;
+}
+.form-head p {
+  margin: 2px 0 0;
+  color: var(--label-2);
+  font-size: 12px;
+  line-height: 16px;
+}
+.field-grid {
+  display: grid;
+  grid-template-columns: 1.2fr 1fr;
+  gap: 10px;
+}
+.field-grid.single { grid-template-columns: 1fr; }
+.field {
+  display: grid;
+  gap: 5px;
+}
+.field label {
+  color: var(--label-2);
+  font-size: 11px;
+  line-height: 14px;
+  font-weight: 720;
+}
+.field input {
+  height: 32px;
+  border: .5px solid var(--separator);
+  border-radius: var(--radius-control);
+  background: var(--control);
+  outline: none;
+  padding: 0 10px;
+  color: var(--label);
+  font-size: 13px;
+}
+.field input:disabled {
+  color: var(--label-3);
+}
+.form-actions {
+  display: flex;
+  gap: 8px;
+  justify-content: flex-end;
+  align-items: center;
+  margin-top: 12px;
+}
+.inline-status {
+  margin: 9px 0 0;
+  color: var(--label-2);
+  font-size: 12px;
+  line-height: 16px;
+}
+.notice {
+  display: grid;
+  grid-template-columns: 28px 1fr;
+  gap: 10px;
+  align-items: start;
+  padding: 12px;
+  margin-top: 14px;
+}
+.notice-icon {
+  width: 28px;
+  height: 28px;
+  display: grid;
+  place-items: center;
+  border-radius: 8px;
+  background: var(--blue-soft);
+  color: var(--blue);
+  font-weight: 780;
+}
+.notice strong,
+.empty-state strong {
+  display: block;
+  font-size: 13px;
+  line-height: 17px;
+}
+.notice span,
+.empty-state span {
+  display: block;
+  margin-top: 2px;
+  color: var(--label-2);
+  font-size: 12px;
+  line-height: 16px;
+}
+.empty-state {
+  display: none;
+  padding: 14px;
+}
+.empty-state.visible { display: block; }
+.group {
+  overflow: hidden;
+}
+.setting-row {
+  min-height: 42px;
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 12px;
+  align-items: center;
+  padding: 8px 12px;
+  border-bottom: .5px solid var(--separator);
+  font-size: 13px;
+}
+.setting-row:last-child { border-bottom: 0; }
+.setting-row small {
+  display: block;
+  margin-top: 2px;
+  color: var(--label-3);
+  font-size: 11px;
+  line-height: 14px;
+}
+
+.popover-layer {
+  position: fixed;
+  inset: 0;
+  z-index: 30;
+  display: none;
+}
+.popover-layer.open { display: block; }
+.popover-scrim {
+  position: absolute;
+  inset: 0;
+  background: transparent;
+}
+.provider-popover {
+  position: absolute;
+  width: 390px;
+  max-width: calc(100vw - 40px);
+  max-height: min(540px, calc(100dvh - 90px));
+  display: grid;
+  grid-template-rows: auto auto 1fr;
+  top: var(--popover-top, 160px);
+  left: var(--popover-left, 520px);
+  border-radius: 13px;
+  background: var(--window);
+  border: .5px solid var(--separator);
+  box-shadow: var(--shadow-pop);
+  padding: 12px;
+  animation: popIn .16s var(--ease);
+}
+.provider-popover::before {
+  content: "";
+  position: absolute;
+  top: -7px;
+  right: 42px;
+  width: 14px;
+  height: 14px;
+  transform: rotate(45deg);
+  background: var(--window);
+  border-left: .5px solid var(--separator);
+  border-top: .5px solid var(--separator);
+}
+@keyframes popIn {
+  from { opacity: 0; transform: translateY(-4px) scale(.985); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+.popover-head {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 10px;
+  align-items: start;
+  margin-bottom: 10px;
+}
+.popover-head h2 {
+  margin: 0;
+  font-size: 15px;
+  line-height: 20px;
+}
+.popover-head p {
+  margin: 2px 0 0;
+  color: var(--label-2);
+  font-size: 12px;
+  line-height: 16px;
+}
+.picker-list {
+  min-height: 0;
+  overflow: auto;
+  margin-top: 10px;
+  padding-right: 2px;
+}
+.picker-section {
+  margin-bottom: 12px;
+}
+.picker-section h3 {
+  margin: 0 0 7px;
+  color: var(--label-3);
+  font-size: 11px;
+  line-height: 14px;
+  font-weight: 760;
+  text-transform: uppercase;
+}
+.picker-row {
+  width: 100%;
+  min-height: 56px;
+  display: grid;
+  grid-template-columns: 34px 1fr auto;
+  gap: 9px;
+  align-items: center;
+  text-align: left;
+  padding: 8px;
+  border-radius: var(--radius-card);
+  background: transparent;
+}
+.picker-row:hover {
+  background: var(--selection);
+}
+.picker-row .logo {
+  width: 34px;
+  height: 34px;
+}
+.picker-row .chevron {
+  color: var(--label-3);
+  font-size: 18px;
+}
+
+.result-panel {
+  align-self: center;
+  border-radius: 14px;
+  background: var(--window);
+  border: .5px solid var(--separator);
+  box-shadow: var(--shadow-pop);
+  overflow: hidden;
+}
+.result-titlebar {
+  height: 36px;
+  display: grid;
+  grid-template-columns: 1fr auto;
+  align-items: center;
+  padding: 0 12px;
+  border-bottom: .5px solid var(--separator);
+  font-size: 13px;
+  font-weight: 720;
+}
+.result-body {
+  padding: 12px;
+}
+.result-source {
+  border-radius: var(--radius-card);
+  background: var(--content);
+  border: .5px solid var(--hairline);
+  padding: 10px;
+  margin-bottom: 10px;
+}
+.result-source strong,
+.error-slot strong {
+  display: block;
+  font-size: 12px;
+  line-height: 16px;
+}
+.result-source p {
+  margin: 5px 0 0;
+  color: var(--label-2);
+  font-size: 12px;
+  line-height: 17px;
+}
+.error-slot {
+  border-radius: var(--radius-card);
+  background: var(--danger-soft);
+  border: .5px solid color-mix(in srgb, var(--danger) 28%, transparent);
+  padding: 10px;
+}
+.error-slot p {
+  margin: 5px 0 10px;
+  color: var(--label-2);
+  font-size: 12px;
+  line-height: 16px;
+}
+.toast {
+  position: fixed;
+  z-index: 40;
+  left: 50%;
+  bottom: 34px;
+  transform: translate(-50%, 18px);
+  opacity: 0;
+  pointer-events: none;
+  border-radius: 999px;
+  background: var(--window);
+  border: .5px solid var(--separator);
+  box-shadow: var(--shadow-pop);
+  color: var(--accent-strong);
+  padding: 9px 13px;
+  font-size: 13px;
+  font-weight: 720;
+  transition: opacity .18s var(--ease), transform .18s var(--ease);
+}
+.toast.show {
+  opacity: 1;
+  transform: translate(-50%, 0);
+}
+
+@media (max-width: 940px) {
+  .workspace {
+    width: calc(100vw - 28px);
+    grid-template-columns: 1fr;
+    padding: 20px 0;
+  }
+  .result-panel { display: none; }
+  .settings-window {
+    height: calc(100dvh - 76px);
+  }
+}
+@media (max-width: 720px) {
+  .settings-body { grid-template-columns: 150px 1fr; }
+  .settings-content { padding: 18px; }
+  .summary-grid { grid-template-columns: 1fr; }
+  .field-grid { grid-template-columns: 1fr; }
+  .pane-header { grid-template-columns: 1fr; }
+}
+</style>
+</head>
+<body>
+<main class="desktop">
+  <header class="menubar">
+    <b>Parrot</b>
+    <span>File</span>
+    <span>Edit</span>
+    <span>Window</span>
+    <span>Help</span>
+    <div class="right">
+      <span>⌘,</span>
+      <span id="clock">Thu 19:41</span>
+    </div>
+  </header>
+
+  <section class="workspace">
+    <article class="window settings-window" aria-label="Parrot macOS Settings window">
+      <div class="titlebar">
+        <div class="traffic" aria-hidden="true"><i></i><i></i><i></i></div>
+        <h1 class="window-title">Parrot 设置</h1>
+        <div class="toolbar">
+          <button class="icon-button" id="themeToggle" type="button" aria-label="Toggle theme">◐</button>
+          <button class="icon-button" type="button" aria-label="Search settings">⌕</button>
+        </div>
+      </div>
+
+      <div class="settings-body">
+        <nav class="sidebar" aria-label="Settings sections">
+          <button class="side-row" type="button" data-pane-target="general"><span class="side-icon">G</span><span>通用</span></button>
+          <button class="side-row" type="button" data-pane-target="translate"><span class="side-icon">T</span><span>翻译</span></button>
+          <button class="side-row active" type="button" data-pane-target="keys"><span class="side-icon">K</span><span>密钥</span><span class="side-count" id="sidebarNeed">4</span></button>
+          <button class="side-row" type="button" data-pane-target="shortcuts"><span class="side-icon">⌘</span><span>快捷键</span></button>
+          <button class="side-row" type="button" data-pane-target="plugins"><span class="side-icon">P</span><span>插件</span></button>
+          <button class="side-row" type="button" data-pane-target="about"><span class="side-icon">i</span><span>关于</span></button>
+        </nav>
+
+        <div class="settings-content" id="settingsContent">
+          <section class="pane" data-pane="general">
+            <div class="pane-header">
+              <div>
+                <h1>通用</h1>
+                <p>基础行为保持安静，减少翻译工作流中的低频决策。</p>
+              </div>
+            </div>
+            <div class="group">
+              <div class="setting-row"><span>默认来源语言<small>未指定时自动检测。</small></span><span>自动检测</span></div>
+              <div class="setting-row"><span>默认目标语言<small>用于划词、输入和截图翻译。</small></span><span>中文</span></div>
+              <div class="setting-row"><span>失焦后隐藏结果面板</span><span>开启</span></div>
+            </div>
+          </section>
+
+          <section class="pane" data-pane="translate">
+            <div class="pane-header">
+              <div>
+                <h1>翻译</h1>
+                <p>结果顺序在这里管理；密钥状态在 Keys 中修复。</p>
+              </div>
+            </div>
+            <div class="group">
+              <div class="setting-row"><span>Google<small>免费快速翻译，用于对比。</small></span><span class="pill ready">启用</span></div>
+              <div class="setting-row"><span>DeepL<small>缺少 Key，结果槽位会提示配置。</small></span><span class="pill need">缺 Key</span></div>
+              <div class="setting-row"><span>OpenAI<small>缺少 Key，Reply / Polish 会使用兜底。</small></span><span class="pill need">缺 Key</span></div>
+            </div>
+          </section>
+
+          <section class="pane active" data-pane="keys">
+            <div class="pane-header">
+              <div>
+                <h1>密钥</h1>
+                <p>默认展示需要处理和已生效的服务；完整 provider 目录通过选择器添加，不再把所有低频服务平铺在主页面。</p>
+              </div>
+              <button class="button primary" id="openProviderPicker" type="button">添加 Provider</button>
+            </div>
+
+            <div class="summary-grid" aria-label="Credential summary">
+              <div class="summary-card need"><strong id="needCount">4</strong><span>需处理</span></div>
+              <div class="summary-card ready"><strong id="readyCount">2</strong><span>已配置</span></div>
+              <div class="summary-card env"><strong id="envCount">1</strong><span>环境变量</span></div>
+            </div>
+
+            <div class="key-toolbar">
+              <div class="search">
+                <input id="pageSearch" type="search" placeholder="搜索当前卡片、Key 或环境变量" autocomplete="off">
+              </div>
+              <button class="button" id="focusOpenAI" type="button">聚焦 OpenAI</button>
+            </div>
+
+            <div class="filter-row" id="filterRow" aria-label="Provider filters">
+              <button class="chip active" type="button" data-filter="priority">优先处理</button>
+              <button class="chip" type="button" data-filter="configured">已配置</button>
+              <button class="chip" type="button" data-filter="environment">环境变量</button>
+              <button class="chip" type="button" data-filter="llm">LLM</button>
+              <button class="chip" type="button" data-filter="media">OCR/TTS</button>
+              <button class="chip" type="button" data-filter="all">全部卡片</button>
+            </div>
+
+            <div id="selectedForm"></div>
+
+            <div class="section-title">
+              <h2 id="sectionTitle">优先处理</h2>
+              <span id="sectionMeta">缺 Key / 当前启用</span>
+            </div>
+            <div class="provider-list" id="providerList"></div>
+            <div class="empty-state" id="emptyState">
+              <strong>没有匹配的 Provider</strong>
+              <span>清空搜索，或通过添加 Provider 打开完整目录。</span>
+            </div>
+
+            <div class="notice">
+              <span class="notice-icon">K</span>
+              <div>
+                <strong>密钥存储在本机密钥库</strong>
+                <span>环境变量和系统配置优先于本机保存。清除 Key 不会影响历史记录、收藏或当前草稿。</span>
+              </div>
+            </div>
+          </section>
+
+          <section class="pane" data-pane="shortcuts">
+            <div class="pane-header"><div><h1>快捷键</h1><p>快捷键显示为只读状态，录制能力可在后续独立实现。</p></div></div>
+            <div class="group">
+              <div class="setting-row"><span>划词翻译</span><span>⌥D</span></div>
+              <div class="setting-row"><span>截图翻译</span><span>⌥S</span></div>
+              <div class="setting-row"><span>输入翻译</span><span>⌥A</span></div>
+            </div>
+          </section>
+
+          <section class="pane" data-pane="plugins">
+            <div class="pane-header"><div><h1>插件</h1><p>插件密钥仍通过对应 provider 的 Keys 表单管理。</p></div></div>
+            <div class="group">
+              <div class="setting-row"><span>OpenAI Compat<small>自定义兼容接口。</small></span><span class="pill ready">启用</span></div>
+              <div class="setting-row"><span>Echo Plugin<small>开发测试插件。</small></span><span class="pill plain">关闭</span></div>
+            </div>
+          </section>
+
+          <section class="pane" data-pane="about">
+            <div class="pane-header"><div><h1>关于</h1><p>Parrot macOS utility UI prototype.</p></div></div>
+            <div class="group">
+              <div class="setting-row"><span>Version</span><span>Prototype</span></div>
+            </div>
+          </section>
+        </div>
+      </div>
+    </article>
+
+    <aside class="result-panel" aria-label="Result panel error recovery preview">
+      <div class="result-titlebar">
+        <span>划词翻译</span>
+        <span>EN → 中</span>
+      </div>
+      <div class="result-body">
+        <div class="result-source">
+          <strong>Source</strong>
+          <p>Make the onboarding copy sound natural and concise.</p>
+        </div>
+        <div class="error-slot">
+          <strong>OpenAI 鉴权失败</strong>
+          <p>未检测到 OPENAI_API_KEY。配置后可回到当前任务继续。</p>
+          <button class="button primary" id="configureFromError" type="button">配置密钥</button>
+        </div>
+      </div>
+    </aside>
+  </section>
+
+  <div class="popover-layer" id="popoverLayer" aria-hidden="true">
+    <button class="popover-scrim" id="closePopoverScrim" type="button" aria-label="Close provider picker"></button>
+    <section class="provider-popover" id="providerPopover" role="dialog" aria-modal="true" aria-labelledby="pickerTitle">
+      <div class="popover-head">
+        <div>
+          <h2 id="pickerTitle">选择 Provider</h2>
+          <p>按服务类型选择，不把低频 provider 固定平铺。</p>
+        </div>
+        <button class="icon-button" id="closeProviderPicker" type="button" aria-label="Close provider picker">×</button>
+      </div>
+      <div class="search">
+        <input id="pickerSearch" type="search" placeholder="OpenAI、DeepL、OCR、腾讯..." autocomplete="off">
+      </div>
+      <div class="picker-list" id="pickerList"></div>
+    </section>
+  </div>
+
+  <div class="toast" id="toast">已保存到本机</div>
+</main>
+
+<script>
+const providers = [
+  { id: "openai", name: "OpenAI", logo: "AI", group: "常用", category: "llm", baseState: "need", status: "缺 Key", subtitle: "已启用 · OPENAI_API_KEY", placeholder: "sk-...", model: "gpt-4o-mini", endpoint: "https://api.openai.com/v1", note: "用于 Reply、Polish 与高质量翻译。" },
+  { id: "deepl", name: "DeepL", logo: "DL", group: "常用", category: "machine", baseState: "need", status: "缺 Key", subtitle: "已启用 · DEEPL_API_KEY", placeholder: "免费版以 :fx 结尾", model: "", endpoint: "", note: "适合自然语言与长句翻译。" },
+  { id: "google", name: "Google 翻译", logo: "G", group: "常用", category: "machine", baseState: "ready", status: "使用中", subtitle: "免费 · 无需 Key · 无需在线验证", placeholder: "", model: "", endpoint: "", note: "默认快速在线机翻，用于兜底对比。" },
+  { id: "opencode", name: "OpenCode Go", logo: "OC", group: "LLM", category: "llm", baseState: "environment", status: "Env", subtitle: "OPENCODE_API_KEY 已生效", placeholder: "可选本机 Key", model: "glm-5.1", endpoint: "环境变量优先", note: "环境变量已生效，本机 Key 只作为备用。" },
+  { id: "deepseek", name: "DeepSeek", logo: "DS", group: "LLM", category: "llm", baseState: "plain", status: "可添加", subtitle: "DEEPSEEK_API_KEY · deepseek-chat", placeholder: "API Key", model: "deepseek-chat", endpoint: "https://api.deepseek.com", note: "低成本 LLM 翻译和润色。" },
+  { id: "azure-openai", name: "Azure OpenAI", logo: "AZ", group: "LLM", category: "llm", baseState: "plain", status: "可添加", subtitle: "AZURE_OPENAI_API_KEY · deployment URL", placeholder: "API Key", model: "deployment name", endpoint: "Azure endpoint", note: "企业 Azure 部署使用。" },
+  { id: "ollama", name: "Ollama", logo: "OL", group: "LLM", category: "llm", baseState: "ready", status: "本地", subtitle: "本地服务 · 无需 Key", placeholder: "", model: "llama3.1", endpoint: "http://127.0.0.1:11434", note: "本地模型服务，适合隐私优先。" },
+  { id: "baidu-ocr", name: "百度 OCR", logo: "百", group: "OCR & TTS", category: "media", baseState: "need", status: "OCR", subtitle: "BAIDU_OCR_CREDENTIALS · 可复用百度翻译凭证", placeholder: "AppId:Secret", model: "", endpoint: "", note: "未填写专用 Key 时复用百度翻译凭证。" },
+  { id: "tencent-ocr", name: "腾讯 OCR / 图片翻译", logo: "腾", group: "OCR & TTS", category: "media", baseState: "need", status: "OCR", subtitle: "TENCENT_OCR_CREDENTIALS · 可复用腾讯凭证", placeholder: "SecretId:SecretKey", model: "", endpoint: "", note: "同时匹配 tencent-image-translate 和 tencent-tts 别名。" },
+  { id: "google-tts", name: "Google 语音合成", logo: "TTS", group: "OCR & TTS", category: "media", baseState: "plain", status: "可添加", subtitle: "GOOGLE_TTS_API_KEY", placeholder: "API Key", model: "", endpoint: "", note: "用于云端高质量语音合成。" },
+  { id: "tencent", name: "腾讯翻译君", logo: "腾", group: "云厂商", category: "machine", baseState: "plain", status: "可添加", subtitle: "TENCENT_CREDENTIALS", placeholder: "SecretId:SecretKey", model: "", endpoint: "", note: "国内云服务，适合中文场景。" },
+  { id: "baidu", name: "百度翻译", logo: "百", group: "云厂商", category: "machine", baseState: "plain", status: "可添加", subtitle: "BAIDU_CREDENTIALS", placeholder: "AppId:Secret", model: "", endpoint: "", note: "可和百度 OCR 凭证复用。" },
+  { id: "amazon", name: "Amazon 翻译", logo: "AWS", group: "云厂商", category: "machine", baseState: "plain", status: "可添加", subtitle: "AWS_CREDENTIALS", placeholder: "AccessKeyId:SecretAccessKey", model: "", endpoint: "", note: "企业云账号可用。" }
+];
+
+const ui = {
+  filter: "priority",
+  query: "",
+  pickerQuery: "",
+  selectedID: "",
+  configured: new Set(["google", "ollama"]),
+  environment: new Set(["opencode"])
+};
+
+const providerList = document.querySelector("#providerList");
+const selectedForm = document.querySelector("#selectedForm");
+const emptyState = document.querySelector("#emptyState");
+const pageSearch = document.querySelector("#pageSearch");
+const pickerSearch = document.querySelector("#pickerSearch");
+const pickerList = document.querySelector("#pickerList");
+const popoverLayer = document.querySelector("#popoverLayer");
+const providerPopover = document.querySelector("#providerPopover");
+const toast = document.querySelector("#toast");
+
+function tone(provider) {
+  if (ui.environment.has(provider.id) || provider.baseState === "environment") return "env";
+  if (ui.configured.has(provider.id) || provider.baseState === "ready") return "ready";
+  if (provider.baseState === "need") return "need";
+  return "plain";
+}
+
+function statusText(provider) {
+  const current = tone(provider);
+  if (current === "env") return "Env";
+  if (current === "ready") return provider.baseState === "ready" ? provider.status : "已配置";
+  if (current === "need") return provider.status || "缺 Key";
+  return provider.status || "可添加";
+}
+
+function searchable(provider) {
+  return [provider.id, provider.name, provider.group, provider.category, provider.status, provider.subtitle, provider.placeholder, provider.model, provider.endpoint, provider.note]
+    .join(" ")
+    .toLowerCase();
+}
+
+function matchesSearch(provider, query) {
+  return !query || searchable(provider).includes(query.toLowerCase());
+}
+
+function matchesFilter(provider) {
+  const current = tone(provider);
+  if (ui.filter === "priority") return current === "need";
+  if (ui.filter === "configured") return current === "ready";
+  if (ui.filter === "environment") return current === "env";
+  if (ui.filter === "llm") return provider.category === "llm";
+  if (ui.filter === "media") return provider.category === "media";
+  return true;
+}
+
+function visibleProviders() {
+  return providers.filter(provider => matchesFilter(provider) && matchesSearch(provider, ui.query));
+}
+
+function pillClass(provider) {
+  return tone(provider);
+}
+
+function renderCounts() {
+  const need = providers.filter(provider => tone(provider) === "need").length;
+  const ready = providers.filter(provider => tone(provider) === "ready").length;
+  const env = providers.filter(provider => tone(provider) === "env").length;
+  document.querySelector("#needCount").textContent = need;
+  document.querySelector("#readyCount").textContent = ready;
+  document.querySelector("#envCount").textContent = env;
+  document.querySelector("#sidebarNeed").textContent = need;
+}
+
+function renderSectionTitle() {
+  const copy = {
+    priority: ["优先处理", "缺 Key / 当前启用"],
+    configured: ["已配置", "可直接使用"],
+    environment: ["环境变量", "系统配置优先"],
+    llm: ["LLM Providers", "模型 / Endpoint"],
+    media: ["OCR / TTS", "识别与语音"],
+    all: ["全部卡片", "当前可管理服务"]
+  };
+  document.querySelector("#sectionTitle").textContent = copy[ui.filter][0];
+  document.querySelector("#sectionMeta").textContent = copy[ui.filter][1];
+}
+
+function renderCards() {
+  const list = visibleProviders();
+  providerList.innerHTML = "";
+  emptyState.classList.toggle("visible", list.length === 0);
+  for (const provider of list) {
+    const button = document.createElement("button");
+    button.type = "button";
+    button.className = `provider-card ${tone(provider)}${ui.selectedID === provider.id ? " selected" : ""}`;
+    button.innerHTML = `
+      <span class="logo">${provider.logo}</span>
+      <span class="provider-title">
+        <strong>${provider.name}</strong>
+        <span>${provider.subtitle}</span>
+      </span>
+      <span class="pill ${pillClass(provider)}">${statusText(provider)}</span>
+    `;
+    button.addEventListener("click", () => selectProvider(provider.id));
+    providerList.appendChild(button);
+  }
+}
+
+function renderForm() {
+  selectedForm.innerHTML = "";
+  const provider = providers.find(item => item.id === ui.selectedID);
+  if (!provider) return;
+  const current = tone(provider);
+  const needsKey = provider.placeholder && provider.baseState !== "ready";
+  const form = document.createElement("section");
+  form.className = "form-card";
+  form.innerHTML = `
+    <div class="form-head">
+      <span class="logo">${provider.logo}</span>
+      <div>
+        <h2>${provider.name}</h2>
+        <p>${current === "env" ? "环境变量已生效，本机 Key 可作为备用。" : provider.note}</p>
+      </div>
+      <button class="icon-button close-form" type="button" aria-label="Close form">×</button>
+    </div>
+    <div class="field-grid ${needsKey ? "" : "single"}">
+      ${needsKey ? `<div class="field"><label>${provider.id.includes("ocr") || provider.id === "tencent" || provider.id === "baidu" || provider.id === "amazon" ? "Credentials" : "API Key"}</label><input type="password" placeholder="${ui.configured.has(provider.id) ? "输入新值以替换" : provider.placeholder}"></div>` : ""}
+      <div class="field"><label>Model</label><input type="text" value="${provider.model}" placeholder="默认模型" ${provider.model ? "" : "disabled"}></div>
+      <div class="field"><label>Endpoint</label><input type="text" value="${provider.endpoint}" placeholder="默认接口" ${provider.endpoint ? "" : "disabled"}></div>
+    </div>
+    <div class="form-actions">
+      <button class="button ghost validate" type="button">验证</button>
+      <button class="button danger clear" type="button">清除</button>
+      <button class="button primary save" type="button">保存到本机</button>
+    </div>
+    <p class="inline-status">${statusText(provider)} · ${provider.subtitle}</p>
+  `;
+  selectedForm.appendChild(form);
+  form.querySelector(".close-form").addEventListener("click", () => {
+    ui.selectedID = "";
+    render();
+  });
+  form.querySelector(".save").addEventListener("click", () => {
+    ui.configured.add(provider.id);
+    if (provider.baseState === "need") provider.baseState = "plain";
+    ui.filter = "configured";
+    showToast(`${provider.name} 已保存到本机`);
+    syncFilters();
+    render();
+  });
+  form.querySelector(".validate").addEventListener("click", () => showToast(`${provider.name} 格式已填写，在线验证待接入`));
+  form.querySelector(".clear").addEventListener("click", () => {
+    ui.configured.delete(provider.id);
+    if (provider.id === "openai" || provider.id === "deepl") provider.baseState = "need";
+    showToast(`${provider.name} 本机 Key 已清除`);
+    render();
+  });
+}
+
+function selectProvider(id) {
+  ui.selectedID = id;
+  const provider = providers.find(item => item.id === id);
+  const current = provider ? tone(provider) : "plain";
+  if (provider && ui.filter === "priority" && current !== "need") {
+    ui.filter = provider.category === "llm" ? "llm" : provider.category === "media" ? "media" : "all";
+    syncFilters();
+  }
+  closePicker();
+  showKeysPane();
+  render();
+  document.querySelector("#settingsContent").scrollTo({ top: 0, behavior: "smooth" });
+}
+
+function renderPicker() {
+  const groups = providers
+    .filter(provider => matchesSearch(provider, ui.pickerQuery))
+    .reduce((acc, provider) => {
+      acc[provider.group] = acc[provider.group] || [];
+      acc[provider.group].push(provider);
+      return acc;
+    }, {});
+  pickerList.innerHTML = "";
+  for (const group of ["常用", "LLM", "OCR & TTS", "云厂商"]) {
+    const items = groups[group] || [];
+    if (!items.length) continue;
+    const section = document.createElement("section");
+    section.className = "picker-section";
+    section.innerHTML = `<h3>${group}</h3>`;
+    for (const provider of items) {
+      const row = document.createElement("button");
+      row.type = "button";
+      row.className = `picker-row ${tone(provider)}`;
+      row.innerHTML = `
+        <span class="logo">${provider.logo}</span>
+        <span class="provider-title"><strong>${provider.name}</strong><span>${provider.subtitle}</span></span>
+        <span class="chevron">›</span>
+      `;
+      row.addEventListener("click", () => selectProvider(provider.id));
+      section.appendChild(row);
+    }
+    pickerList.appendChild(section);
+  }
+  if (!pickerList.children.length) {
+    pickerList.innerHTML = `<div class="empty-state visible"><strong>没有匹配的 Provider</strong><span>试试 OpenAI、DeepL、OCR、腾讯或百度。</span></div>`;
+  }
+}
+
+function openPicker() {
+  const source = document.querySelector("#openProviderPicker").getBoundingClientRect();
+  const width = 390;
+  providerPopover.style.setProperty("--popover-left", `${Math.max(20, Math.min(window.innerWidth - width - 20, source.right - width))}px`);
+  providerPopover.style.setProperty("--popover-top", `${source.bottom + 10}px`);
+  popoverLayer.classList.add("open");
+  popoverLayer.setAttribute("aria-hidden", "false");
+  renderPicker();
+  setTimeout(() => pickerSearch.focus(), 60);
+}
+
+function closePicker() {
+  popoverLayer.classList.remove("open");
+  popoverLayer.setAttribute("aria-hidden", "true");
+}
+
+function showKeysPane() {
+  document.querySelectorAll(".pane").forEach(pane => pane.classList.toggle("active", pane.dataset.pane === "keys"));
+  document.querySelectorAll(".side-row").forEach(row => row.classList.toggle("active", row.dataset.paneTarget === "keys"));
+}
+
+function syncFilters() {
+  document.querySelectorAll(".chip").forEach(button => button.classList.toggle("active", button.dataset.filter === ui.filter));
+}
+
+function showToast(message) {
+  toast.textContent = message;
+  toast.classList.add("show");
+  window.clearTimeout(showToast.timer);
+  showToast.timer = window.setTimeout(() => toast.classList.remove("show"), 1800);
+}
+
+function render() {
+  renderCounts();
+  renderSectionTitle();
+  renderForm();
+  renderCards();
+}
+
+document.querySelector("#themeToggle").addEventListener("click", () => {
+  document.documentElement.dataset.theme = document.documentElement.dataset.theme === "dark" ? "light" : "dark";
+});
+document.querySelector("#openProviderPicker").addEventListener("click", openPicker);
+document.querySelector("#closeProviderPicker").addEventListener("click", closePicker);
+document.querySelector("#closePopoverScrim").addEventListener("click", closePicker);
+document.querySelector("#focusOpenAI").addEventListener("click", () => selectProvider("openai"));
+document.querySelector("#configureFromError").addEventListener("click", () => selectProvider("openai"));
+pageSearch.addEventListener("input", event => {
+  ui.query = event.target.value.trim();
+  renderCards();
+});
+pickerSearch.addEventListener("input", event => {
+  ui.pickerQuery = event.target.value.trim();
+  renderPicker();
+});
+document.querySelector("#filterRow").addEventListener("click", event => {
+  const button = event.target.closest("[data-filter]");
+  if (!button) return;
+  ui.filter = button.dataset.filter;
+  ui.query = "";
+  pageSearch.value = "";
+  syncFilters();
+  render();
+});
+document.querySelectorAll(".side-row").forEach(row => {
+  row.addEventListener("click", () => {
+    const target = row.dataset.paneTarget;
+    document.querySelectorAll(".pane").forEach(pane => pane.classList.toggle("active", pane.dataset.pane === target));
+    document.querySelectorAll(".side-row").forEach(item => item.classList.toggle("active", item === row));
+  });
+});
+document.addEventListener("keydown", event => {
+  if (event.key === "Escape") closePicker();
+});
+render();
+</script>
+</body>
+</html>

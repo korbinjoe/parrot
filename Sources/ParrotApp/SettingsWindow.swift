@@ -34,8 +34,8 @@ final class SettingsWindow {
             configureTitle(for: win)
             win.styleMask = [.titled, .closable, .miniaturizable, .resizable]
             win.isReleasedWhenClosed = false
-            win.contentMinSize = NSSize(width: 640, height: 420)
-            win.setContentSize(NSSize(width: 720, height: 500))
+            win.contentMinSize = NSSize(width: 720, height: 520)
+            win.setContentSize(NSSize(width: 820, height: 650))
             window = win
         } else {
             window?.contentViewController = NSHostingController(rootView: SettingsView(
@@ -112,6 +112,29 @@ private struct SettingsMiniButtonStyle: ButtonStyle {
         case .accent:
             return isPressed ? Theme.Palette.accent.opacity(0.82) : Theme.Palette.accent
         }
+    }
+}
+
+private struct KeyFilterChipStyle: ButtonStyle {
+    let selected: Bool
+
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .font(Theme.Font.callout.weight(.semibold))
+            .foregroundStyle(selected ? Theme.Palette.accent : Theme.Palette.label2)
+            .padding(.horizontal, 10)
+            .frame(height: 25)
+            .background(backgroundColor(isPressed: configuration.isPressed))
+            .clipShape(Capsule())
+            .overlay(
+                Capsule()
+                    .strokeBorder(selected ? Theme.Palette.accent.opacity(0.24) : Color.clear, lineWidth: 0.5)
+            )
+    }
+
+    private func backgroundColor(isPressed: Bool) -> Color {
+        if isPressed { return Theme.Palette.bgSelection }
+        return selected ? Theme.Palette.accentSoft : Theme.Palette.bgControl
     }
 }
 
@@ -218,7 +241,9 @@ struct SettingsView: View {
     @State private var validateNote: String = ""
     @State private var savedNote: String = ""
     @State private var keySearchText = ""
-    @State private var keyFilter: KeyFilter = .all
+    @State private var keyFilter: KeyFilter = .needsAction
+    @State private var showProviderPicker = false
+    @State private var providerPickerSearchText = ""
     @State private var credentialNotes: [String: CredentialNote] = [:]
     @State private var engineOrderDraft: [String] = []
     @State private var showMachineEngines = true
@@ -245,17 +270,16 @@ struct SettingsView: View {
     ]
 
     enum KeyFilter: String, CaseIterable, Identifiable {
-        case all, needsAction, configured, environment, ocr, tts, llm
+        case needsAction, configured, environment, llm, media, all
         var id: String { rawValue }
         var title: String {
             switch self {
-            case .all: return L("全部")
             case .needsAction: return L("需处理")
             case .configured: return L("已配置")
             case .environment: return L("环境变量")
-            case .ocr: return "OCR"
-            case .tts: return "TTS"
             case .llm: return "LLM"
+            case .media: return "OCR/TTS"
+            case .all: return L("全部")
             }
         }
     }
@@ -361,7 +385,7 @@ struct SettingsView: View {
                 }
             }
         }
-        .frame(minWidth: 640, minHeight: 420)
+        .frame(minWidth: 720, minHeight: 520)
         .onAppear {
             state.refreshPermissions()
             loadAdvancedDrafts()
@@ -396,6 +420,15 @@ struct SettingsView: View {
                 Image(systemName: pane.icon).frame(width: 16)
                 Text(pane.title)
                 Spacer()
+                if pane == .keys, keyDescriptorsNeedingAttention.count > 0 {
+                    Text("\(keyDescriptorsNeedingAttention.count)")
+                        .font(.system(size: 10, weight: .semibold))
+                        .foregroundStyle(Theme.Palette.warning)
+                        .frame(minWidth: 18, minHeight: 18)
+                        .padding(.horizontal, 3)
+                        .background(Theme.Palette.warning.opacity(0.14))
+                        .clipShape(Capsule())
+                }
             }
             .padding(.horizontal, 10)
             .frame(minHeight: 32)
@@ -1003,37 +1036,85 @@ struct SettingsView: View {
     }
 
     private var keysPane: some View {
-        VStack(alignment: .leading, spacing: 0) {
-            sectionTitle("密钥")
-            Text("密钥只保存在本机。需要双字段凭证的服务使用 Id:Secret 格式。")
-                .font(Theme.Font.callout)
-                .foregroundStyle(Theme.Palette.label2)
-                .padding(.bottom, Theme.Spacing.s12)
-
+        VStack(alignment: .leading, spacing: Theme.Spacing.s12) {
+            keyPaneHeader
+            keySummaryGrid
             keySearchAndFilter
-            keyNeedsAttentionSection
+            selectedCredentialForm
             keyServiceSections
-            keyActionBar
             keyFootnote
         }
     }
 
-    private var keySearchAndFilter: some View {
-        VStack(alignment: .leading, spacing: 9) {
-            NativeSearchField("搜索服务、Key 或环境变量", text: $keySearchText)
-                .frame(width: 330, height: 24, alignment: .leading)
-
-            Picker("", selection: $keyFilter) {
-                ForEach(KeyFilter.allCases) { filter in
-                    Text(filter.title).tag(filter)
-                }
+    private var keyPaneHeader: some View {
+        HStack(alignment: .top, spacing: Theme.Spacing.s16) {
+            VStack(alignment: .leading, spacing: 3) {
+                Text("密钥")
+                    .font(.system(size: 22, weight: .semibold))
+                    .foregroundStyle(Theme.Palette.label)
+                Text("默认展示需要处理和已生效的服务；完整 provider 目录通过选择器添加，不再把所有低频服务平铺在主页面。")
+                    .font(Theme.Font.body)
+                    .foregroundStyle(Theme.Palette.label2)
+                    .fixedSize(horizontal: false, vertical: true)
             }
-            .pickerStyle(.segmented)
-            .labelsHidden()
-            .controlSize(.small)
-            .fixedSize(horizontal: true, vertical: false)
+            Spacer(minLength: Theme.Spacing.s16)
+            Button {
+                providerPickerSearchText = ""
+                showProviderPicker = true
+            } label: {
+                Label("添加 Provider", systemImage: "plus")
+            }
+            .buttonStyle(SettingsMiniButtonStyle(prominence: .accent))
+            .popover(isPresented: $showProviderPicker, arrowEdge: .top) {
+                keyProviderPicker
+                    .frame(width: 390, height: 500)
+                    .padding(Theme.Spacing.s12)
+                    .background(Theme.Palette.bgWindow)
+            }
         }
-        .padding(.bottom, Theme.Spacing.s16)
+    }
+
+    private var keySummaryGrid: some View {
+        HStack(spacing: 10) {
+            keySummaryCard(value: keyDescriptorsNeedingAttention.count, label: "需处理", color: Theme.Palette.warning)
+            keySummaryCard(value: keyConfiguredDescriptorCount, label: "已配置", color: Theme.Palette.success)
+            keySummaryCard(value: keyEnvironmentDescriptorCount, label: "环境变量", color: Color(nsColor: .systemBlue))
+        }
+    }
+
+    private func keySummaryCard(value: Int, label: String, color: Color) -> some View {
+        VStack(alignment: .leading, spacing: Theme.Spacing.s4) {
+            Text("\(value)")
+                .font(.system(size: 24, weight: .semibold))
+                .foregroundStyle(color)
+                .monospacedDigit()
+            Text(L(label))
+                .font(Theme.Font.callout)
+                .foregroundStyle(Theme.Palette.label2)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(Theme.Spacing.s12)
+        .frame(minHeight: 74)
+        .background(Theme.Palette.bgContent)
+        .clipShape(RoundedRectangle(cornerRadius: 8))
+        .overlay(RoundedRectangle(cornerRadius: 8).strokeBorder(Theme.Palette.hairline, lineWidth: 0.5))
+    }
+
+    private var keySearchAndFilter: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            NativeSearchField("搜索服务、Key 或环境变量", text: $keySearchText)
+                .frame(maxWidth: 420, minHeight: 28, alignment: .leading)
+
+            HStack(spacing: 7) {
+                ForEach(KeyFilter.allCases) { filter in
+                    Button(filter.title) {
+                        keyFilter = filter
+                    }
+                    .buttonStyle(KeyFilterChipStyle(selected: keyFilter == filter))
+                }
+                Spacer(minLength: 0)
+            }
+        }
     }
 
     @ViewBuilder
@@ -1054,112 +1135,224 @@ struct SettingsView: View {
     private var keyServiceSections: some View {
         let descriptors = keyVisibleDescriptors
         if descriptors.isEmpty {
-            callout("没有匹配的服务。可以清空搜索或切换筛选。")
-        } else if keySearchText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
-                  keyFilter == .all {
-            ForEach(CredentialCategory.allCases) { category in
-                let sectionDescriptors = descriptors
-                    .filter { $0.category == category }
-                    .filter { !shouldShowNeedsAttentionSection || !keyDescriptorsNeedingAttention.contains($0) }
-                if !sectionDescriptors.isEmpty {
-                    subsectionTitle(category.title)
-                    VStack(spacing: Theme.Spacing.s8) {
-                        ForEach(sectionDescriptors) { descriptor in
-                            credentialServiceCard(descriptor, highlighted: descriptor.matchesServiceID(focusedServiceID))
-                        }
-                    }
-                    .padding(.bottom, Theme.Spacing.s16)
-                }
-            }
+            keyEmptyState
         } else {
-            subsectionTitle("匹配服务")
+            keySectionHeader
             VStack(spacing: Theme.Spacing.s8) {
                 ForEach(descriptors) { descriptor in
                     credentialServiceCard(descriptor, highlighted: descriptor.matchesServiceID(focusedServiceID))
                 }
             }
-            .padding(.bottom, Theme.Spacing.s16)
         }
     }
 
-    private var keyActionBar: some View {
-        VStack(alignment: .leading, spacing: Theme.Spacing.s8) {
-            HStack(spacing: Theme.Spacing.s8) {
-                Button("保存全部更改") { saveKeys() }
-                    .controlSize(.small)
-                Spacer(minLength: 0)
-            }
-            if !savedNote.isEmpty || !validateNote.isEmpty {
-                Text(savedNote.isEmpty ? validateNote : savedNote)
-                    .font(Theme.Font.caption)
-                    .foregroundStyle(savedNote.isEmpty ? Theme.Palette.label2 : Theme.Palette.success)
-            }
+    private var keySectionHeader: some View {
+        HStack(alignment: .firstTextBaseline) {
+            Text(keySectionTitle)
+                .font(.system(size: 13, weight: .semibold))
+                .foregroundStyle(Theme.Palette.label)
+            Spacer()
+            Text(keySectionMeta)
+                .font(Theme.Font.callout)
+                .foregroundStyle(Theme.Palette.label3)
         }
-        .padding(Theme.Spacing.s12)
-        .background(Theme.Palette.bgContent)
-        .clipShape(RoundedRectangle(cornerRadius: Theme.Radius.group))
-        .overlay(RoundedRectangle(cornerRadius: Theme.Radius.group).strokeBorder(Theme.Palette.hairline, lineWidth: 0.5))
-        .padding(.top, Theme.Spacing.s12)
     }
 
     private var keyFootnote: some View {
         HStack(alignment: .top, spacing: Theme.Spacing.s8) {
-            Image(systemName: "info.circle")
-                .font(.system(size: 12))
-                .foregroundStyle(Theme.Palette.label3)
-            Text("存储路径：~/Library/Application Support/Parrot/secrets.json。文件权限限制为当前用户可读写；环境变量优先于本地配置。")
-                .font(Theme.Font.caption)
-                .foregroundStyle(Theme.Palette.label2)
-                .fixedSize(horizontal: false, vertical: true)
+            Image(systemName: "key.fill")
+                .font(.system(size: 12, weight: .semibold))
+                .foregroundStyle(Color(nsColor: .systemBlue))
+                .frame(width: 28, height: 28)
+                .background(Color(nsColor: .systemBlue).opacity(0.12))
+                .clipShape(RoundedRectangle(cornerRadius: 8))
+            VStack(alignment: .leading, spacing: 2) {
+                Text("密钥存储在本机密钥库")
+                    .font(Theme.Font.body)
+                    .foregroundStyle(Theme.Palette.label)
+                Text("存储路径：~/Library/Application Support/Parrot/secrets.json。环境变量和系统配置优先于本机保存；清除 Key 不会影响历史记录、收藏或当前草稿。")
+                    .font(Theme.Font.callout)
+                    .foregroundStyle(Theme.Palette.label2)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
         }
-        .padding(.top, Theme.Spacing.s8)
+        .padding(Theme.Spacing.s12)
+        .background(Theme.Palette.bgContent)
+        .clipShape(RoundedRectangle(cornerRadius: 8))
+        .overlay(RoundedRectangle(cornerRadius: 8).strokeBorder(Theme.Palette.hairline, lineWidth: 0.5))
+    }
+
+    private var keyProviderPicker: some View {
+        VStack(alignment: .leading, spacing: Theme.Spacing.s12) {
+            HStack(alignment: .top) {
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("选择 Provider")
+                        .font(.system(size: 15, weight: .semibold))
+                        .foregroundStyle(Theme.Palette.label)
+                    Text("按服务类型选择，不把低频 provider 固定平铺。")
+                        .font(Theme.Font.callout)
+                        .foregroundStyle(Theme.Palette.label2)
+                }
+                Spacer()
+                Button {
+                    showProviderPicker = false
+                } label: {
+                    Image(systemName: "xmark")
+                }
+                .buttonStyle(.borderless)
+                .foregroundStyle(Theme.Palette.label2)
+            }
+
+            NativeSearchField("OpenAI、DeepL、OCR、腾讯…", text: $providerPickerSearchText)
+                .frame(height: 28)
+
+            ScrollView {
+                VStack(alignment: .leading, spacing: Theme.Spacing.s12) {
+                    let descriptors = providerPickerVisibleDescriptors
+                    if descriptors.isEmpty {
+                        keyEmptyState
+                    } else {
+                        ForEach(providerPickerGroups, id: \.title) { group in
+                            let section = group.descriptors
+                            if !section.isEmpty {
+                                Text(group.title)
+                                    .font(.system(size: 11, weight: .semibold))
+                                    .foregroundStyle(Theme.Palette.label3)
+                                    .textCase(.uppercase)
+                                VStack(spacing: Theme.Spacing.s4) {
+                                    ForEach(section) { descriptor in
+                                        providerPickerRow(descriptor)
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    private func providerPickerRow(_ descriptor: CredentialDescriptor) -> some View {
+        Button {
+            selectCredentialDescriptor(descriptor)
+        } label: {
+            HStack(spacing: Theme.Spacing.s8) {
+                keyProviderLogo(descriptor, size: 34)
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(descriptor.name)
+                        .font(Theme.Font.body.weight(.semibold))
+                        .foregroundStyle(Theme.Palette.label)
+                        .lineLimit(1)
+                    Text(keyProviderSubtitle(for: descriptor))
+                        .font(Theme.Font.caption)
+                        .foregroundStyle(Theme.Palette.label3)
+                        .lineLimit(1)
+                }
+                Spacer()
+                Image(systemName: "chevron.right")
+                    .font(.system(size: 11, weight: .semibold))
+                    .foregroundStyle(Theme.Palette.label3)
+            }
+            .padding(8)
+            .frame(minHeight: 56)
+            .background(Color.clear)
+            .clipShape(RoundedRectangle(cornerRadius: 8))
+        }
+        .buttonStyle(.plain)
+        .contentShape(Rectangle())
+    }
+
+    private var keyEmptyState: some View {
+        VStack(alignment: .leading, spacing: 2) {
+            Text("没有匹配的 Provider")
+                .font(Theme.Font.body.weight(.semibold))
+                .foregroundStyle(Theme.Palette.label)
+            Text("清空搜索，或通过添加 Provider 打开完整目录。")
+                .font(Theme.Font.callout)
+                .foregroundStyle(Theme.Palette.label2)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(14)
+        .background(Theme.Palette.bgContent)
+        .clipShape(RoundedRectangle(cornerRadius: 8))
+        .overlay(RoundedRectangle(cornerRadius: 8).strokeBorder(Theme.Palette.hairline, lineWidth: 0.5))
     }
 
     private func credentialServiceCard(_ descriptor: CredentialDescriptor, highlighted: Bool) -> some View {
         let status = credentialDisplayStatus(for: descriptor)
         let active = isCredentialServiceActive(descriptor)
         let dirty = isCredentialServiceDirty(descriptor)
-        let note = credentialNotes[descriptor.id]
+        let tone = keyTone(for: descriptor)
 
-        return VStack(alignment: .leading, spacing: Theme.Spacing.s12) {
-            HStack(alignment: .center, spacing: Theme.Spacing.s12) {
-                Circle()
-                    .fill(dirty ? Theme.Palette.warning : (status.configured ? Theme.Palette.success : Theme.Palette.label3))
-                    .frame(width: 8, height: 8)
+        return Button {
+            focusedServiceID = descriptor.id
+        } label: {
+            HStack(alignment: .center, spacing: 10) {
+                keyProviderLogo(descriptor)
                 VStack(alignment: .leading, spacing: 2) {
-                    HStack(spacing: Theme.Spacing.s8) {
-                        Text(descriptor.name)
-                            .font(Theme.Font.body)
-                            .foregroundStyle(Theme.Palette.label)
-                        Text(descriptor.category.filterTitle)
-                            .font(Theme.Font.tag)
-                            .foregroundStyle(Theme.Palette.label2)
-                            .padding(.horizontal, 6)
-                            .frame(height: 18)
-                            .background(Theme.Palette.bgControl)
-                            .clipShape(RoundedRectangle(cornerRadius: Theme.Radius.control))
-                    }
+                    Text(descriptor.name)
+                        .font(.system(size: 13, weight: .semibold))
+                        .foregroundStyle(Theme.Palette.label)
+                        .lineLimit(1)
                     Text(status.text)
                         .font(Theme.Font.caption)
-                        .foregroundStyle(status.configured ? Theme.Palette.label2 : Theme.Palette.label3)
+                        .foregroundStyle(Theme.Palette.label3)
                         .lineLimit(1)
                 }
                 Spacer(minLength: Theme.Spacing.s12)
+                if dirty {
+                    settingsStatusBadge("未保存", tone: .secondary)
+                }
                 if active {
                     settingsStatusBadge("使用中", tone: .success)
-                } else if let engineID = descriptor.linkedEngineID {
-                    Toggle("", isOn: binding(forEngine: engineID))
-                        .labelsHidden()
-                        .toggleStyle(.switch)
-                        .controlSize(.small)
                 }
+                keyProviderPill(text: keyProviderStatusText(for: descriptor), tone: tone)
             }
+        }
+        .buttonStyle(.plain)
+        .id(descriptor.id)
+        .padding(10)
+        .frame(minHeight: 64)
+        .background(highlighted ? Theme.Palette.bgSelection : Theme.Palette.bgContent)
+        .clipShape(RoundedRectangle(cornerRadius: 8))
+        .overlay(
+            RoundedRectangle(cornerRadius: 8)
+                .strokeBorder(highlighted ? Theme.Palette.accent.opacity(0.65) : Theme.Palette.hairline, lineWidth: highlighted ? 1 : 0.5)
+        )
+    }
 
-            if let noteText = descriptor.note {
-                Text(noteText)
-                    .font(Theme.Font.caption)
-                    .foregroundStyle(Theme.Palette.label3)
-                    .fixedSize(horizontal: false, vertical: true)
+    @ViewBuilder
+    private var selectedCredentialForm: some View {
+        if let descriptor = selectedCredentialDescriptor {
+            credentialDetailForm(descriptor)
+                .id(descriptor.id)
+        }
+    }
+
+    private func credentialDetailForm(_ descriptor: CredentialDescriptor) -> some View {
+        let status = credentialDisplayStatus(for: descriptor)
+        let note = credentialNotes[descriptor.id]
+
+        return VStack(alignment: .leading, spacing: Theme.Spacing.s12) {
+            HStack(alignment: .center, spacing: 10) {
+                keyProviderLogo(descriptor)
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(descriptor.name)
+                        .font(.system(size: 15, weight: .semibold))
+                        .foregroundStyle(Theme.Palette.label)
+                    Text(status.fromPrimaryEnv ? L("环境变量已生效，本机 Key 可作为备用。") : (descriptor.note ?? L("配置这个 Provider 的 Key、Model 与 Endpoint。")))
+                        .font(Theme.Font.caption)
+                        .foregroundStyle(Theme.Palette.label2)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+                Spacer()
+                Button {
+                    focusedServiceID = nil
+                } label: {
+                    Image(systemName: "xmark")
+                }
+                .buttonStyle(.borderless)
+                .foregroundStyle(Theme.Palette.label2)
             }
 
             if let credential = descriptor.credential {
@@ -1168,7 +1361,7 @@ struct SettingsView: View {
                         descriptor: descriptor,
                         credential: credential,
                         status: status,
-                        dirty: dirty
+                        dirty: isCredentialServiceDirty(descriptor)
                     )
                     if status.fromPrimaryEnv {
                         formHelpText(L("%@ 已生效并优先于本机保存。要改用本机 Key，请移除该环境变量后重启 Parrot。", credential.env))
@@ -1191,8 +1384,16 @@ struct SettingsView: View {
                 Button("验证") { validateCredentialService(descriptor) }
                     .buttonStyle(SettingsMiniButtonStyle())
                     .disabled(credentialNotes[descriptor.id] == .validating)
+                if let credential = descriptor.credential {
+                    Button("清除") { clearSecret(credential.account, serviceID: descriptor.id) }
+                        .buttonStyle(SettingsMiniButtonStyle())
+                        .disabled(!settings.hasStoredSecret(account: credential.account))
+                }
                 if canRetryFromCredential(descriptor) {
                     Button("保存并重试") { saveAndRetryCredentialService(descriptor) }
+                        .buttonStyle(SettingsMiniButtonStyle(prominence: .accent))
+                } else {
+                    Button("保存到本机") { saveCredentialService(descriptor) }
                         .buttonStyle(SettingsMiniButtonStyle(prominence: .accent))
                 }
                 if let note {
@@ -1204,14 +1405,10 @@ struct SettingsView: View {
                 Spacer(minLength: 0)
             }
         }
-        .id(descriptor.id)
-        .padding(Theme.Spacing.s12)
-        .background(highlighted ? Theme.Palette.bgSelection : Theme.Palette.bgContent)
-        .clipShape(RoundedRectangle(cornerRadius: Theme.Radius.group))
-        .overlay(
-            RoundedRectangle(cornerRadius: Theme.Radius.group)
-                .strokeBorder(highlighted ? Theme.Palette.accent.opacity(0.65) : Theme.Palette.hairline, lineWidth: highlighted ? 1 : 0.5)
-        )
+        .padding(14)
+        .background(Theme.Palette.bgContent)
+        .clipShape(RoundedRectangle(cornerRadius: 8))
+        .overlay(RoundedRectangle(cornerRadius: 8).strokeBorder(Theme.Palette.accent.opacity(0.28), lineWidth: 1.5))
     }
 
     private func credentialSecretRow(
@@ -1221,7 +1418,7 @@ struct SettingsView: View {
         dirty: Bool
     ) -> some View {
         HStack(alignment: .center, spacing: Theme.Spacing.s8) {
-            formRowLabel("Key")
+            formRowLabel(credential.account.contains("credentials") ? "Credentials" : "API Key")
             SecureField(credentialPlaceholder(for: descriptor, status: status),
                         text: secretBinding(for: credential.account))
                 .textFieldStyle(.roundedBorder)
@@ -1230,12 +1427,9 @@ struct SettingsView: View {
                 .focused($focusedCredentialFieldID, equals: descriptor.id)
                 .disabled(status.fromPrimaryEnv)
                 .frame(minWidth: 180, idealWidth: 320, maxWidth: 380, minHeight: 22, idealHeight: 22, maxHeight: 22)
-            Button("保存") { saveCredentialService(descriptor) }
-                .buttonStyle(SettingsMiniButtonStyle())
-                .disabled(!dirty && !hasSecretDraft(for: descriptor))
-            Button("清除") { clearSecret(credential.account, serviceID: descriptor.id) }
-                .buttonStyle(SettingsMiniButtonStyle())
-                .disabled(!settings.hasStoredSecret(account: credential.account))
+            if dirty {
+                settingsStatusBadge("未保存", tone: .secondary)
+            }
         }
     }
 
@@ -1642,6 +1836,10 @@ struct SettingsView: View {
         }
     }
 
+    enum KeyProviderTone {
+        case need, ready, env, plain
+    }
+
     private func status(_ descriptor: EngineDescriptor) -> EngineStatus {
         if !settings.isEngineEnabled(descriptor.id) { return .off }
         return settings.isEngineConfigured(descriptor) ? .ok : .warn
@@ -1811,7 +2009,11 @@ struct SettingsView: View {
             return
         }
         keySearchText = ""
-        keyFilter = .all
+        if let descriptor = CredentialCatalog.descriptor(matching: normalized) {
+            keyFilter = preferredKeyFilter(for: descriptor)
+        } else {
+            keyFilter = .needsAction
+        }
         focusedServiceID = normalized
         selection = .keys
     }
@@ -1891,7 +2093,6 @@ struct SettingsView: View {
 
     private func keyDescriptor(_ descriptor: CredentialDescriptor, matches filter: KeyFilter) -> Bool {
         switch filter {
-        case .all: return true
         case .needsAction:
             return descriptor.requiresCredential
                 && isCredentialServiceActive(descriptor)
@@ -1900,12 +2101,214 @@ struct SettingsView: View {
             return credentialDisplayStatus(for: descriptor).configured
         case .environment:
             return credentialDisplayStatus(for: descriptor).fromPrimaryEnv
-        case .ocr:
-            return descriptor.category == .ocr
-        case .tts:
-            return descriptor.category == .tts || descriptor.aliases.contains(settings.ttsProviderId)
         case .llm:
             return descriptor.category == .llm || descriptor.defaultModel != nil
+        case .media:
+            return descriptor.category == .ocr
+                || descriptor.category == .tts
+                || descriptor.aliases.contains(settings.ttsProviderId)
+        case .all:
+            return true
+        }
+    }
+
+    private var selectedCredentialDescriptor: CredentialDescriptor? {
+        guard let focusedServiceID else { return nil }
+        return CredentialCatalog.descriptor(matching: focusedServiceID)
+    }
+
+    private var keyConfiguredDescriptorCount: Int {
+        allCredentialDescriptors.filter { descriptor in
+            let status = credentialDisplayStatus(for: descriptor)
+            return status.configured && !status.fromPrimaryEnv
+        }.count
+    }
+
+    private var keyEnvironmentDescriptorCount: Int {
+        allCredentialDescriptors.filter { credentialDisplayStatus(for: $0).fromPrimaryEnv }.count
+    }
+
+    private var keySectionTitle: String {
+        switch keyFilter {
+        case .needsAction: return L("优先处理")
+        case .configured: return L("已配置")
+        case .environment: return L("环境变量")
+        case .llm: return "LLM Providers"
+        case .media: return "OCR / TTS"
+        case .all: return L("全部卡片")
+        }
+    }
+
+    private var keySectionMeta: String {
+        switch keyFilter {
+        case .needsAction: return L("缺 Key / 当前启用")
+        case .configured: return L("可直接使用")
+        case .environment: return L("系统配置优先")
+        case .llm: return L("模型 / Endpoint")
+        case .media: return L("识别与语音")
+        case .all: return L("当前可管理服务")
+        }
+    }
+
+    private var providerPickerVisibleDescriptors: [CredentialDescriptor] {
+        let query = providerPickerSearchText.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        guard !query.isEmpty else { return allCredentialDescriptors }
+        return allCredentialDescriptors.filter { $0.searchableText.contains(query) }
+    }
+
+    private var providerPickerGroups: [(title: String, descriptors: [CredentialDescriptor])] {
+        let descriptors = providerPickerVisibleDescriptors
+        let common = descriptors.filter { $0.category == .common }
+        let commonIDs = Set(common.map(\.id))
+        let llm = descriptors.filter {
+            !commonIDs.contains($0.id) && ($0.category == .llm || $0.defaultModel != nil)
+        }
+        let groupedIDs = commonIDs.union(llm.map(\.id))
+        let media = descriptors.filter {
+            !groupedIDs.contains($0.id) && ($0.category == .ocr || $0.category == .tts)
+        }
+        let mediaIDs = groupedIDs.union(media.map(\.id))
+        let vendors = descriptors.filter { descriptor in
+            !mediaIDs.contains(descriptor.id)
+                && (descriptor.category == .machine || descriptor.category == .more)
+        }
+        return [
+            (L("常用"), common),
+            ("LLM", llm),
+            ("OCR & TTS", media),
+            (L("云厂商"), vendors)
+        ].filter { !$0.descriptors.isEmpty }
+    }
+
+    private func selectCredentialDescriptor(_ descriptor: CredentialDescriptor) {
+        focusedServiceID = descriptor.id
+        selection = .keys
+        showProviderPicker = false
+        providerPickerSearchText = ""
+        if !keyDescriptor(descriptor, matches: keyFilter) {
+            keyFilter = preferredKeyFilter(for: descriptor)
+        }
+    }
+
+    private func preferredKeyFilter(for descriptor: CredentialDescriptor) -> KeyFilter {
+        let status = credentialDisplayStatus(for: descriptor)
+        if descriptor.requiresCredential && isCredentialServiceActive(descriptor) && !status.configured {
+            return .needsAction
+        }
+        if status.fromPrimaryEnv { return .environment }
+        if status.configured { return .configured }
+        if descriptor.category == .llm || descriptor.defaultModel != nil { return .llm }
+        if descriptor.category == .ocr || descriptor.category == .tts { return .media }
+        return .all
+    }
+
+    private func keyTone(for descriptor: CredentialDescriptor) -> KeyProviderTone {
+        let status = credentialDisplayStatus(for: descriptor)
+        if status.fromPrimaryEnv { return .env }
+        if status.configured { return .ready }
+        if descriptor.requiresCredential && isCredentialServiceActive(descriptor) { return .need }
+        return .plain
+    }
+
+    private func keyProviderStatusText(for descriptor: CredentialDescriptor) -> String {
+        switch keyTone(for: descriptor) {
+        case .env:
+            return "Env"
+        case .ready:
+            return descriptor.requiresCredential ? L("已配置") : L("无需 Key")
+        case .need:
+            return descriptor.category == .ocr ? "OCR" : descriptor.category == .tts ? "TTS" : L("缺 Key")
+        case .plain:
+            return descriptor.requiresCredential ? L("可添加") : L("无需 Key")
+        }
+    }
+
+    private func keyProviderSubtitle(for descriptor: CredentialDescriptor) -> String {
+        let status = credentialDisplayStatus(for: descriptor)
+        if status.fromPrimaryEnv { return status.text }
+        if status.configured { return status.text }
+        if let credential = descriptor.credential {
+            if isCredentialServiceActive(descriptor) {
+                return L("已启用 · Key 缺失 · %@", credential.env)
+            }
+            return credential.env
+        }
+        if let endpoint = descriptor.defaultEndpoint, !endpoint.isEmpty {
+            return endpoint
+        }
+        return descriptor.note ?? L("无需 Key")
+    }
+
+    private func keyProviderLogo(_ descriptor: CredentialDescriptor, size: CGFloat = 38) -> some View {
+        let title = keyProviderLogoTitle(for: descriptor)
+        return Text(title)
+            .font(.system(size: size >= 38 ? 12 : 11, weight: .bold))
+            .foregroundStyle(keyLogoForeground(for: descriptor))
+            .frame(width: size, height: size)
+            .background(keyLogoBackground(for: descriptor))
+            .clipShape(RoundedRectangle(cornerRadius: 8))
+    }
+
+    private func keyProviderLogoTitle(for descriptor: CredentialDescriptor) -> String {
+        switch descriptor.id {
+        case "openai": return "AI"
+        case "deepl": return "DL"
+        case "google": return "G"
+        case "opencode": return "OC"
+        case "deepseek": return "DS"
+        case "azure-openai": return "AZ"
+        case "ollama": return "OL"
+        case "google-tts": return "TTS"
+        case "amazon": return "AWS"
+        default:
+            let trimmed = descriptor.name.trimmingCharacters(in: .whitespacesAndNewlines)
+            return String(trimmed.prefix(1))
+        }
+    }
+
+    private func keyLogoForeground(for descriptor: CredentialDescriptor) -> Color {
+        switch keyTone(for: descriptor) {
+        case .need: return Theme.Palette.warning
+        case .ready: return Theme.Palette.success
+        case .env: return Color(nsColor: .systemBlue)
+        case .plain: return Theme.Palette.label2
+        }
+    }
+
+    private func keyLogoBackground(for descriptor: CredentialDescriptor) -> Color {
+        switch keyTone(for: descriptor) {
+        case .need: return Theme.Palette.warning.opacity(0.16)
+        case .ready: return Theme.Palette.success.opacity(0.14)
+        case .env: return Color(nsColor: .systemBlue).opacity(0.12)
+        case .plain: return Theme.Palette.bgControl
+        }
+    }
+
+    private func keyProviderPill(text: String, tone: KeyProviderTone) -> some View {
+        Text(text)
+            .font(Theme.Font.callout.weight(.semibold))
+            .foregroundStyle(keyPillForeground(tone))
+            .padding(.horizontal, 9)
+            .frame(minWidth: 58, minHeight: 24)
+            .background(keyPillBackground(tone))
+            .clipShape(Capsule())
+    }
+
+    private func keyPillForeground(_ tone: KeyProviderTone) -> Color {
+        switch tone {
+        case .need: return Theme.Palette.warning
+        case .ready: return Theme.Palette.success
+        case .env: return Color(nsColor: .systemBlue)
+        case .plain: return Theme.Palette.label2
+        }
+    }
+
+    private func keyPillBackground(_ tone: KeyProviderTone) -> Color {
+        switch tone {
+        case .need: return Theme.Palette.warning.opacity(0.16)
+        case .ready: return Theme.Palette.success.opacity(0.14)
+        case .env: return Color(nsColor: .systemBlue).opacity(0.12)
+        case .plain: return Theme.Palette.bgControl
         }
     }
 
