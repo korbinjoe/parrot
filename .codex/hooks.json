@@ -1,0 +1,24 @@
+{
+  "hooks": {
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash /Users/joebon/.teemai/hooks/wb-auto-extract.sh",
+            "timeout": 5
+          }
+        ]
+      },
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash /Users/joebon/.teemai/hooks/satisfaction-score.sh",
+            "timeout": 5
+          }
+        ]
+      }
+    ]
+  }
+}

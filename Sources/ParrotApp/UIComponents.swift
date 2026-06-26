@@ -67,9 +67,11 @@ struct IconButton: View {
     let size: CGFloat
     let foreground: Color?
     let activeBackground: Bool
+    let isEnabled: Bool
     let action: () -> Void
 
     @State private var hovering = false
+    @State private var showTip = false
 
     init(
         _ name: String,
@@ -77,6 +79,7 @@ struct IconButton: View {
         size: CGFloat = 13,
         foreground: Color? = nil,
         activeBackground: Bool = false,
+        isEnabled: Bool = true,
         action: @escaping () -> Void
     ) {
         self.name = name
@@ -84,21 +87,63 @@ struct IconButton: View {
         self.size = size
         self.foreground = foreground
         self.activeBackground = activeBackground
+        self.isEnabled = isEnabled
         self.action = action
     }
 
     var body: some View {
-        Button(action: action) {
+        Button {
+            guard isEnabled else { return }
+            action()
+        } label: {
             Image(systemName: name)
                 .font(.system(size: size))
                 .foregroundStyle(foreground ?? Theme.Palette.label2)
                 .frame(width: 26, height: 26)
         }
         .buttonStyle(.borderless)
+        .opacity(isEnabled ? 1 : 0.42)
         .background(activeBackground ? Theme.Palette.bgSelection : (hovering ? Theme.Palette.bgControl : Color.clear))
         .clipShape(RoundedRectangle(cornerRadius: Theme.Radius.control))
         .contentShape(RoundedRectangle(cornerRadius: Theme.Radius.control))
-        .onHover { hovering = $0 }
+        .overlay(alignment: .bottom) {
+            if showTip {
+                Text(L(help))
+                    .font(Theme.Font.caption)
+                    .foregroundStyle(Theme.Palette.label)
+                    .lineLimit(1)
+                    .padding(.horizontal, 8)
+                    .frame(height: 22)
+                    .background(Theme.Palette.bgPanel)
+                    .clipShape(RoundedRectangle(cornerRadius: Theme.Radius.control))
+                    .overlay(
+                        RoundedRectangle(cornerRadius: Theme.Radius.control)
+                            .strokeBorder(Theme.Palette.separator, lineWidth: 0.5)
+                    )
+                    .shadow(color: Color.black.opacity(0.14), radius: 5, y: 2)
+                    .fixedSize()
+                    .offset(y: 28)
+                    .allowsHitTesting(false)
+                    .accessibilityHidden(true)
+                    .transition(.opacity)
+            }
+        }
+        .zIndex(showTip ? 10 : 0)
+        .onHover { inside in
+            hovering = inside
+            if inside {
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.25) {
+                    guard hovering else { return }
+                    withAnimation(.easeOut(duration: 0.08)) {
+                        showTip = true
+                    }
+                }
+            } else {
+                withAnimation(.easeOut(duration: 0.06)) {
+                    showTip = false
+                }
+            }
+        }
         .help(L(help))
         .accessibilityLabel(L(help))
     }

@@ -233,16 +233,24 @@ struct ResultView: View {
             toolbarStatus
             Spacer(minLength: 0)
             HStack(spacing: Theme.Spacing.s4) {
-                IconButton(
-                    "arrow.clockwise",
-                    help: state.isSourceDirty ? "翻译当前编辑内容" : "重新翻译",
-                    foreground: state.isSourceDirty ? Theme.Palette.accent : nil,
-                    activeBackground: state.isSourceDirty
-                ) {
-                    state.retryCurrentTranslation()
+                IconButton("doc.on.doc", help: primaryTranslatedText.isEmpty ? "有译文后可复制" : "复制译文", isEnabled: !primaryTranslatedText.isEmpty) {
+                    copy(primaryTranslatedText)
                 }
-                IconButton("doc.on.doc", help: "复制主要译文") { copy(primaryTranslatedText) }
-                    .disabled(primaryTranslatedText.isEmpty)
+
+                IconButton(
+                    state.isFavorite ? "star.fill" : "star",
+                    help: state.savedRecordId == nil ? "翻译完成后可收藏" : (state.isFavorite ? "取消收藏" : "收藏"),
+                    foreground: state.isFavorite ? Theme.Palette.star : nil,
+                    activeBackground: state.isFavorite,
+                    isEnabled: state.savedRecordId != nil
+                ) {
+                    state.toggleFavorite()
+                    showFeedback(state.isFavorite ? "已收藏" : "已取消收藏")
+                }
+
+                IconButton("text.alignleft", help: "复制原文", isEnabled: !state.actionSourceText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty) { copy(state.actionSourceText) }
+                IconButton("speaker.wave.2", help: "朗读原文", isEnabled: !state.actionSourceText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty) { state.speakSource() }
+                IconButton("text.book.closed", help: "打开个人词库") { onVocabulary() }
                 IconButton(
                     panelPresentation.isPinned ? "pin.fill" : "pin",
                     help: panelPresentation.isPinned ? "取消常驻" : "常驻",
@@ -251,17 +259,6 @@ struct ResultView: View {
                 ) {
                     onTogglePinned()
                 }
-                IconButton(
-                    state.isFavorite ? "star.fill" : "star",
-                    help: state.isFavorite ? "取消收藏" : "收藏",
-                    foreground: state.isFavorite ? Theme.Palette.star : nil,
-                    activeBackground: state.isFavorite
-                ) {
-                    state.toggleFavorite()
-                    showFeedback(state.isFavorite ? "已收藏" : "已取消收藏")
-                }
-                .disabled(state.savedRecordId == nil)
-                IconButton("text.book.closed", help: "打开个人词库") { onVocabulary() }
                 IconButton("gearshape", help: "打开设置") { onConfigureProvider(nil) }
                 IconButton("xmark", help: "关闭") { onClose() }
             }
