@@ -4,3 +4,5 @@
 - [x] Replace fixed estimated translation-text height with actual AppKit text measurement.
 - [x] Verify the result card still supports translated-text selection for manual learning.
 - [x] Run focused tests and UI acceptance.
+- [x] Add selectable text-view vertical inset to prevent final-line glyph clipping.
+- [x] Rerun focused checks after the inset follow-up.

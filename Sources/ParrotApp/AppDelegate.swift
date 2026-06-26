@@ -262,6 +262,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             showPermissionNotice(.accessibility)
             return
         }
+        state.resetManualLearningSelection()
         floating.prepareForExternalCapture()
         let text = SelectionCapture.selectedText()
         DebugLog.log("translateSelection: captured=\(text.map { "\"\($0.prefix(40))\" len=\($0.count)" } ?? "nil")")
@@ -282,6 +283,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             showPermissionNotice(.accessibility)
             return
         }
+        state.resetManualLearningSelection()
         floating.prepareForExternalCapture()
         guard let text = SelectionCapture.selectedText(), !text.isEmpty else { warnIfNoAccessibility(); return }
         runTranslation(text, mode: .lookup)

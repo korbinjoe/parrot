@@ -75,6 +75,7 @@ final class AppState: ObservableObject {
     @Published var permissions: PermissionSnapshot = AppPermissions.snapshot()
     @Published var learningHistoryRecords: [TranslationRecord] = []
     @Published var learningOccurrenceCounts: [String: Int] = [:]
+    @Published private(set) var manualLearningSelectionRevision: Int = 0
     @Published private(set) var providerDisplayOrder: [String] = []
     @Published private(set) var missingConfigurationOutcomes: [AggregatedOutcome] = []
 
@@ -109,7 +110,12 @@ final class AppState: ObservableObject {
     }
 
     var shouldKeepWorkspaceVisible: Bool {
-        isComposerFocused || isSourceDirty || isRecognizingOCR
+        isComposerFocused
+            || isSourceDirty
+            || isRecognizingOCR
+            || isTranslating
+            || canTranslateDraft
+            || hasRestorableWorkspace
     }
 
     var hasRestorableWorkspace: Bool {
@@ -240,6 +246,10 @@ final class AppState: ObservableObject {
         isComposerFocused = focused
     }
 
+    func resetManualLearningSelection() {
+        manualLearningSelectionRevision &+= 1
+    }
+
     func openWorkspace(
         text: String,
         mode: TranslateMode = .translate,
@@ -355,6 +365,7 @@ final class AppState: ObservableObject {
         currentMode = .translate
         isRecognizingOCR = false
         workspaceNotice = nil
+        resetManualLearningSelection()
         if !isSourceDirty {
             sourceDraft = ""
             resetTranslationSession(keepDraft: true)
@@ -375,6 +386,7 @@ final class AppState: ObservableObject {
         slowHintTasks.forEach { $0.cancel() }
         slowHintTasks = []
         isRecognizingOCR = false
+        resetManualLearningSelection()
 
         let runID = UUID()
         currentTranslationID = runID
@@ -451,6 +463,7 @@ final class AppState: ObservableObject {
         translationTask?.cancel()
         slowHintTasks.forEach { $0.cancel() }
         slowHintTasks = []
+        resetManualLearningSelection()
         if !keepDraft {
             sourceDraft = ""
         }

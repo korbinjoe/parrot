@@ -2,18 +2,38 @@ import AppKit
 import SwiftUI
 
 /// Shared presentation state for the floating result panel.
-/// Default is transient: it hides on focus loss. Pinning makes the same panel stay visible.
+/// Tracks workspace-level chrome that lives outside translation state.
 final class FloatingPanelPresentation: ObservableObject {
     @Published var isPinned = false
 }
 
+private final class WorkspacePanel: NSPanel {
+    var onCloseRequest: (() -> Void)?
+
+    override func performClose(_ sender: Any?) {
+        if let onCloseRequest {
+            onCloseRequest()
+        } else {
+            super.performClose(sender)
+        }
+    }
+
+    override func close() {
+        if let onCloseRequest {
+            onCloseRequest()
+        } else {
+            super.close()
+        }
+    }
+}
+
 /// Non-activating floating panel that shows translation results near the cursor and
-/// auto-hides when it loses focus. Implements an "即用即走" (use-and-dismiss) behavior.
+/// behaves as a small translation workspace once it has draft text or results.
 @MainActor
 final class FloatingPanel {
     private enum Metrics {
         static let defaultContentSize = NSSize(width: 520, height: 640)
-        static let minContentSize = NSSize(width: 480, height: 320)
+        static let minContentSize = NSSize(width: 520, height: 320)
     }
 
     private var panel: NSPanel?
@@ -50,6 +70,7 @@ final class FloatingPanel {
 
     func show(focusComposer: Bool = false) {
         if panel == nil { build() }
+        panel?.level = .floating
         if focusComposer {
             NSApp.activate(ignoringOtherApps: true)
             suppressFocusLossHideUntil = Date().addingTimeInterval(0.8)
@@ -93,6 +114,7 @@ final class FloatingPanel {
 
     func hide(force: Bool = false) {
         guard force || !state.shouldKeepWorkspaceVisible else { return }
+        panel?.contentMinSize = Metrics.minContentSize
         panel?.orderOut(nil)
         panel?.alphaValue = 1
         isHiding = false
@@ -104,7 +126,9 @@ final class FloatingPanel {
     /// Before capturing selected text, hide only transient panels. A pinned panel should keep
     /// its place and simply update with the next translation result.
     func prepareForExternalCapture() {
-        if !presentation.isPinned {
+        if presentation.isPinned {
+            panel?.orderFrontRegardless()
+        } else {
             hide(force: true)
         }
     }
@@ -127,24 +151,24 @@ final class FloatingPanel {
         ))
         hosting.sizingOptions = []
         self.hosting = hosting
-        let p = NSPanel(contentViewController: hosting)
+        let p = WorkspacePanel(contentViewController: hosting)
         p.styleMask = [.titled, .closable, .resizable, .fullSizeContentView]
         p.title = L("Parrot 翻译")
         p.titleVisibility = .hidden
         p.titlebarAppearsTransparent = true
         p.contentMinSize = Metrics.minContentSize
         p.setContentSize(Metrics.defaultContentSize)
+        p.isReleasedWhenClosed = false
         p.isFloatingPanel = true
         p.level = .floating
         p.hidesOnDeactivate = false
         p.isMovableByWindowBackground = true
         p.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary]
-        // Clear base so the SwiftUI rounded solid panel defines the visible shape.
         p.backgroundColor = .clear
         p.isOpaque = false
         p.hasShadow = true
 
-        // Hide the traffic-light buttons — a lightweight "即用即走" panel shouldn't show window chrome.
+        p.onCloseRequest = { [weak self] in self?.hide(force: true) }
         p.standardWindowButton(.closeButton)?.isHidden = true
         p.standardWindowButton(.miniaturizeButton)?.isHidden = true
         p.standardWindowButton(.zoomButton)?.isHidden = true
@@ -191,7 +215,10 @@ final class FloatingPanel {
     private func togglePinned() {
         presentation.isPinned.toggle()
         if presentation.isPinned {
+            panel?.level = .floating
             panel?.orderFrontRegardless()
+        } else {
+            panel?.level = .normal
         }
     }
 
@@ -222,7 +249,7 @@ final class FloatingPanel {
     private func hideAfterOutsideClickIfNeeded(at point: NSPoint) {
         guard let panel, panel.isVisible else { return }
         guard !panel.frame.insetBy(dx: -6, dy: -6).contains(point) else { return }
-        hideTransientPanelIfNeeded(respectingActiveWorkspace: false)
+        hideTransientPanelIfNeeded()
     }
 
     private func hideTransientPanelIfNeeded(respectingActiveWorkspace: Bool = true) {
@@ -230,7 +257,10 @@ final class FloatingPanel {
         guard let panel, panel.isVisible else { return }
         if respectingActiveWorkspace {
             if let suppressFocusLossHideUntil, Date() < suppressFocusLossHideUntil { return }
-            guard !state.shouldKeepWorkspaceVisible else { return }
+            guard !state.shouldKeepWorkspaceVisible else {
+                lowerUnpinnedWorkspace()
+                return
+            }
         }
         guard !isHiding else { return }
         isHiding = true
@@ -245,6 +275,11 @@ final class FloatingPanel {
                 self.isHiding = false
             }
         }
+    }
+
+    private func lowerUnpinnedWorkspace() {
+        guard !presentation.isPinned else { return }
+        panel?.level = .normal
     }
 
     private func placeNearAnchor() {

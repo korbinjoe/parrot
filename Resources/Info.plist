@@ -27,9 +27,6 @@
     <string>AppIcon</string>
     <key>LSMinimumSystemVersion</key>
     <string>13.0</string>
-    <!-- Menu-bar agent: no Dock icon -->
-    <key>LSUIElement</key>
-    <true/>
     <key>NSPrincipalClass</key>
     <string>NSApplication</string>
     <key>NSHumanReadableCopyright</key>

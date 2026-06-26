@@ -6,8 +6,8 @@ import ParrotCore
 /// slots displayed in the order configured in Settings.
 struct ResultView: View {
     private enum Layout {
-        static let minWidth: CGFloat = 480
-        static let idealWidth: CGFloat = 520
+        static let minWidth: CGFloat = 520
+        static let idealWidth: CGFloat = 560
         static let minHeight: CGFloat = 320
         static let minScrollHeight: CGFloat = 260
         static let idealScrollFloor: CGFloat = 520
@@ -48,6 +48,21 @@ struct ResultView: View {
     }
 
     var body: some View {
+        expandedBody
+        .onPreferenceChange(ContentHeightKey.self) { contentHeight = $0 }
+        .onDisappear {
+            sourceComposerFocused = false
+            state.setComposerFocused(false)
+        }
+        .onChange(of: state.manualLearningSelectionRevision) { _ in
+            sourceLearningSelection = ""
+        }
+        .onExitCommand {
+            onClose()
+        }
+    }
+
+    private var expandedBody: some View {
         VStack(spacing: 0) {
             VStack(spacing: 0) {
                 if state.isOffline {
@@ -95,6 +110,7 @@ struct ResultView: View {
                                                            },
                                                            onRetry: { state.retryProvider(outcome.providerId) },
                                                            onConfigure: { onConfigureProvider(outcome.providerId) })
+                                        .id("\(outcome.providerId)-\(state.manualLearningSelectionRevision)")
                                 case .pending(let provider):
                                     PendingOutcomeCard(provider: provider)
                                 }
@@ -132,11 +148,6 @@ struct ResultView: View {
             idealHeight: preferredPanelHeight,
             maxHeight: .infinity
         )
-        .onPreferenceChange(ContentHeightKey.self) { contentHeight = $0 }
-        .onDisappear {
-            sourceComposerFocused = false
-            state.setComposerFocused(false)
-        }
     }
 
     private var preferredScrollHeight: CGFloat {
@@ -198,7 +209,7 @@ struct ResultView: View {
         .overlay(RoundedRectangle(cornerRadius: Theme.Radius.card).strokeBorder(Theme.Palette.hairline, lineWidth: 0.5))
     }
 
-    // MARK: - Header (language direction + source actions)
+    // MARK: - Header (language direction + global actions)
 
     private var fixedToolbar: some View {
         header
@@ -219,41 +230,54 @@ struct ResultView: View {
                 onTargetChange: { state.setLanguageDirection(targetCode: $0) },
                 onSwap: swapLanguages
             )
-            if state.settings.learningRecognitionEnabled {
-                LearningStatusChip(text: "选词学习", tone: Theme.Palette.success)
-            }
+            toolbarStatus
             Spacer(minLength: 0)
-            IconButton("arrow.clockwise", help: state.isSourceDirty ? "翻译当前编辑内容" : "重新翻译") {
-                state.retryCurrentTranslation()
+            HStack(spacing: Theme.Spacing.s4) {
+                IconButton(
+                    "arrow.clockwise",
+                    help: state.isSourceDirty ? "翻译当前编辑内容" : "重新翻译",
+                    foreground: state.isSourceDirty ? Theme.Palette.accent : nil,
+                    activeBackground: state.isSourceDirty
+                ) {
+                    state.retryCurrentTranslation()
+                }
+                IconButton("doc.on.doc", help: "复制主要译文") { copy(primaryTranslatedText) }
+                    .disabled(primaryTranslatedText.isEmpty)
+                IconButton(
+                    panelPresentation.isPinned ? "pin.fill" : "pin",
+                    help: panelPresentation.isPinned ? "取消常驻" : "常驻",
+                    foreground: panelPresentation.isPinned ? Theme.Palette.accent : nil,
+                    activeBackground: panelPresentation.isPinned
+                ) {
+                    onTogglePinned()
+                }
+                IconButton(
+                    state.isFavorite ? "star.fill" : "star",
+                    help: state.isFavorite ? "取消收藏" : "收藏",
+                    foreground: state.isFavorite ? Theme.Palette.star : nil,
+                    activeBackground: state.isFavorite
+                ) {
+                    state.toggleFavorite()
+                    showFeedback(state.isFavorite ? "已收藏" : "已取消收藏")
+                }
+                .disabled(state.savedRecordId == nil)
+                IconButton("text.book.closed", help: "打开个人词库") { onVocabulary() }
+                IconButton("gearshape", help: "打开设置") { onConfigureProvider(nil) }
+                IconButton("xmark", help: "关闭") { onClose() }
             }
-            IconButton(
-                panelPresentation.isPinned ? "pin.fill" : "pin",
-                help: panelPresentation.isPinned ? "取消常驻" : "常驻",
-                foreground: panelPresentation.isPinned ? Theme.Palette.accent : nil,
-                activeBackground: panelPresentation.isPinned
-            ) {
-                onTogglePinned()
-            }
-            .help(L(panelPresentation.isPinned ? "取消常驻" : "常驻"))
-            .accessibilityLabel(L(panelPresentation.isPinned ? "取消常驻结果面板" : "常驻结果面板"))
-            Button {
-                state.toggleFavorite()
-                showFeedback(state.isFavorite ? "已收藏" : "已取消收藏")
-            } label: {
-                Image(systemName: state.isFavorite ? "star.fill" : "star")
-                    .foregroundStyle(state.isFavorite ? Theme.Palette.star : Theme.Palette.label2)
-                    .frame(width: 26, height: 26)
-            }
-            .buttonStyle(.borderless)
-            .disabled(state.savedRecordId == nil)
-            .help(L("收藏"))
-            IconButton("doc.on.doc", help: "复制原文") { copy(state.actionSourceText) }
-            IconButton("speaker.wave.2", help: "朗读原文") { state.speakSource() }
-            IconButton("text.book.closed", help: "打开个人词库") { onVocabulary() }
-            IconButton("gearshape", help: "打开设置") { onConfigureProvider(nil) }
-            IconButton("xmark", help: "关闭面板") { onClose() }
         }
         .frame(height: Layout.toolbarControlHeight)
+    }
+
+    @ViewBuilder
+    private var toolbarStatus: some View {
+        if state.isTranslating {
+            LearningStatusChip(text: "翻译中", tone: Theme.Palette.accent)
+        } else if state.isSourceDirty {
+            LearningStatusChip(text: "已修改", tone: Theme.Palette.warning)
+        } else if state.settings.learningRecognitionEnabled {
+            LearningStatusChip(text: "选词学习", tone: Theme.Palette.success)
+        }
     }
 
     private func swapLanguages() {
@@ -377,6 +401,19 @@ struct ResultView: View {
         pb.clearContents()
         pb.setString(text, forType: .string)
         showFeedback("已复制")
+    }
+
+    private var primaryTranslatedText: String {
+        primarySuccessfulOutcome?.result?.translated.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+    }
+
+    private var primarySuccessfulOutcome: AggregatedOutcome? {
+        for slot in orderedSlots {
+            if case .outcome(let outcome) = slot, outcome.result != nil {
+                return outcome
+            }
+        }
+        return nil
     }
 
     private func showFeedback(_ text: String) {
@@ -668,12 +705,9 @@ private struct SourceComposerTextView: NSViewRepresentable {
         textView.font = NSFont.systemFont(ofSize: 13)
         textView.textColor = .labelColor
         if textView.string != text {
-            let selectedRange = textView.selectedRange()
             textView.string = text
-            let length = (text as NSString).length
-            let location = min(selectedRange.location, length)
-            let selectionLength = min(selectedRange.length, max(0, length - location))
-            textView.setSelectedRange(NSRange(location: location, length: selectionLength))
+            textView.setSelectedRange(NSRange(location: 0, length: 0))
+            onSelectionChange("")
         }
         if context.coordinator.lastFocusRequest != focusRequest {
             context.coordinator.lastFocusRequest = focusRequest
@@ -1190,9 +1224,10 @@ private struct SelectableResultTextView: NSViewRepresentable {
         textView.drawsBackground = false
         textView.font = Self.font
         textView.textColor = .labelColor
-        textView.textContainerInset = .zero
+        textView.textContainerInset = Self.textContainerInset
         textView.textContainer?.lineFragmentPadding = 0
         textView.textContainer?.widthTracksTextView = true
+        textView.textContainer?.heightTracksTextView = false
         textView.isHorizontallyResizable = false
         textView.isVerticallyResizable = false
         textView.autoresizingMask = [.width]
@@ -1227,13 +1262,16 @@ private struct SelectableResultTextView: NSViewRepresentable {
         if let sizingTextView = textView as? SizingTextView {
             sizingTextView.lineLimit = lineLimit
         }
+        textView.textContainerInset = Self.textContainerInset
         textView.textContainer?.maximumNumberOfLines = lineLimit ?? 0
         textView.textContainer?.lineBreakMode = lineLimit == nil ? .byWordWrapping : .byTruncatingTail
         textView.textContainer?.containerSize = NSSize(
-            width: Self.resolvedWidth(bounds: textView.bounds.width),
+            width: Self.textContainerWidth(for: Self.resolvedWidth(bounds: textView.bounds.width)),
             height: .greatestFiniteMagnitude
         )
     }
+
+    private static let textContainerInset = NSSize(width: 0, height: 3)
 
     private static var font: NSFont {
         NSFont.systemFont(ofSize: 15)
@@ -1248,10 +1286,17 @@ private struct SelectableResultTextView: NSViewRepresentable {
         return 448
     }
 
+    private static func textContainerWidth(for width: CGFloat) -> CGFloat {
+        max(1, width - textContainerInset.width * 2)
+    }
+
     private static func measuredHeight(for text: String, width: CGFloat, lineLimit: Int?) -> CGFloat {
         let textStorage = NSTextStorage(string: text, attributes: [.font: font])
         let layoutManager = NSLayoutManager()
-        let textContainer = NSTextContainer(containerSize: NSSize(width: width, height: .greatestFiniteMagnitude))
+        let textContainer = NSTextContainer(containerSize: NSSize(
+            width: textContainerWidth(for: width),
+            height: .greatestFiniteMagnitude
+        ))
         textContainer.lineFragmentPadding = 0
         textContainer.maximumNumberOfLines = lineLimit ?? 0
         textContainer.lineBreakMode = lineLimit == nil ? .byWordWrapping : .byTruncatingTail
@@ -1262,7 +1307,7 @@ private struct SelectableResultTextView: NSViewRepresentable {
 
         let usedRect = layoutManager.usedRect(for: textContainer)
         let lineHeight = ceil(font.ascender - font.descender + font.leading)
-        return max(ceil(usedRect.height), lineHeight) + 2
+        return max(ceil(usedRect.height), lineHeight) + textContainerInset.height * 2 + 2
     }
 
     final class SizingTextView: NSTextView {
@@ -1279,7 +1324,9 @@ private struct SelectableResultTextView: NSViewRepresentable {
         override func setFrameSize(_ newSize: NSSize) {
             super.setFrameSize(newSize)
             textContainer?.containerSize = NSSize(
-                width: SelectableResultTextView.resolvedWidth(bounds: newSize.width),
+                width: SelectableResultTextView.textContainerWidth(
+                    for: SelectableResultTextView.resolvedWidth(bounds: newSize.width)
+                ),
                 height: .greatestFiniteMagnitude
             )
             invalidateIntrinsicContentSize()

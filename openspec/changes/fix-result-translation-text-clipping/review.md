@@ -13,3 +13,12 @@ Pass. The result panel continues to use the outer workspace scroll behavior for 
 - `swift test --filter EngineValidatorTests` passed with 10 tests after the learning-card follow-up.
 - `git diff --check` passed.
 - `.codex/skills/ui-acceptance-review/scripts/parrot-ui-acceptance.sh` passed with 92 Swift tests, release build, launch, menu fallback checks, URL smoke checks, result panel smoke check, and workspace resize stability checks.
+
+## Follow-Up: 2026-06-26
+
+The screenshot review showed a remaining visual clipping case where the final translated line was too tight inside the selectable AppKit text view. The follow-up adds explicit vertical text-container inset and includes that inset in the measured height, keeping the fix scoped to macOS result-card text rendering.
+
+Verification:
+- `swift test --filter EngineValidatorTests` passed with 14 tests.
+- `git diff --check` passed.
+- `.codex/skills/ui-acceptance-review/scripts/parrot-ui-acceptance.sh` passed with 100 Swift tests, release build, launch, menu fallback checks, URL smoke checks, and result panel smoke checks.
