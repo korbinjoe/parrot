@@ -23,7 +23,7 @@ final class HistoryWindow {
             })
             let hosting = NSHostingController(rootView: root)
             let win = NSWindow(contentViewController: hosting)
-            win.title = L("Parrot 历史")
+            configureTitle(for: win)
             win.styleMask = [.titled, .closable, .miniaturizable, .resizable]
             win.isReleasedWhenClosed = false
             win.setContentSize(NSSize(width: 760, height: 500))
@@ -35,6 +35,18 @@ final class HistoryWindow {
             WindowPlacement.center(window)
         }
         window?.makeKeyAndOrderFront(nil)
+    }
+
+    func refreshTitle() {
+        if let window {
+            configureTitle(for: window)
+        }
+    }
+
+    private func configureTitle(for window: NSWindow) {
+        let title = L("Parrot 历史")
+        window.title = title
+        window.setAccessibilityTitle(title)
     }
 }
 
@@ -177,7 +189,7 @@ private struct HistoryView: View {
             HStack(spacing: 6) {
                 Image(systemName: "magnifyingglass")
                     .font(.system(size: 12)).foregroundStyle(Theme.Palette.label3)
-                TextField("搜索原文或译文", text: $model.query)
+                TextField(L("搜索原文或译文"), text: $model.query)
                     .textFieldStyle(.plain)
                     .font(Theme.Font.body)
             }
@@ -195,7 +207,7 @@ private struct HistoryView: View {
 
                 if !model.availablePairs.isEmpty {
                     Menu {
-                        Button("全部语言") { model.langPair = "" }
+                        Button(L("全部语言")) { model.langPair = "" }
                         ForEach(model.availablePairs, id: \.self) { pair in
                             Button(pair) { model.langPair = pair }
                         }
@@ -237,7 +249,7 @@ private struct HistoryView: View {
             VStack(spacing: Theme.Spacing.s8) {
                 Image(systemName: "text.bubble")
                     .font(.system(size: 32)).foregroundStyle(Theme.Palette.label3)
-                Text("选择左侧记录查看详情")
+                Text(L("选择左侧记录查看详情"))
                     .font(Theme.Font.callout).foregroundStyle(Theme.Palette.label2)
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -354,7 +366,7 @@ private struct HistoryDetail: View {
                 outcomeCard(outcome)
             }
             Button { onRetranslate() } label: {
-                Label("重新翻译", systemImage: "arrow.clockwise")
+                Label(L("重新翻译"), systemImage: "arrow.clockwise")
             }
             .buttonStyle(PrimaryActionButtonStyle())
             .padding(.top, Theme.Spacing.s4)

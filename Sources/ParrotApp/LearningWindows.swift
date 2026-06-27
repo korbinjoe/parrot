@@ -16,7 +16,7 @@ final class LearningReviewWindow {
         if window == nil {
             let hosting = NSHostingController(rootView: LearningReviewView(state: state))
             let win = NSWindow(contentViewController: hosting)
-            win.title = L("今日复习")
+            configureTitle(for: win)
             win.styleMask = [.titled, .closable, .miniaturizable, .resizable]
             win.isReleasedWhenClosed = false
             win.setContentSize(NSSize(width: 820, height: 520))
@@ -28,6 +28,18 @@ final class LearningReviewWindow {
             WindowPlacement.center(window)
         }
         window?.makeKeyAndOrderFront(nil)
+    }
+
+    func refreshTitle() {
+        if let window {
+            configureTitle(for: window)
+        }
+    }
+
+    private func configureTitle(for window: NSWindow) {
+        let title = L("今日复习")
+        window.title = title
+        window.setAccessibilityTitle(title)
     }
 }
 
@@ -45,7 +57,7 @@ final class VocabularyWindow {
         if window == nil {
             let hosting = NSHostingController(rootView: VocabularyView(state: state))
             let win = NSWindow(contentViewController: hosting)
-            win.title = L("个人词库")
+            configureTitle(for: win)
             win.styleMask = [.titled, .closable, .miniaturizable, .resizable]
             win.isReleasedWhenClosed = false
             win.setContentSize(NSSize(width: 900, height: 540))
@@ -57,6 +69,18 @@ final class VocabularyWindow {
             WindowPlacement.center(window)
         }
         window?.makeKeyAndOrderFront(nil)
+    }
+
+    func refreshTitle() {
+        if let window {
+            configureTitle(for: window)
+        }
+    }
+
+    private func configureTitle(for window: NSWindow) {
+        let title = L("个人词库")
+        window.title = title
+        window.setAccessibilityTitle(title)
     }
 }
 
@@ -186,10 +210,10 @@ private struct LearningReviewView: View {
             Image(systemName: "brain.head.profile")
                 .font(.system(size: 30))
                 .foregroundStyle(Theme.Palette.label3)
-            Text("暂无可复习表达")
+            Text(L("暂无可复习表达"))
                 .font(Theme.Font.callout)
                 .foregroundStyle(Theme.Palette.label2)
-            Text("完成几次英译或译英后，高频表达会出现在这里。")
+            Text(L("完成几次英译或译英后，高频表达会出现在这里。"))
                 .font(Theme.Font.caption)
                 .foregroundStyle(Theme.Palette.label3)
                 .multilineTextAlignment(.center)
@@ -265,15 +289,15 @@ private struct LearningReviewView: View {
 
                 HStack {
                     Spacer()
-                    Button("稍后再练") {
-                        feedbackText = "已保留在今日队列，稍后会再次出现。"
+                    Button(L("稍后再练")) {
+                        feedbackText = L("已保留在今日队列，稍后会再次出现。")
                     }
                     .buttonStyle(.borderless)
                     .font(Theme.Font.callout)
                     Button {
                         moveToNextCard()
                     } label: {
-                        Label("下一张", systemImage: "arrow.right")
+                        Label(L("下一张"), systemImage: "arrow.right")
                     }
                     .buttonStyle(PrimaryActionButtonStyle())
                 }
@@ -291,7 +315,7 @@ private struct LearningReviewView: View {
             Image(systemName: "rectangle.stack.badge.person.crop")
                 .font(.system(size: 34))
                 .foregroundStyle(Theme.Palette.label3)
-            Text("没有复习卡片")
+            Text(L("没有复习卡片"))
                 .font(Theme.Font.callout)
                 .foregroundStyle(Theme.Palette.label2)
         }
@@ -416,7 +440,7 @@ private struct VocabularyView: View {
                     Image(systemName: "magnifyingglass")
                         .font(.system(size: 12))
                         .foregroundStyle(Theme.Palette.label3)
-                    TextField("搜索表达或来源句", text: $query)
+                    TextField(L("搜索表达或来源句"), text: $query)
                         .textFieldStyle(.plain)
                         .font(Theme.Font.body)
                 }
@@ -468,10 +492,10 @@ private struct VocabularyView: View {
             Image(systemName: "text.book.closed")
                 .font(.system(size: 30))
                 .foregroundStyle(Theme.Palette.label3)
-            Text("暂无词库记录")
+            Text(L("暂无词库记录"))
                 .font(Theme.Font.callout)
                 .foregroundStyle(Theme.Palette.label2)
-            Text("加入或手动添加表达后会出现在这里。")
+            Text(L("加入或手动添加表达后会出现在这里。"))
                 .font(Theme.Font.caption)
                 .foregroundStyle(Theme.Palette.label3)
         }
@@ -496,7 +520,7 @@ private struct VocabularyView: View {
                 Image(systemName: "text.book.closed")
                     .font(.system(size: 34))
                     .foregroundStyle(Theme.Palette.label3)
-                Text("选择左侧表达查看详情")
+                Text(L("选择左侧表达查看详情"))
                     .font(Theme.Font.callout)
                     .foregroundStyle(Theme.Palette.label2)
             }
@@ -543,13 +567,14 @@ private struct VocabularyView: View {
 
     private func vocabularyDetail(_ item: LearningVocabularyItem) -> some View {
         let expression = item.expression
+        let sourceLabel = item.isSaved ? L("个人词库") : L("历史推荐")
         return VStack(alignment: .leading, spacing: Theme.Spacing.s12) {
             HStack(alignment: .top, spacing: Theme.Spacing.s12) {
                 VStack(alignment: .leading, spacing: 3) {
                     Text(expression.term)
                         .font(.system(size: 22, weight: .semibold))
                         .foregroundStyle(Theme.Palette.label)
-                    Text("\(expression.kind) · \(expression.displayCount) · \(item.sceneLabel) · \(item.isSaved ? "个人词库" : "历史推荐")")
+                    Text("\(L(expression.kind)) · \(expression.displayCount) · \(L(item.sceneLabel)) · \(sourceLabel)")
                         .font(Theme.Font.callout)
                         .foregroundStyle(Theme.Palette.label2)
                 }
@@ -631,21 +656,21 @@ private struct VocabularyView: View {
 
     private var addVocabularySheet: some View {
         VStack(alignment: .leading, spacing: Theme.Spacing.s12) {
-            Text("添加表达")
+            Text(L("添加表达"))
                 .font(.system(size: 18, weight: .semibold))
                 .foregroundStyle(Theme.Palette.label)
             VStack(alignment: .leading, spacing: 8) {
-                TextField("表达", text: $newTerm)
-                TextField("语境释义", text: $newMeaning)
-                TextField("来源句", text: $newSourceSentence)
+                TextField(L("表达"), text: $newTerm)
+                TextField(L("语境释义"), text: $newMeaning)
+                TextField(L("来源句"), text: $newSourceSentence)
             }
             .textFieldStyle(.roundedBorder)
             HStack {
                 Spacer()
-                Button("取消") {
+                Button(L("取消")) {
                     showAddSheet = false
                 }
-                Button("加入词库") {
+                Button(L("加入词库")) {
                     if let id = settings.addLearningVocabularyTerm(
                         term: newTerm,
                         meaning: newMeaning,

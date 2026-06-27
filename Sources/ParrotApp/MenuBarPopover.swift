@@ -50,7 +50,7 @@ struct MenuBarPopoverView: View {
 
             sectionLabel("最近")
             if recents.isEmpty {
-                Text("暂无翻译记录")
+                Text(L("暂无翻译记录"))
                     .font(Theme.Font.caption).foregroundStyle(Theme.Palette.label3)
                     .padding(.horizontal, 10).padding(.vertical, 5)
             } else {
@@ -122,12 +122,12 @@ struct MenuBarPopoverView: View {
                     Text(L(state.permissions.summary))
                         .font(.system(size: 12, weight: .semibold))
                         .foregroundStyle(Theme.Palette.label)
-                    Text("部分快捷动作暂不可用")
+                    Text(L("部分快捷动作暂不可用"))
                         .font(Theme.Font.caption)
                         .foregroundStyle(Theme.Palette.label3)
                 }
                 Spacer(minLength: 0)
-                Button("设置") { onSettings() }
+                Button(L("设置")) { onSettings() }
                     .buttonStyle(.borderless)
                     .font(Theme.Font.caption)
             }

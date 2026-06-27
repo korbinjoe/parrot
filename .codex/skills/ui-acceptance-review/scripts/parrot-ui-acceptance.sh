@@ -21,6 +21,7 @@ trap cleanup EXIT
 
 APP="$ROOT/build/Parrot.app"
 DEBUG_LOG="/tmp/parrot-debug.log"
+BUNDLE_ID="${PARROT_BUNDLE_ID:-com.parrot.app}"
 
 info "running swift test"
 swift test
@@ -31,6 +32,7 @@ test -d "$APP" || fail "missing built app at $APP"
 
 info "launching built app"
 cleanup
+defaults write "$BUNDLE_ID" app.languageCode en >/dev/null 2>&1 || true
 sleep 0.5
 open -na "$APP"
 sleep 1.5
@@ -244,7 +246,7 @@ guard AXIsProcessTrusted() else {
 }
 
 let app = AXUIElementCreateApplication(pid)
-let requiredMenuItems = ["输入翻译", "查看历史", "设置…", "退出 Parrot"]
+let requiredMenuItems = ["Input Translation", "View History", "Settings...", "Quit Parrot"]
 for name in requiredMenuItems {
     guard menuItem(named: name, in: app) != nil else {
         fail("missing App menu fallback item: \(name)")
@@ -252,36 +254,36 @@ for name in requiredMenuItems {
 }
 print("INFO: menu fallback entries found")
 
-if let settings = menuItem(named: "设置…", in: app) {
-    press(settings, name: "设置…")
+if let settings = menuItem(named: "Settings...", in: app) {
+    press(settings, name: "Settings...")
     usleep(800_000)
-    assertWindowTitle("Parrot 设置", in: app)
+    assertWindowTitle("Parrot Settings", in: app)
 }
 
-if let history = menuItem(named: "查看历史", in: app) {
-    press(history, name: "查看历史")
+if let history = menuItem(named: "View History", in: app) {
+    press(history, name: "View History")
     usleep(800_000)
-    assertWindowTitle("Parrot 历史", in: app)
+    assertWindowTitle("Parrot History", in: app)
 }
 
-if let input = menuItem(named: "输入翻译", in: app) {
-    press(input, name: "输入翻译")
+if let input = menuItem(named: "Input Translation", in: app) {
+    press(input, name: "Input Translation")
     usleep(800_000)
-    guard let workspace = window(named: "Parrot 翻译", in: app) else {
+    guard let workspace = window(named: "Parrot Translation", in: app) else {
         fail("translation workspace did not appear; windows=\(windowTitles(in: app))")
     }
     assertEditableComposer(in: workspace)
-    guard let settingsButton = button(named: "打开设置", in: workspace) else {
+    guard let settingsButton = button(named: "Open Settings", in: workspace) else {
         fail("translation workspace missing settings button in window controls")
     }
-    press(settingsButton, name: "打开设置")
+    press(settingsButton, name: "Open Settings")
     usleep(800_000)
-    assertWindowTitle("Parrot 设置", in: app)
+    assertWindowTitle("Parrot Settings", in: app)
 }
 
 openURL("parrot://ocr-fixture?text=OCR%20fixture%20line%201%0AOCR%20fixture%20line%202&confidence=0.62&provider=Fixture%20OCR", appURL: appURL)
 usleep(1_500_000)
-if let workspace = window(named: "Parrot 翻译", in: app),
+if let workspace = window(named: "Parrot Translation", in: app),
    let composer = editableComposer(in: workspace) {
     let composerValue = value(composer)
     guard composerValue.contains("OCR fixture line 1") && composerValue.contains("OCR fixture line 2") else {
@@ -315,7 +317,7 @@ if let workspace = window(named: "Parrot 翻译", in: app),
     AXUIElementSetAttributeValue(composer, kAXFocusedAttribute as CFString, kCFBooleanTrue)
     sendCommandReturn()
     usleep(1_500_000)
-    guard let translatedWorkspace = window(named: "Parrot 翻译", in: app),
+    guard let translatedWorkspace = window(named: "Parrot Translation", in: app),
           let positionAfterTranslate = pointValue(translatedWorkspace, kAXPositionAttribute as String) else {
         fail("workspace disappeared after translating OCR fixture")
     }

@@ -133,6 +133,11 @@ final class FloatingPanel {
         }
     }
 
+    func refreshTitle() {
+        panel?.title = L("Parrot 翻译")
+        panel?.setAccessibilityTitle(L("Parrot 翻译"))
+    }
+
     private func requestComposerFocusOnNextRunLoop() {
         DispatchQueue.main.async { [weak self] in
             self?.state.requestComposerFocus()
@@ -153,7 +158,9 @@ final class FloatingPanel {
         self.hosting = hosting
         let p = WorkspacePanel(contentViewController: hosting)
         p.styleMask = [.titled, .closable, .resizable, .fullSizeContentView]
-        p.title = L("Parrot 翻译")
+        let title = L("Parrot 翻译")
+        p.title = title
+        p.setAccessibilityTitle(title)
         p.titleVisibility = .hidden
         p.titlebarAppearsTransparent = true
         p.contentMinSize = Metrics.minContentSize

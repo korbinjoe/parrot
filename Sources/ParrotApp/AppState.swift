@@ -87,6 +87,7 @@ final class AppState: ObservableObject {
     private var currentMode: TranslateMode = .translate
     private let directionResolver = TranslationDirectionResolver()
     private var learningHistoryRefreshGeneration = 0
+    private var settingsObserver: AnyCancellable?
     private static let slowProviderSoftTimeout: TimeInterval = 8
 
     var sourceDraftTrimmed: String {
@@ -127,6 +128,9 @@ final class AppState: ObservableObject {
 
     init() {
         coordinator = TranslationCoordinator(registry: registry)
+        settingsObserver = settings.objectWillChange.sink { [weak self] _ in
+            self?.objectWillChange.send()
+        }
         sourceLanguage = settings.sourceLanguage
         targetLanguage = settings.targetLanguage
         Speaker.shared.coordinator = ttsCoordinator

@@ -56,6 +56,12 @@ final class SettingsWindow {
         window?.makeKeyAndOrderFront(nil)
     }
 
+    func refreshTitle() {
+        if let window {
+            configureTitle(for: window)
+        }
+    }
+
     private func configureTitle(for window: NSWindow) {
         let title = L("Parrot 设置")
         window.title = title
@@ -466,9 +472,19 @@ struct SettingsView: View {
             sectionTitle("通用")
             permissionGroup
             formGroup {
+                settingRow("应用语言") {
+                    Picker("", selection: $settings.appLanguageCode) {
+                        ForEach(L10n.supportedLanguages) { language in
+                            Text(language.nativeName).tag(language.code)
+                        }
+                    }
+                    .labelsHidden()
+                    .frame(width: 160)
+                }
+                formHelpText("界面语言会立即应用；默认翻译语言不受影响。")
                 settingRow("默认来源语言") {
                     Picker("", selection: $settings.sourceLanguageCode) {
-                        Text("自动").tag("auto")
+                        Text(L("自动")).tag("auto")
                         ForEach(languages, id: \.0) { code, name in Text(name).tag(code) }
                     }
                     .labelsHidden()
@@ -491,7 +507,7 @@ struct SettingsView: View {
         VStack(alignment: .leading, spacing: 0) {
             sectionTitle("翻译引擎")
             subsectionTitle("已开启")
-            Text("结果面板按这里的顺序显示；用箭头调整优先级。")
+            Text(L("结果面板按这里的顺序显示；用箭头调整优先级。"))
                 .font(Theme.Font.caption)
                 .foregroundStyle(Theme.Palette.label3)
                 .padding(.bottom, Theme.Spacing.s8)
@@ -535,9 +551,9 @@ struct SettingsView: View {
             formGroup {
                 settingRow("每日复习强度") {
                     Picker("", selection: $settings.learningReviewIntensity) {
-                        Text("轻量 · 3 分钟").tag("light")
-                        Text("标准 · 5 分钟").tag("standard")
-                        Text("强化 · 10 分钟").tag("intense")
+                        Text(L("轻量 · 3 分钟")).tag("light")
+                        Text(L("标准 · 5 分钟")).tag("standard")
+                        Text(L("强化 · 10 分钟")).tag("intense")
                     }
                     .labelsHidden()
                     .frame(width: 150)
@@ -613,19 +629,19 @@ struct SettingsView: View {
                 Button {
                     beginNewTerminologyEntry()
                 } label: {
-                    Label("新增", systemImage: "plus")
+                    Label(L("新增"), systemImage: "plus")
                 }
                 .buttonStyle(SettingsMiniButtonStyle(prominence: .accent))
                 Button {
                     importTerminologyCSV()
                 } label: {
-                    Label("导入", systemImage: "square.and.arrow.down")
+                    Label(L("导入"), systemImage: "square.and.arrow.down")
                 }
                 .buttonStyle(SettingsMiniButtonStyle())
                 Button {
                     exportTerminologyCSV()
                 } label: {
-                    Label("导出", systemImage: "square.and.arrow.up")
+                    Label(L("导出"), systemImage: "square.and.arrow.up")
                 }
                 .buttonStyle(SettingsMiniButtonStyle())
                 Spacer()
@@ -684,7 +700,7 @@ struct SettingsView: View {
             }
             settingRow("源语言") {
                 Picker("", selection: $terminologyDraft.fromCode) {
-                    Text("任意").tag("auto")
+                    Text(L("任意")).tag("auto")
                     ForEach(languages, id: \.0) { code, name in Text(name).tag(code) }
                 }
                 .labelsHidden()
@@ -710,15 +726,15 @@ struct SettingsView: View {
                     .controlSize(.small)
             }
             settingRow("备注") {
-                TextField("可选", text: $terminologyDraft.note)
+                TextField(L("可选"), text: $terminologyDraft.note)
                     .textFieldStyle(.roundedBorder)
                     .frame(width: 240)
             }
             HStack(spacing: Theme.Spacing.s8) {
                 Spacer()
-                Button("取消") { cancelTerminologyEdit() }
+                Button(L("取消")) { cancelTerminologyEdit() }
                     .buttonStyle(SettingsMiniButtonStyle())
-                Button("保存") { saveTerminologyDraft() }
+                Button(L("保存")) { saveTerminologyDraft() }
                     .buttonStyle(SettingsMiniButtonStyle(prominence: .accent))
             }
             .padding(.horizontal, Theme.Spacing.s12)
@@ -756,15 +772,15 @@ struct SettingsView: View {
     private func terminologyImportPreview(_ plan: TerminologyImportPlan) -> some View {
         formGroup {
             settingRow("导入预览") {
-                Text("新增 \(plan.addedCount) · 覆盖 \(plan.overwrittenCount) · 冲突 \(plan.conflictCount)")
+                Text(L("新增 %d · 覆盖 %d · 冲突 %d", plan.addedCount, plan.overwrittenCount, plan.conflictCount))
                     .font(Theme.Font.caption)
                     .foregroundStyle(plan.conflictCount > 0 ? Theme.Palette.warning : Theme.Palette.label2)
             }
             HStack(spacing: Theme.Spacing.s8) {
                 Spacer()
-                Button("取消") { pendingTerminologyImport = nil }
+                Button(L("取消")) { pendingTerminologyImport = nil }
                     .buttonStyle(SettingsMiniButtonStyle())
-                Button("确认导入") {
+                Button(L("确认导入")) {
                     settings.applyTerminologyImport(plan)
                     pendingTerminologyImport = nil
                     terminologyNote = "已导入术语"
@@ -901,10 +917,10 @@ struct SettingsView: View {
             }
             callout("离线默认可用 Apple Vision。百度/腾讯 OCR 密钥与翻译相同格式，在「密钥」页配置。")
             HStack(spacing: Theme.Spacing.s12) {
-                Button("配置当前 OCR 密钥") { focusCredentialService(settings.ocrProviderId) }
+                Button(L("配置当前 OCR 密钥")) { focusCredentialService(settings.ocrProviderId) }
                     .controlSize(.small)
                     .disabled(CredentialCatalog.descriptor(matching: settings.ocrProviderId) == nil)
-                Button("验证 OCR 配置") { validateOCR() }
+                Button(L("验证 OCR 配置")) { validateOCR() }
                     .controlSize(.small)
                 if !validateNote.isEmpty {
                     Text(validateNote).font(Theme.Font.callout).foregroundStyle(Theme.Palette.label2)
@@ -931,7 +947,7 @@ struct SettingsView: View {
             }
             callout("默认使用系统离线语音。云端 TTS 需在「密钥」页配置对应 API Key。")
             HStack(spacing: Theme.Spacing.s12) {
-                Button("配置当前 TTS 密钥") { focusCredentialService(settings.ttsProviderId) }
+                Button(L("配置当前 TTS 密钥")) { focusCredentialService(settings.ttsProviderId) }
                     .controlSize(.small)
                     .disabled(CredentialCatalog.descriptor(matching: settings.ttsProviderId) == nil)
                 Spacer()
@@ -1049,10 +1065,10 @@ struct SettingsView: View {
     private var keyPaneHeader: some View {
         HStack(alignment: .top, spacing: Theme.Spacing.s16) {
             VStack(alignment: .leading, spacing: 3) {
-                Text("密钥")
+                Text(L("密钥"))
                     .font(.system(size: 22, weight: .semibold))
                     .foregroundStyle(Theme.Palette.label)
-                Text("默认展示需要处理和已生效的服务；完整 provider 目录通过选择器添加，不再把所有低频服务平铺在主页面。")
+                Text(L("默认展示需要处理和已生效的服务；完整 provider 目录通过选择器添加，不再把所有低频服务平铺在主页面。"))
                     .font(Theme.Font.body)
                     .foregroundStyle(Theme.Palette.label2)
                     .fixedSize(horizontal: false, vertical: true)
@@ -1062,7 +1078,7 @@ struct SettingsView: View {
                 providerPickerSearchText = ""
                 showProviderPicker = true
             } label: {
-                Label("添加 Provider", systemImage: "plus")
+                Label(L("添加 Provider"), systemImage: "plus")
             }
             .buttonStyle(SettingsMiniButtonStyle(prominence: .accent))
             .popover(isPresented: $showProviderPicker, arrowEdge: .top) {
@@ -1167,10 +1183,10 @@ struct SettingsView: View {
                 .background(Color(nsColor: .systemBlue).opacity(0.12))
                 .clipShape(RoundedRectangle(cornerRadius: 8))
             VStack(alignment: .leading, spacing: 2) {
-                Text("密钥存储在本机密钥库")
+                Text(L("密钥存储在本机密钥库"))
                     .font(Theme.Font.body)
                     .foregroundStyle(Theme.Palette.label)
-                Text("存储路径：~/Library/Application Support/Parrot/secrets.json。环境变量和系统配置优先于本机保存；清除 Key 不会影响历史记录、收藏或当前草稿。")
+                Text(L("存储路径：~/Library/Application Support/Parrot/secrets.json。环境变量和系统配置优先于本机保存；清除 Key 不会影响历史记录、收藏或当前草稿。"))
                     .font(Theme.Font.callout)
                     .foregroundStyle(Theme.Palette.label2)
                     .fixedSize(horizontal: false, vertical: true)
@@ -1186,10 +1202,10 @@ struct SettingsView: View {
         VStack(alignment: .leading, spacing: Theme.Spacing.s12) {
             HStack(alignment: .top) {
                 VStack(alignment: .leading, spacing: 2) {
-                    Text("选择 Provider")
+                    Text(L("选择 Provider"))
                         .font(.system(size: 15, weight: .semibold))
                         .foregroundStyle(Theme.Palette.label)
-                    Text("按服务类型选择，不把低频 provider 固定平铺。")
+                    Text(L("按服务类型选择，不把低频 provider 固定平铺。"))
                         .font(Theme.Font.callout)
                         .foregroundStyle(Theme.Palette.label2)
                 }
@@ -1264,10 +1280,10 @@ struct SettingsView: View {
 
     private var keyEmptyState: some View {
         VStack(alignment: .leading, spacing: 2) {
-            Text("没有匹配的 Provider")
+            Text(L("没有匹配的 Provider"))
                 .font(Theme.Font.body.weight(.semibold))
                 .foregroundStyle(Theme.Palette.label)
-            Text("清空搜索，或通过添加 Provider 打开完整目录。")
+            Text(L("清空搜索，或通过添加 Provider 打开完整目录。"))
                 .font(Theme.Font.callout)
                 .foregroundStyle(Theme.Palette.label2)
         }
@@ -1381,19 +1397,19 @@ struct SettingsView: View {
             }
 
             HStack(alignment: .center, spacing: Theme.Spacing.s8) {
-                Button("验证") { validateCredentialService(descriptor) }
+                Button(L("验证")) { validateCredentialService(descriptor) }
                     .buttonStyle(SettingsMiniButtonStyle())
                     .disabled(credentialNotes[descriptor.id] == .validating)
                 if let credential = descriptor.credential {
-                    Button("清除") { clearSecret(credential.account, serviceID: descriptor.id) }
+                    Button(L("清除")) { clearSecret(credential.account, serviceID: descriptor.id) }
                         .buttonStyle(SettingsMiniButtonStyle())
                         .disabled(!settings.hasStoredSecret(account: credential.account))
                 }
                 if canRetryFromCredential(descriptor) {
-                    Button("保存并重试") { saveAndRetryCredentialService(descriptor) }
+                    Button(L("保存并重试")) { saveAndRetryCredentialService(descriptor) }
                         .buttonStyle(SettingsMiniButtonStyle(prominence: .accent))
                 } else {
-                    Button("保存到本机") { saveCredentialService(descriptor) }
+                    Button(L("保存到本机")) { saveCredentialService(descriptor) }
                         .buttonStyle(SettingsMiniButtonStyle(prominence: .accent))
                 }
                 if let note {
@@ -1456,7 +1472,7 @@ struct SettingsView: View {
                 Button {
                     addModelConfig(for: descriptor)
                 } label: {
-                    Label("新增", systemImage: "plus")
+                    Label(L("新增"), systemImage: "plus")
                 }
                 .buttonStyle(SettingsMiniButtonStyle())
             }
@@ -1490,7 +1506,7 @@ struct SettingsView: View {
             }
             .disabled(model.id == EngineModelConfig.primaryID || modelConfigsDraft(for: descriptor).count <= 1)
             if index == 0 {
-                Text("默认")
+                Text(L("默认"))
                     .font(Theme.Font.tag)
                     .foregroundStyle(Theme.Palette.label2)
                     .padding(.horizontal, 6)
@@ -1547,7 +1563,7 @@ struct SettingsView: View {
                 }
             }
             HStack(spacing: Theme.Spacing.s8) {
-                Button("恢复默认快捷键") {
+                Button(L("恢复默认快捷键")) {
                     stopShortcutRecording()
                     settings.resetShortcuts()
                     savedNote = L("已恢复默认快捷键")
@@ -1569,11 +1585,11 @@ struct SettingsView: View {
     private var pluginsPane: some View {
         VStack(alignment: .leading, spacing: 0) {
             sectionTitle("插件")
-            Text("JS 插件可接入任意 LLM / 词典，运行于沙箱（网络白名单）。")
+            Text(L("JS 插件可接入任意 LLM / 词典，运行于沙箱（网络白名单）。"))
                 .font(Theme.Font.callout).foregroundStyle(Theme.Palette.label2)
                 .padding(.bottom, Theme.Spacing.s12)
             HStack(spacing: Theme.Spacing.s12) {
-                Button("打开插件目录") { openPluginsFolder() }
+                Button(L("打开插件目录")) { openPluginsFolder() }
                 Spacer()
             }
             callout("插件目录：~/Library/Application Support/Parrot/Plugins\n开发文档见仓库 docs/plugin-development.md")
@@ -1591,7 +1607,7 @@ struct SettingsView: View {
                     Text(L("版本 %@", appVersion)).font(Theme.Font.callout).foregroundStyle(Theme.Palette.label2)
                 }
             }
-            Text("开源的 macOS 翻译 + OCR 工具 · 完全免费、无次数限制")
+            Text(L("开源的 macOS 翻译 + OCR 工具 · 完全免费、无次数限制"))
                 .font(Theme.Font.callout).foregroundStyle(Theme.Palette.label2)
                 .padding(.top, Theme.Spacing.s4)
             formGroup {
@@ -1617,7 +1633,7 @@ struct SettingsView: View {
                 }
             }
             .padding(.top, Theme.Spacing.s8)
-            Link("GitHub 仓库", destination: URL(string: "https://github.com/korbinjoe/parrot")!)
+            Link(L("GitHub 仓库"), destination: URL(string: "https://github.com/korbinjoe/parrot")!)
                 .font(Theme.Font.callout)
         }
     }
@@ -1712,7 +1728,7 @@ struct SettingsView: View {
                 }
                 Spacer()
                 if granted {
-                    Text("可用")
+                    Text(L("可用"))
                         .font(Theme.Font.caption)
                         .foregroundStyle(Theme.Palette.success)
                 } else {

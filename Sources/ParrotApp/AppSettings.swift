@@ -29,6 +29,16 @@ final class AppSettings: ObservableObject {
     static let siliconFlowAccount = "engine.siliconflow.apiKey"
     static let openCodeAccount = "engine.opencode.apiKey"
 
+    @Published var appLanguageCode: String {
+        didSet {
+            let normalized = L10n.normalizedLanguageCode(appLanguageCode)
+            if appLanguageCode != normalized {
+                appLanguageCode = normalized
+                return
+            }
+            L10n.setLanguageCode(normalized, defaults: defaults)
+        }
+    }
     @Published var targetLanguageCode: String {
         didSet { defaults.set(targetLanguageCode, forKey: "targetLanguageCode") }
     }
@@ -131,6 +141,9 @@ final class AppSettings: ObservableObject {
         self.defaults = defaults
         self.terminologyStore = terminologyStore
         let terminologyState = terminologyStore.loadState()
+        let initialAppLanguageCode = L10n.languageCode(defaults: defaults)
+        self.appLanguageCode = initialAppLanguageCode
+        L10n.setLanguageCode(initialAppLanguageCode, defaults: defaults, notify: false)
         self.targetLanguageCode = defaults.string(forKey: "targetLanguageCode") ?? "zh"
         self.sourceLanguageCode = defaults.string(forKey: "sourceLanguageCode") ?? "auto"
         self.googleEnabled = defaults.object(forKey: "engine.google.enabled") as? Bool ?? true

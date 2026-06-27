@@ -1114,7 +1114,7 @@ struct LearningContextCard: View {
     var body: some View {
         VStack(alignment: .leading, spacing: Theme.Spacing.s8) {
             HStack(alignment: .firstTextBaseline, spacing: Theme.Spacing.s8) {
-                Text("选中")
+                Text(L("选中"))
                     .font(Theme.Font.caption)
                     .foregroundStyle(Theme.Palette.label3)
                 VStack(alignment: .leading, spacing: 2) {
@@ -1135,7 +1135,7 @@ struct LearningContextCard: View {
             if actionsEnabled {
                 HStack(spacing: Theme.Spacing.s8) {
                     FrequencyBadge(count: expression.occurrenceCount)
-                    Text(mastered ? "已认识" : expression.masteryText)
+                    Text(mastered ? L("已认识") : expression.masteryText)
                         .font(Theme.Font.caption)
                         .foregroundStyle(Theme.Palette.label3)
                         .lineLimit(1)
@@ -1155,7 +1155,7 @@ struct LearningContextCard: View {
                 HStack(spacing: Theme.Spacing.s8) {
                     ProgressView()
                         .controlSize(.small)
-                    Text("正在查询释义")
+                    Text(L("正在查询释义"))
                         .font(Theme.Font.caption)
                         .foregroundStyle(Theme.Palette.label3)
                     Spacer(minLength: 0)
@@ -1169,12 +1169,12 @@ struct LearningContextCard: View {
     }
 
     private var metaText: String {
-        expression.phonetic ?? "来自当前句子"
+        expression.phonetic ?? L("来自当前句子")
     }
 
     private var meaningBlock: some View {
         VStack(alignment: .leading, spacing: 4) {
-            Text("句中含义")
+            Text(L("句中含义"))
                 .font(Theme.Font.caption)
                 .foregroundStyle(Theme.Palette.label3)
             Text(expression.meaning)
@@ -1186,7 +1186,7 @@ struct LearningContextCard: View {
     }
 
     private var contextLine: some View {
-        Text("原句：\(expression.chunk)")
+        Text(L("原句：%@", expression.chunk))
             .font(Theme.Font.callout)
             .foregroundStyle(Theme.Palette.label2)
             .lineLimit(2)
@@ -1226,7 +1226,7 @@ struct LearningMicroPracticeView: View {
                 Image(systemName: "textformat")
                     .font(.system(size: 12))
                     .foregroundStyle(Theme.Palette.label2)
-                Text("10 秒微练习")
+                Text(L("10 秒微练习"))
                     .font(.system(size: 13, weight: .semibold))
                     .foregroundStyle(Theme.Palette.label)
                 Spacer(minLength: 0)

@@ -170,7 +170,7 @@ struct ResultView: View {
     }
 
     private var emptyState: some View {
-        Text("输入、划词或截图后，源文会出现在这里。")
+        Text(L("输入、划词或截图后，源文会出现在这里。"))
             .foregroundStyle(Theme.Palette.label2)
             .font(Theme.Font.callout)
             .padding(.vertical, Theme.Spacing.s8)
@@ -182,7 +182,7 @@ struct ResultView: View {
             Image(systemName: "keyboard")
                 .font(.system(size: 12))
                 .foregroundStyle(Theme.Palette.accent)
-            Text("校对源文后按 ⌘↩ 翻译，或点击源文区右下角的“翻译”。")
+            Text(L("校对源文后按 ⌘↩ 翻译，或点击源文区右下角的“翻译”。"))
                 .font(Theme.Font.callout)
                 .foregroundStyle(Theme.Palette.label2)
             Spacer(minLength: 0)
@@ -197,7 +197,7 @@ struct ResultView: View {
     private var recognizingState: some View {
         HStack(spacing: Theme.Spacing.s8) {
             ProgressView().controlSize(.small)
-            Text("正在识别截图文字…")
+            Text(L("正在识别截图文字…"))
                 .font(Theme.Font.callout)
                 .foregroundStyle(Theme.Palette.label2)
             Spacer(minLength: 0)
@@ -290,7 +290,7 @@ struct ResultView: View {
         VStack(alignment: .leading, spacing: Theme.Spacing.s8) {
             ZStack(alignment: .topLeading) {
                 if state.sourceDraft.isEmpty {
-                    Text("输入或粘贴要翻译的文本…")
+                    Text(L("输入或粘贴要翻译的文本…"))
                         .font(Theme.Font.body)
                         .foregroundStyle(Theme.Palette.label3)
                         .padding(.top, 8)
@@ -319,15 +319,15 @@ struct ResultView: View {
                 if state.isTranslating {
                     ProgressView().controlSize(.small)
                 } else if state.isSourceDirty {
-                    Text("已修改，⌘↩ 重新翻译")
+                    Text(L("已修改，⌘↩ 重新翻译"))
                 } else {
                     Text(L("%d 个字符", state.sourceDraft.count))
                 }
                 Menu {
-                    Button("删除空行") { state.removeBlankDraftLines() }
-                    Button("合并为一段") { state.mergeDraftLines() }
+                    Button(L("删除空行")) { state.removeBlankDraftLines() }
+                    Button(L("合并为一段")) { state.mergeDraftLines() }
                     Divider()
-                    Button("清空源文", role: .destructive) { state.clearDraft() }
+                    Button(L("清空源文"), role: .destructive) { state.clearDraft() }
                 } label: {
                     Image(systemName: "wand.and.stars")
                         .font(.system(size: 12))
@@ -341,7 +341,7 @@ struct ResultView: View {
                 Button {
                     state.translateDraft()
                 } label: {
-                    Label("翻译", systemImage: "arrow.right.circle.fill")
+                    Label(L("翻译"), systemImage: "arrow.right.circle.fill")
                 }
                 .buttonStyle(PrimaryActionButtonStyle())
                 .keyboardShortcut(.return, modifiers: .command)
@@ -841,7 +841,7 @@ private struct TranslationOutcomeCard: View {
                 )
             }
             if isSlow {
-                Text("较慢生成")
+                Text(L("较慢生成"))
                     .font(Theme.Font.caption)
                     .foregroundStyle(Theme.Palette.label3)
             }
@@ -864,12 +864,12 @@ private struct TranslationOutcomeCard: View {
                     .fixedSize(horizontal: false, vertical: true)
                 if providerNeedsConfiguration(error) {
                     Button { onConfigure() } label: {
-                        Label("配置密钥", systemImage: "gearshape")
+                        Label(L("配置密钥"), systemImage: "gearshape")
                     }
                     .controlSize(.small)
                 } else {
                     Button { onRetry() } label: {
-                        Label("重试此引擎", systemImage: "arrow.clockwise")
+                        Label(L("重试此引擎"), systemImage: "arrow.clockwise")
                     }
                     .controlSize(.small)
                 }
@@ -907,7 +907,7 @@ private struct TranslationOutcomeCard: View {
         VStack(alignment: .leading, spacing: Theme.Spacing.s8) {
             HStack {
                 LearningStatusChip(text: origin)
-                Text("已选中“\(selected.term)”")
+                Text(L("已选中“%@”", selected.term))
                     .font(Theme.Font.caption)
                     .foregroundStyle(Theme.Palette.label2)
                     .lineLimit(1)

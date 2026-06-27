@@ -27,6 +27,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private let popover = NSPopover()
     private var previousFrontmostApp: NSRunningApplication?
     private var shortcutObserver: NSObjectProtocol?
+    private var languageObserver: NSObjectProtocol?
     private var lastHotkeyFireByAction: [String: Date] = [:]
 
     private var hotkeys: [HotKey] = []
@@ -49,8 +50,24 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         ) { [weak self] _ in
             Task { @MainActor in self?.registerHotKeys() }
         }
+        languageObserver = NotificationCenter.default.addObserver(
+            forName: L10n.appLanguageDidChange,
+            object: nil,
+            queue: .main
+        ) { [weak self] _ in
+            Task { @MainActor in self?.refreshLocalizedChrome() }
+        }
         state.refreshPermissions()
         DebugLog.log("launch: pid=\(getpid()) AXIsProcessTrusted=\(state.permissions.accessibilityGranted) screenRecording=\(state.permissions.screenRecordingGranted) exe=\(Bundle.main.executablePath ?? "?")")
+    }
+
+    private func refreshLocalizedChrome() {
+        setupMainMenu()
+        floating.refreshTitle()
+        settingsWindow.refreshTitle()
+        historyWindow.refreshTitle()
+        learningReviewWindow.refreshTitle()
+        vocabularyWindow.refreshTitle()
     }
 
     private func terminateOtherRunningInstances() {

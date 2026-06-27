@@ -169,7 +169,7 @@ private struct InputView: View {
                     .font(.system(size: 16))
                     .foregroundStyle(Theme.Palette.label3)
                     .frame(width: 26, height: 26)
-                TextField("输入要翻译的文本…", text: $text, axis: .vertical)
+                TextField(L("输入要翻译的文本…"), text: $text, axis: .vertical)
                     .textFieldStyle(.plain)
                     .font(.system(size: 17))
                     .lineLimit(1...4)
@@ -192,10 +192,10 @@ private struct InputView: View {
             if !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
                 Divider()
                 HStack(spacing: Theme.Spacing.s8) {
-                    hint("↩"); Text("翻译").foregroundStyle(Theme.Palette.label3)
-                    hint("⎋"); Text("关闭").foregroundStyle(Theme.Palette.label3)
+                    hint("↩"); Text(L("翻译")).foregroundStyle(Theme.Palette.label3)
+                    hint("⎋"); Text(L("关闭")).foregroundStyle(Theme.Palette.label3)
                     Spacer()
-                    Button("翻译") { submit() }
+                    Button(L("翻译")) { submit() }
                         .buttonStyle(PrimaryActionButtonStyle())
                         .keyboardShortcut(.return, modifiers: [])
                 }
