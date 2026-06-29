@@ -29,6 +29,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var shortcutObserver: NSObjectProtocol?
     private var languageObserver: NSObjectProtocol?
     private var lastHotkeyFireByAction: [String: Date] = [:]
+    private var demoRecorder: DemoScreenRecorder?
 
     private var hotkeys: [HotKey] = []
 
@@ -59,6 +60,21 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
         state.refreshPermissions()
         DebugLog.log("launch: pid=\(getpid()) AXIsProcessTrusted=\(state.permissions.accessibilityGranted) screenRecording=\(state.permissions.screenRecordingGranted) exe=\(Bundle.main.executablePath ?? "?")")
+        startDemoRecorderIfRequested()
+    }
+
+    private func startDemoRecorderIfRequested() {
+        let environment = ProcessInfo.processInfo.environment
+        guard let outputPath = environment["PARROT_DEMO_RECORD_PATH"], !outputPath.isEmpty else { return }
+        let seconds = Double(environment["PARROT_DEMO_RECORD_SECONDS"] ?? "") ?? 45
+        let quitWhenDone = environment["PARROT_DEMO_RECORD_QUIT"] != "0"
+        let recorder = DemoScreenRecorder()
+        demoRecorder = recorder
+        recorder.start(outputPath: outputPath, duration: seconds) {
+            if quitWhenDone {
+                NSApp.terminate(nil)
+            }
+        }
     }
 
     private func refreshLocalizedChrome() {
