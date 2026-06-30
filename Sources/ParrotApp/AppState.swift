@@ -150,7 +150,7 @@ final class AppState: ObservableObject {
 
     private func startNetworkMonitor() {
         netMonitor.pathUpdateHandler = { [weak self] path in
-            Task { @MainActor in self?.isOffline = path.status != .satisfied }
+            Task { @MainActor [weak self] in self?.isOffline = path.status != .satisfied }
         }
         netMonitor.start(queue: DispatchQueue(label: "parrot.net.monitor"))
     }

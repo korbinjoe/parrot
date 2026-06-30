@@ -56,7 +56,7 @@ final class InputPanel {
             ctx.timingFunction = CAMediaTimingFunction(name: .easeIn)
             window.animator().alphaValue = 0
         } completionHandler: { [weak self, weak window] in
-            Task { @MainActor in
+            Task { @MainActor [weak self, weak window] in
                 window?.orderOut(nil)
                 window?.alphaValue = 1
                 self?.isHiding = false
@@ -96,7 +96,7 @@ final class InputPanel {
         resignObserver = NotificationCenter.default.addObserver(
             forName: NSWindow.didResignKeyNotification, object: w, queue: .main
         ) { [weak self] _ in
-            Task { @MainActor in self?.hide() }
+            Task { @MainActor [weak self] in self?.hide() }
         }
         installOutsideClickMonitors()
     }
@@ -121,13 +121,13 @@ final class InputPanel {
         if globalMouseDownMonitor == nil {
             globalMouseDownMonitor = NSEvent.addGlobalMonitorForEvents(matching: mask) { [weak self] event in
                 let point = Self.screenPoint(for: event)
-                Task { @MainActor in self?.hideAfterOutsideClickIfNeeded(at: point) }
+                Task { @MainActor [weak self] in self?.hideAfterOutsideClickIfNeeded(at: point) }
             }
         }
         if localMouseDownMonitor == nil {
             localMouseDownMonitor = NSEvent.addLocalMonitorForEvents(matching: mask) { [weak self] event in
                 let point = Self.screenPoint(for: event)
-                Task { @MainActor in self?.hideAfterOutsideClickIfNeeded(at: point) }
+                Task { @MainActor [weak self] in self?.hideAfterOutsideClickIfNeeded(at: point) }
                 return event
             }
         }

@@ -1,8 +1,11 @@
 import AppKit
 import SwiftUI
-import Translation
 import ParrotCore
 import ParrotEngines
+
+// Xcode 16+ (Swift 6) ships the macOS 15 Translation APIs used below; older SDKs get a stub.
+#if compiler(>=6.0)
+import Translation
 
 /// Runs Apple Translation via SwiftUI `translationTask` (TranslationSession has no public init outside this path).
 @available(macOS 15.0, *)
@@ -57,8 +60,8 @@ private final class AppleTranslationRunner: @unchecked Sendable {
                 self.start()
             }
         } onCancel: {
-            Task { @MainActor in
-                self.finish(.failure(CancellationError()))
+            Task { @MainActor [weak self] in
+                self?.finish(.failure(CancellationError()))
             }
         }
     }
@@ -195,3 +198,29 @@ final class AppAppleTranslationEngine: HTTPTranslationEngine, @unchecked Sendabl
         }
     }
 }
+
+#else
+
+/// Stub when building with Xcode 15 / Swift 5 (e.g. CI on macos-14).
+@available(macOS 15.0, *)
+@MainActor
+enum AppleTranslationBridge {
+    static func translate(text: String, from: Language?, to: Language) async throws -> String {
+        throw ProviderError.unsupportedLanguage
+    }
+}
+
+@available(macOS 15.0, *)
+final class AppAppleTranslationEngine: HTTPTranslationEngine, @unchecked Sendable {
+    static var isSupported: Bool { false }
+
+    init(session: URLSession = .shared) {
+        super.init(id: "apple", displayName: L("系统翻译"), session: session)
+    }
+
+    override func translate(_ req: TranslateRequest) async throws -> TranslateResult {
+        throw ProviderError.unsupportedLanguage
+    }
+}
+
+#endif

@@ -49,14 +49,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             object: nil,
             queue: .main
         ) { [weak self] _ in
-            Task { @MainActor in self?.registerHotKeys() }
+            Task { @MainActor [weak self] in self?.registerHotKeys() }
         }
         languageObserver = NotificationCenter.default.addObserver(
             forName: L10n.appLanguageDidChange,
             object: nil,
             queue: .main
         ) { [weak self] _ in
-            Task { @MainActor in self?.refreshLocalizedChrome() }
+            Task { @MainActor [weak self] in self?.refreshLocalizedChrome() }
         }
         state.refreshPermissions()
         DebugLog.log("launch: pid=\(getpid()) AXIsProcessTrusted=\(state.permissions.accessibilityGranted) screenRecording=\(state.permissions.screenRecordingGranted) exe=\(Bundle.main.executablePath ?? "?")")

@@ -185,19 +185,19 @@ final class FloatingPanel {
         resizeObserver = NotificationCenter.default.addObserver(
             forName: NSWindow.didResizeNotification, object: p, queue: .main
         ) { [weak self] _ in
-            Task { @MainActor in self?.preservePlacementAfterResize() }
+            Task { @MainActor [weak self] in self?.preservePlacementAfterResize() }
         }
 
         screenObserver = NotificationCenter.default.addObserver(
             forName: NSWindow.didChangeScreenNotification, object: p, queue: .main
         ) { [weak self] _ in
-            Task { @MainActor in self?.keepCurrentPlacement() }
+            Task { @MainActor [weak self] in self?.keepCurrentPlacement() }
         }
 
         moveObserver = NotificationCenter.default.addObserver(
             forName: NSWindow.didMoveNotification, object: p, queue: .main
         ) { [weak self] _ in
-            Task { @MainActor in
+            Task { @MainActor [weak self] in
                 guard let self else { return }
                 if self.isProgrammaticMove {
                     return
@@ -211,7 +211,7 @@ final class FloatingPanel {
         resignObserver = NotificationCenter.default.addObserver(
             forName: NSWindow.didResignKeyNotification, object: p, queue: .main
         ) { [weak self] _ in
-            Task { @MainActor in
+            Task { @MainActor [weak self] in
                 self?.hideTransientPanelIfNeeded()
             }
         }
@@ -234,13 +234,13 @@ final class FloatingPanel {
         if globalMouseDownMonitor == nil {
             globalMouseDownMonitor = NSEvent.addGlobalMonitorForEvents(matching: mask) { [weak self] event in
                 let point = Self.screenPoint(for: event)
-                Task { @MainActor in self?.hideAfterOutsideClickIfNeeded(at: point) }
+                Task { @MainActor [weak self] in self?.hideAfterOutsideClickIfNeeded(at: point) }
             }
         }
         if localMouseDownMonitor == nil {
             localMouseDownMonitor = NSEvent.addLocalMonitorForEvents(matching: mask) { [weak self] event in
                 let point = Self.screenPoint(for: event)
-                Task { @MainActor in self?.hideAfterOutsideClickIfNeeded(at: point) }
+                Task { @MainActor [weak self] in self?.hideAfterOutsideClickIfNeeded(at: point) }
                 return event
             }
         }
@@ -275,11 +275,11 @@ final class FloatingPanel {
             ctx.duration = 0.12
             ctx.timingFunction = CAMediaTimingFunction(name: .easeIn)
             panel.animator().alphaValue = 0
-        } completionHandler: {
-            Task { @MainActor in
-                panel.orderOut(nil)
-                panel.alphaValue = 1
-                self.isHiding = false
+        } completionHandler: { [weak self, weak panel] in
+            Task { @MainActor [weak self, weak panel] in
+                panel?.orderOut(nil)
+                panel?.alphaValue = 1
+                self?.isHiding = false
             }
         }
     }
