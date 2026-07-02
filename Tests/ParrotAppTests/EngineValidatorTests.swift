@@ -110,6 +110,20 @@ import ParrotCore
 }
 
 @MainActor
+@Test func contextProfilePreferencePersists() {
+    let suiteName = "parrot.test.context-profile.\(UUID().uuidString)"
+    let defaults = UserDefaults(suiteName: suiteName)!
+    defaults.removePersistentDomain(forName: suiteName)
+    defer { defaults.removePersistentDomain(forName: suiteName) }
+
+    let settings = AppSettings(defaults: defaults)
+    settings.rememberContextProfile(.email)
+
+    let reloaded = AppSettings(defaults: defaults)
+    #expect(reloaded.lastContextProfile == .email)
+}
+
+@MainActor
 @Test func learningSettingsClampAndPersistFeedback() throws {
     let suiteName = "parrot.test.learning-settings.\(UUID().uuidString)"
     let defaults = UserDefaults(suiteName: suiteName)!

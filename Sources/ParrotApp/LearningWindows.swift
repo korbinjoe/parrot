@@ -383,15 +383,16 @@ private struct VocabularyView: View {
     @State private var newTerm = ""
     @State private var newMeaning = ""
     @State private var newSourceSentence = ""
+    @State private var cachedItems: [LearningVocabularyItem] = []
 
     init(state: AppState) {
         self.state = state
         self.settings = state.settings
     }
 
-    private var items: [LearningVocabularyItem] {
+    private func filteredItems(from allItems: [LearningVocabularyItem]) -> [LearningVocabularyItem] {
         let q = query.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
-        return state.learningVocabularyItems.filter { item in
+        return allItems.filter { item in
             if scope == .saved && !item.isSaved { return false }
             if scope == .due && !item.isDue { return false }
             if scope == .mastered && item.expression.masteryStage < 4 { return false }
@@ -404,7 +405,7 @@ private struct VocabularyView: View {
         }
     }
 
-    private var selectedItem: LearningVocabularyItem? {
+    private func selectedItem(in items: [LearningVocabularyItem]) -> LearningVocabularyItem? {
         if let selectedID,
            let item = items.first(where: { $0.id == selectedID }) {
             return item
@@ -413,27 +414,42 @@ private struct VocabularyView: View {
     }
 
     var body: some View {
+        let visibleItems = filteredItems(from: cachedItems)
+        let resolvedSelection = selectedItem(in: visibleItems)
         HStack(spacing: 0) {
-            listColumn
+            listColumn(items: visibleItems, currentSelectedID: resolvedSelection?.id)
             Divider()
-            detailColumn
+            detailColumn(item: resolvedSelection, allItems: cachedItems)
         }
         .frame(minWidth: 760, minHeight: 460)
         .onAppear {
             state.refreshLearningHistory()
-            selectedID = selectedItem?.id
+            reloadVocabularyItems()
+            reconcileSelection(in: filteredItems(from: cachedItems))
         }
-        .onChange(of: items.map(\.id)) { _ in
-            if selectedID == nil || !items.contains(where: { $0.id == selectedID }) {
-                selectedID = items.first?.id
-            }
+        .onChange(of: settings.learningVocabularyEntries) { _ in
+            reloadVocabularyItems()
+            reconcileSelection(in: filteredItems(from: cachedItems))
+        }
+        .onChange(of: visibleItems.map(\.id)) { _ in
+            reconcileSelection(in: visibleItems)
         }
         .sheet(isPresented: $showAddSheet) {
             addVocabularySheet
         }
     }
 
-    private var listColumn: some View {
+    private func reloadVocabularyItems() {
+        cachedItems = state.learningVocabularyItems
+    }
+
+    private func reconcileSelection(in items: [LearningVocabularyItem]) {
+        if selectedID == nil || !items.contains(where: { $0.id == selectedID }) {
+            selectedID = items.first?.id
+        }
+    }
+
+    private func listColumn(items: [LearningVocabularyItem], currentSelectedID: String?) -> some View {
         VStack(spacing: 0) {
             HStack(spacing: 7) {
                 HStack(spacing: 7) {
@@ -473,7 +489,8 @@ private struct VocabularyView: View {
                             Button {
                                 selectedID = item.id
                             } label: {
-                                VocabularyRow(item: item, selected: selectedItem?.id == item.id)
+                                VocabularyRow(data: VocabularyRowData(item: item), selected: currentSelectedID == item.id)
+                                    .equatable()
                             }
                             .buttonStyle(.plain)
                         }
@@ -504,11 +521,11 @@ private struct VocabularyView: View {
     }
 
     @ViewBuilder
-    private var detailColumn: some View {
-        if let item = selectedItem {
+    private func detailColumn(item: LearningVocabularyItem?, allItems: [LearningVocabularyItem]) -> some View {
+        if let item {
             ScrollView {
                 VStack(alignment: .leading, spacing: Theme.Spacing.s12) {
-                    metrics
+                    metrics(allItems: allItems)
                     vocabularyDetail(item)
                 }
                 .padding(18)
@@ -529,8 +546,7 @@ private struct VocabularyView: View {
         }
     }
 
-    private var metrics: some View {
-        let allItems = state.learningVocabularyItems
+    private func metrics(allItems: [LearningVocabularyItem]) -> some View {
         let entries = settings.learningVocabularyEntries
         let weekStart = Calendar.current.date(byAdding: .day, value: -7, to: Date()) ?? Date()
         let weekNewCount = entries.filter { $0.savedAt >= weekStart }.count
@@ -617,8 +633,9 @@ private struct VocabularyView: View {
                 Spacer()
                 Button(item.isSaved ? L("移出词库") : L("加入词库")) {
                     if item.isSaved {
+                        let fallbackID = filteredItems(from: cachedItems).first { $0.id != item.id }?.id
                         settings.removeLearningVocabularyEntry(item.id)
-                        selectedID = items.first?.id
+                        selectedID = fallbackID
                     } else {
                         saveIfNeeded(item)
                     }
@@ -698,38 +715,60 @@ private struct VocabularyView: View {
     }
 }
 
-private struct VocabularyRow: View {
-    let item: LearningVocabularyItem
+private struct VocabularyRowData: Equatable, Identifiable {
+    let id: String
+    let term: String
+    let sceneLabel: String
+    let masteryText: String
+    let occurrenceCount: Int
+    let nextReviewLabel: String
+    let isSaved: Bool
+    let isFavorite: Bool
+
+    init(item: LearningVocabularyItem) {
+        id = item.id
+        term = item.expression.term
+        sceneLabel = item.sceneLabel
+        masteryText = item.expression.masteryText
+        occurrenceCount = item.expression.occurrenceCount
+        nextReviewLabel = item.nextReviewLabel
+        isSaved = item.isSaved
+        isFavorite = item.isFavorite
+    }
+}
+
+private struct VocabularyRow: View, Equatable {
+    let data: VocabularyRowData
     let selected: Bool
 
     var body: some View {
         HStack(alignment: .top, spacing: Theme.Spacing.s8) {
             VStack(alignment: .leading, spacing: 2) {
                 HStack(spacing: 5) {
-                    Text(item.expression.term)
+                    Text(data.term)
                         .font(Theme.Font.body)
                         .foregroundStyle(Theme.Palette.label)
                         .lineLimit(1)
-                    if item.isSaved {
+                    if data.isSaved {
                         Image(systemName: "checkmark.circle.fill")
                             .font(.system(size: 10))
                             .foregroundStyle(Theme.Palette.success)
                     }
-                    if item.isFavorite {
+                    if data.isFavorite {
                         Image(systemName: "star.fill")
                             .font(.system(size: 10))
                             .foregroundStyle(Theme.Palette.star)
                     }
                 }
-                Text("\(item.sceneLabel) · \(item.expression.masteryText)")
+                Text("\(data.sceneLabel) · \(data.masteryText)")
                     .font(Theme.Font.caption)
                     .foregroundStyle(Theme.Palette.label3)
                     .lineLimit(1)
             }
             Spacer(minLength: 0)
             VStack(alignment: .trailing, spacing: 5) {
-                FrequencyBadge(count: item.expression.occurrenceCount)
-                Text(item.nextReviewLabel)
+                FrequencyBadge(count: data.occurrenceCount)
+                Text(data.nextReviewLabel)
                     .font(Theme.Font.caption)
                     .foregroundStyle(Theme.Palette.label3)
             }

@@ -43,6 +43,36 @@ import Testing
     #expect(outcomes.isEmpty)
 }
 
+@Test func polishModeUsesAllActiveProviders() async {
+    let registry = ProviderRegistry()
+    registry.register(DelayedEngine(id: "translate-only", delayMs: 0))
+    registry.register(MockEngine())
+    let coordinator = TranslationCoordinator(registry: registry)
+    let outcomes = await coordinator.translateAll(
+        TranslateRequest(text: "rough draft", to: .en, mode: .polish)
+    )
+
+    #expect(outcomes.map(\.providerId) == ["translate-only", "mock"])
+    #expect(outcomes.allSatisfy { $0.isSuccess })
+}
+
+@Test func polishModePreservesDetectedSourceLanguage() async {
+    let registry = ProviderRegistry()
+    registry.register(DirectionEchoEngine())
+    let coordinator = TranslationCoordinator(registry: registry)
+
+    let outcomes = await coordinator.translateAll(
+        TranslateRequest(
+            text: "This draft needs clearer wording before I send it.",
+            from: .auto,
+            to: .zh,
+            mode: .polish
+        )
+    )
+
+    #expect(outcomes.first?.result?.translated == "en->en")
+}
+
 @Test func registryExposesDisplayOrderIDsForCachedRendering() {
     let registry = ProviderRegistry()
     registry.register(DelayedEngine(id: "a", delayMs: 0))

@@ -26,6 +26,17 @@ public struct AggregatedOutcome: Sendable {
     }
 
     public var isSuccess: Bool { result != nil }
+
+    public func withResult(_ result: TranslateResult?) -> AggregatedOutcome {
+        AggregatedOutcome(
+            providerId: providerId,
+            displayName: displayName,
+            modelName: modelName,
+            result: result,
+            error: error,
+            latencyMs: latencyMs
+        )
+    }
 }
 
 /// Orchestrates language detection + concurrent fan-out across all active providers.
@@ -45,21 +56,27 @@ public actor TranslationCoordinator {
 
     /// Resolve `.auto` source language before dispatching.
     private func resolved(_ req: TranslateRequest) -> TranslateRequest {
-        let direction = TranslationDirectionResolver(detector: detector)
-            .resolve(text: req.text, from: req.from, to: req.to)
+        let resolver = TranslationDirectionResolver(detector: detector)
+        let direction: ResolvedTranslationDirection
+        if req.mode == .polish {
+            direction = resolver.resolvePolish(text: req.text, from: req.from)
+        } else {
+            direction = resolver.resolve(text: req.text, from: req.from, to: req.to)
+        }
         return TranslateRequest(
             text: req.text,
             from: direction.from,
             to: direction.to,
             mode: req.mode,
-            terminology: req.terminology
+            terminology: req.terminology,
+            context: req.context
         )
     }
 
     /// Fan out to every active provider concurrently, preserving registry order in the output.
     public func translateAll(_ request: TranslateRequest) async -> [AggregatedOutcome] {
         let req = resolved(request)
-        let providers = registry.activeProviders()
+        let providers = routedProviders(for: req)
         guard !providers.isEmpty else { return [] }
 
         var outcomes: [String: AggregatedOutcome] = [:]
@@ -76,7 +93,8 @@ public actor TranslationCoordinator {
         }
 
         // Preserve display order from the registry.
-        return providers.compactMap { outcomes[$0.id] }
+        let ordered = providers.compactMap { outcomes[$0.id] }
+        return ResultQualityEvaluator.withRecommendation(outcomes: ordered, request: req)
     }
 
     /// Fan out to every active provider concurrently and yield each outcome as soon as it finishes.
@@ -84,7 +102,7 @@ public actor TranslationCoordinator {
     /// slower LLM providers finish.
     public func translateIncrementally(_ request: TranslateRequest) -> AsyncStream<AggregatedOutcome> {
         let req = resolved(request)
-        let providers = registry.activeProviders()
+        let providers = routedProviders(for: req)
         let baseTimeout = perProviderTimeout
 
         return AsyncStream { continuation in
@@ -109,6 +127,15 @@ public actor TranslationCoordinator {
 
             continuation.onTermination = { _ in task.cancel() }
         }
+    }
+
+    private func routedProviders(for req: TranslateRequest) -> [TranslationProvider] {
+        let providers = registry.activeProviders()
+        guard let allowed = req.context?.routingHints.allowedProviderIDs else {
+            return providers
+        }
+        let allowedSet = Set(allowed)
+        return providers.filter { allowedSet.contains($0.id) }
     }
 
     public static func runProvider(
@@ -148,11 +175,13 @@ public actor TranslationCoordinator {
             application: prepared.application,
             protected: prepared.protected
         )
+        let unmaskedResult = applyPrivacyMasking(to: finalResult, masked: prepared.masked)
+        let quality = ResultQualityEvaluator.evaluate(result: unmaskedResult, request: req)
         return AggregatedOutcome(
             providerId: provider.id,
             displayName: provider.displayName,
             modelName: provider.modelName,
-            result: finalResult,
+            result: unmaskedResult.withQualitySummary(quality),
             error: nil,
             latencyMs: Int(Date().timeIntervalSince(start) * 1000)
         )
@@ -162,47 +191,60 @@ public actor TranslationCoordinator {
         let request: TranslateRequest
         let application: TerminologyApplication?
         let protected: ProtectedTerminologyText?
+        let masked: PrivacyMaskedText?
     }
 
     private static func prepare(_ req: TranslateRequest, for provider: TranslationProvider) -> PreparedRequest {
-        guard req.terminology != nil else {
-            return PreparedRequest(request: req, application: nil, protected: nil)
+        let policy = req.context?.privacyPolicy ?? .standard
+        let masked = PrivacyMasker.mask(req.text, policy: policy)
+        let maskedRequest = masked.hasReplacements ? req.withText(masked.text) : req
+
+        guard maskedRequest.terminology != nil else {
+            return PreparedRequest(
+                request: maskedRequest,
+                application: nil,
+                protected: nil,
+                masked: masked.report.applied ? masked : nil
+            )
         }
 
         let matches = TerminologyMatcher.matches(
-            in: req.text,
-            snapshot: req.terminology,
-            from: req.from,
-            to: req.to,
-            mode: req.mode
+            in: maskedRequest.text,
+            snapshot: maskedRequest.terminology,
+            from: maskedRequest.from,
+            to: maskedRequest.to,
+            mode: maskedRequest.mode
         )
         let support = effectiveTerminologySupport(
             provider.capabilities.terminology,
-            snapshot: req.terminology,
+            snapshot: maskedRequest.terminology,
             matches: matches
         )
         let strategy = applicationStrategy(for: support)
 
         switch support {
         case .placeholder, .promptAndPlaceholder:
-            let protected = TerminologyProcessor.protect(req)
+            let protected = TerminologyProcessor.protect(maskedRequest)
             let protectedRequest = TranslateRequest(
                 text: protected.text,
-                from: req.from,
-                to: req.to,
-                mode: req.mode,
-                terminology: req.terminology
+                from: maskedRequest.from,
+                to: maskedRequest.to,
+                mode: maskedRequest.mode,
+                terminology: maskedRequest.terminology,
+                context: maskedRequest.context
             )
             return PreparedRequest(
                 request: protectedRequest,
                 application: TerminologyApplication(strategy: strategy, matches: matches),
-                protected: protected
+                protected: protected,
+                masked: masked.report.applied ? masked : nil
             )
         case .prompt, .nativeGlossary, .unsupported:
             return PreparedRequest(
-                request: req,
+                request: maskedRequest,
                 application: TerminologyApplication(strategy: strategy, matches: matches),
-                protected: nil
+                protected: nil,
+                masked: masked.report.applied ? masked : nil
             )
         }
     }
@@ -248,6 +290,15 @@ public actor TranslationCoordinator {
             restorationSucceeded: restored.succeeded
         )
         return result.withTranslated(restored.text, terminologyApplication: finalApplication)
+    }
+
+    private static func applyPrivacyMasking(
+        to result: TranslateResult,
+        masked: PrivacyMaskedText?
+    ) -> TranslateResult {
+        guard let masked else { return result }
+        let restored = PrivacyMasker.unmask(result.translated, using: masked)
+        return result.withTranslated(restored, privacyMaskingReport: masked.report)
     }
 
     /// Provider-specific timeout budget for slower LLM services.

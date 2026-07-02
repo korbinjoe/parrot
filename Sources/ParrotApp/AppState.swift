@@ -3,6 +3,7 @@ import ParrotCore
 import ParrotEngines
 import ParrotPlugins
 import Combine
+import CoreGraphics
 import Network
 
 struct PendingProviderViewState: Identifiable, Equatable {
@@ -27,6 +28,7 @@ struct WorkspaceNotice: Equatable {
 
     enum Action: Equatable {
         case retryScreenshot
+        case openSettings
         case openScreenRecordingSettings
         case openOCRSettings
         case dismiss
@@ -44,6 +46,29 @@ struct WorkspaceNotice: Equatable {
     let prominence: Prominence
     let primaryAction: ButtonSpec?
     let secondaryAction: ButtonSpec?
+}
+
+enum WorkspaceSurface: Equatable {
+    case quickPeek
+    case workspace
+}
+
+struct OCRCandidateViewState: Identifiable, Equatable {
+    enum Kind: Equatable {
+        case fullText
+        case primaryBody
+        case reply
+        case block
+    }
+
+    let id: UUID
+    let text: String
+    let confidence: Float
+    let boundingBox: CGRect
+    let score: Double
+    let kind: Kind
+
+    var isLowConfidence: Bool { confidence < 0.55 }
 }
 
 @MainActor
@@ -66,6 +91,14 @@ final class AppState: ObservableObject {
     @Published var composerFocusRequest: Int = 0
     @Published var isRecognizingOCR: Bool = false
     @Published var workspaceNotice: WorkspaceNotice?
+    @Published var workspaceSurface: WorkspaceSurface = .workspace
+    @Published var contextProfile: TranslationContextProfile = .quickTranslate
+    @Published var currentOrigin: TranslationOrigin = .unknown
+    @Published private(set) var currentContextSourceApp: String?
+    @Published private(set) var currentContextWindowTitle: String?
+    @Published private(set) var currentContextSourceURL: String?
+    @Published var ocrCandidates: [OCRCandidateViewState] = []
+    @Published var selectedOCRCandidateID: UUID?
     @Published var sourceLanguage: Language = .auto
     @Published var targetLanguage: Language = .zh
     @Published var detectedSource: Language = .auto
@@ -83,6 +116,7 @@ final class AppState: ObservableObject {
     private var translationTask: Task<Void, Never>?
     private var slowHintTasks: [Task<Void, Never>] = []
     private var currentTranslationID = UUID()
+    private var currentRequest: TranslateRequest?
     private var didSaveCurrentTranslation = false
     private var currentMode: TranslateMode = .translate
     private let directionResolver = TranslationDirectionResolver()
@@ -104,6 +138,38 @@ final class AppState: ObservableObject {
 
     var canTranslateDraft: Bool {
         !sourceDraftTrimmed.isEmpty
+    }
+
+    var isPolishMode: Bool {
+        currentMode == .polish
+    }
+
+    var isQuickPeekSurface: Bool {
+        workspaceSurface == .quickPeek
+    }
+
+    var primarySuccessfulOutcome: AggregatedOutcome? {
+        outcomes.first { $0.result?.qualitySummary?.isRecommended == true }
+            ?? outcomes.first { $0.result != nil }
+    }
+
+    var paragraphHints: [ParagraphHint] {
+        if let hints = currentRequest?.context?.paragraphHints, !hints.isEmpty {
+            return hints
+        }
+        let text = committedSourceTrimmed.isEmpty ? sourceDraftTrimmed : committedSourceTrimmed
+        return ParagraphSegmenter.segment(text)
+    }
+
+    var canShowParagraphBilingualView: Bool {
+        workspaceSurface == .workspace
+            && paragraphHints.count > 1
+            && primarySuccessfulOutcome?.result != nil
+    }
+
+    var selectedOCRCandidate: OCRCandidateViewState? {
+        guard let selectedOCRCandidateID else { return nil }
+        return ocrCandidates.first { $0.id == selectedOCRCandidateID }
     }
 
     var actionSourceText: String {
@@ -258,9 +324,25 @@ final class AppState: ObservableObject {
         text: String,
         mode: TranslateMode = .translate,
         autoRun: Bool,
-        focusComposer: Bool
+        focusComposer: Bool,
+        origin: TranslationOrigin = .unknown,
+        surface: WorkspaceSurface? = nil,
+        profile: TranslationContextProfile? = nil,
+        sourceApp: String? = nil,
+        windowTitle: String? = nil,
+        sourceURL: String? = nil
     ) {
         currentMode = mode
+        currentOrigin = origin
+        currentContextSourceApp = Self.cleanedMetadata(sourceApp)
+        currentContextWindowTitle = Self.cleanedMetadata(windowTitle)
+        currentContextSourceURL = Self.cleanedMetadata(sourceURL)
+        contextProfile = profile ?? defaultProfile(mode: mode, origin: origin, text: text)
+        workspaceSurface = surface ?? defaultSurface(mode: mode, origin: origin, text: text)
+        currentRequest = nil
+        if origin != .ocr && origin != .screenshot && origin != .latestScreenshot {
+            clearOCRCandidates()
+        }
         isRecognizingOCR = false
         workspaceNotice = nil
         sourceDraft = text
@@ -276,8 +358,15 @@ final class AppState: ObservableObject {
 
     func beginOCRRecognition(providerName: String) {
         currentMode = .translate
+        currentOrigin = .ocr
+        currentContextSourceApp = nil
+        currentContextWindowTitle = nil
+        currentContextSourceURL = nil
+        contextProfile = .understand
+        workspaceSurface = .workspace
         isRecognizingOCR = true
         sourceDraft = ""
+        clearOCRCandidates()
         resetTranslationSession(keepDraft: true)
         workspaceNotice = WorkspaceNotice(
             tone: .info,
@@ -293,8 +382,18 @@ final class AppState: ObservableObject {
     func openOCRWorkspace(result: OCRResult, providerName: String) {
         isRecognizingOCR = false
         currentMode = .translate
+        currentOrigin = .ocr
+        currentContextSourceApp = nil
+        currentContextWindowTitle = nil
+        currentContextSourceURL = nil
+        contextProfile = .understand
+        workspaceSurface = .workspace
         let text = result.fullText.trimmingCharacters(in: .whitespacesAndNewlines)
-        sourceDraft = text
+        let candidates = Self.makeOCRCandidates(from: result)
+        let selectedCandidate = candidates.first
+        ocrCandidates = candidates
+        selectedOCRCandidateID = selectedCandidate?.id
+        sourceDraft = selectedCandidate?.text ?? text
         sourceText = ""
         outcomes = []
         pendingProviders = []
@@ -304,6 +403,7 @@ final class AppState: ObservableObject {
         savedRecordId = nil
         isFavorite = false
         didSaveCurrentTranslation = false
+        currentRequest = nil
         currentTranslationID = UUID()
 
         let lineCount = max(1, text.split(separator: "\n", omittingEmptySubsequences: true).count)
@@ -323,6 +423,7 @@ final class AppState: ObservableObject {
     func showOCRNoText(providerName: String) {
         isRecognizingOCR = false
         sourceDraft = ""
+        clearOCRCandidates()
         resetTranslationSession(keepDraft: true)
         workspaceNotice = WorkspaceNotice(
             tone: .warning,
@@ -338,6 +439,7 @@ final class AppState: ObservableObject {
     func showOCRError(_ error: Error, providerName: String) {
         isRecognizingOCR = false
         sourceDraft = ""
+        clearOCRCandidates()
         resetTranslationSession(keepDraft: true)
         workspaceNotice = WorkspaceNotice(
             tone: .error,
@@ -353,6 +455,7 @@ final class AppState: ObservableObject {
     func showScreenRecordingPermissionIssue() {
         isRecognizingOCR = false
         sourceDraft = ""
+        clearOCRCandidates()
         resetTranslationSession(keepDraft: true)
         workspaceNotice = WorkspaceNotice(
             tone: .error,
@@ -365,9 +468,35 @@ final class AppState: ObservableObject {
         )
     }
 
-    func openManualInputWorkspace() {
+    func openManualInputWorkspace(sourceApp: String? = nil, windowTitle: String? = nil) {
         currentMode = .translate
+        currentOrigin = .manualInput
+        currentContextSourceApp = Self.cleanedMetadata(sourceApp)
+        currentContextWindowTitle = Self.cleanedMetadata(windowTitle)
+        currentContextSourceURL = nil
+        contextProfile = manualInputProfile()
+        workspaceSurface = .workspace
         isRecognizingOCR = false
+        clearOCRCandidates()
+        workspaceNotice = nil
+        resetManualLearningSelection()
+        if !isSourceDirty {
+            sourceDraft = ""
+            resetTranslationSession(keepDraft: true)
+        }
+        requestComposerFocus()
+    }
+
+    func openManualPolishWorkspace(sourceApp: String? = nil, windowTitle: String? = nil) {
+        currentMode = .polish
+        currentOrigin = .manualInput
+        currentContextSourceApp = Self.cleanedMetadata(sourceApp)
+        currentContextWindowTitle = Self.cleanedMetadata(windowTitle)
+        currentContextSourceURL = nil
+        contextProfile = .nativePolish
+        workspaceSurface = .workspace
+        isRecognizingOCR = false
+        clearOCRCandidates()
         workspaceNotice = nil
         resetManualLearningSelection()
         if !isSourceDirty {
@@ -399,16 +528,32 @@ final class AppState: ObservableObject {
 
         sourceText = trimmed
         sourceDraft = trimmed
-        let direction = directionResolver.resolve(
-            text: trimmed,
-            from: settings.sourceLanguage,
-            to: settings.targetLanguage
-        )
+        let direction = resolvedDirection(text: trimmed, mode: mode)
         sourceLanguage = settings.sourceLanguage == .auto ? .auto : direction.from
         targetLanguage = direction.to
         detectedSource = direction.detected
         isTranslating = true
-        let activeProviders = registry.activeProviders()
+        let req = makeRequest(text: trimmed, direction: direction, mode: mode)
+        currentRequest = req
+        let activeProviders = routedActiveProviders(for: req.context)
+        if contextProfile == .privateLocal && activeProviders.isEmpty {
+            outcomes = []
+            slowProviderIDs = []
+            pendingProviders = []
+            savedRecordId = nil
+            isFavorite = false
+            isTranslating = false
+            workspaceNotice = WorkspaceNotice(
+                tone: .warning,
+                systemImage: "lock.shield",
+                title: L("需要本地引擎"),
+                detail: L("隐私本地模式不会发送到云端。请启用 Apple 或 Ollama 本地引擎，或切换到其他上下文配置。"),
+                prominence: .card,
+                primaryAction: WorkspaceNotice.ButtonSpec(title: L("打开设置"), action: .openSettings),
+                secondaryAction: WorkspaceNotice.ButtonSpec(title: L("知道了"), action: .dismiss)
+            )
+            return
+        }
         outcomes = missingConfigurationOutcomes
         slowProviderIDs = Set(activeProviders.filter(Self.isSlowProvider).map(\.id))
         pendingProviders = activeProviders.map {
@@ -424,13 +569,6 @@ final class AppState: ObservableObject {
 
         scheduleSlowProviderHints(runID: runID)
 
-        let req = TranslateRequest(
-            text: trimmed,
-            from: direction.from,
-            to: direction.to,
-            mode: mode,
-            terminology: settings.terminologySnapshot()
-        )
         let coordinator = coordinator
         translationTask = Task { [weak self, coordinator] in
             let stream = await coordinator.translateIncrementally(req)
@@ -457,10 +595,466 @@ final class AppState: ObservableObject {
             from: direction.from,
             to: direction.to,
             mode: .lookup,
-            terminology: nil
+            terminology: nil,
+            context: TranslationContext.default(mode: .lookup, origin: .lookup, text: term)
         )
         let outcome = await TranslationCoordinator.runProvider(provider, req: req, baseTimeout: 15)
         return outcome.result
+    }
+
+    func setContextProfile(_ profile: TranslationContextProfile) {
+        guard contextProfile != profile else { return }
+        contextProfile = profile
+        settings.rememberContextProfile(profile)
+        workspaceSurface = .workspace
+        if canTranslateDraft {
+            translateDraft(mode: currentMode)
+        }
+    }
+
+    func expandQuickPeek() {
+        workspaceSurface = .workspace
+    }
+
+    func selectOCRCandidate(id: UUID, autoRun: Bool = true) {
+        guard let candidate = ocrCandidates.first(where: { $0.id == id }) else { return }
+        selectedOCRCandidateID = id
+        sourceDraft = candidate.text
+        sourceText = ""
+        outcomes = []
+        pendingProviders = []
+        slowProviderIDs = []
+        isTranslating = false
+        savedRecordId = nil
+        isFavorite = false
+        didSaveCurrentTranslation = false
+        currentRequest = nil
+        if autoRun {
+            translateDraft(mode: currentMode)
+        }
+    }
+
+    private func clearOCRCandidates() {
+        ocrCandidates = []
+        selectedOCRCandidateID = nil
+    }
+
+    private static func makeOCRCandidates(from result: OCRResult) -> [OCRCandidateViewState] {
+        let fullText = result.fullText.trimmingCharacters(in: .whitespacesAndNewlines)
+        var seen: Set<String> = []
+        var candidates: [OCRCandidateViewState] = []
+
+        let blockCandidates = groupedOCRCandidates(from: result.blocks)
+            .sorted { lhs, rhs in
+                if lhs.score != rhs.score { return lhs.score > rhs.score }
+                return lhs.text.count > rhs.text.count
+            }
+
+        for candidate in blockCandidates {
+            let key = candidateKey(candidate.text)
+            guard !seen.contains(key) else { continue }
+            seen.insert(key)
+            candidates.append(candidate)
+            if candidates.count >= 6 { break }
+        }
+
+        if !fullText.isEmpty {
+            let key = candidateKey(fullText)
+            if !seen.contains(key) {
+                seen.insert(key)
+                candidates.append(OCRCandidateViewState(
+                    id: UUID(),
+                    text: fullText,
+                    confidence: result.confidence,
+                    boundingBox: unionRect(result.blocks.map(\.boundingBox)),
+                    score: 0,
+                    kind: .fullText
+                ))
+            }
+        }
+        return Array(candidates.prefix(7))
+    }
+
+    private static func candidateKey(_ text: String) -> String {
+        text
+            .lowercased()
+            .components(separatedBy: .whitespacesAndNewlines)
+            .filter { !$0.isEmpty }
+            .joined(separator: " ")
+    }
+
+    private struct OCRCandidateLine {
+        let text: String
+        let normalizedRect: CGRect
+        let sourceRect: CGRect
+        let confidence: Float
+    }
+
+    private static func groupedOCRCandidates(from blocks: [OCRBlock]) -> [OCRCandidateViewState] {
+        let nonEmptyBlockCount = blocks
+            .map { $0.text.trimmingCharacters(in: .whitespacesAndNewlines) }
+            .filter { !$0.isEmpty }
+            .count
+        let lines = blocks.compactMap(normalizedOCRCandidateLine(from:))
+        guard lines.count >= 2, lines.count == nonEmptyBlockCount else { return [] }
+
+        var groups: [[OCRCandidateLine]] = []
+        for line in lines.sorted(by: ocrLineSort) {
+            guard var last = groups.popLast() else {
+                groups.append([line])
+                continue
+            }
+            if shouldMergeOCRLine(line, into: last) {
+                last.append(line)
+                groups.append(last)
+            } else {
+                groups.append(last)
+                groups.append([line])
+            }
+        }
+
+        return groups.compactMap { group in
+            let text = group.map(\.text).joined(separator: "\n").trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !text.isEmpty else { return nil }
+            let confidence = group.map(\.confidence).reduce(0, +) / Float(group.count)
+            let sourceRect = unionRect(group.map(\.sourceRect))
+            let normalizedRect = unionRect(group.map(\.normalizedRect))
+            return OCRCandidateViewState(
+                id: UUID(),
+                text: text,
+                confidence: confidence,
+                boundingBox: sourceRect,
+                score: ocrCandidateScore(
+                    text: text,
+                    confidence: confidence,
+                    boundingBox: normalizedRect,
+                    lineCount: group.count
+                ),
+                kind: ocrCandidateKind(text: text, lineCount: group.count, boundingBox: normalizedRect)
+            )
+        }
+    }
+
+    private static func normalizedOCRCandidateLine(from block: OCRBlock) -> OCRCandidateLine? {
+        let text = block.text.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !text.isEmpty, hasUsableOCRGeometry(block.boundingBox) else { return nil }
+        let source = block.boundingBox
+        let normalized = CGRect(
+            x: source.minX,
+            y: 1 - source.maxY,
+            width: source.width,
+            height: source.height
+        )
+        return OCRCandidateLine(
+            text: text,
+            normalizedRect: normalized,
+            sourceRect: source,
+            confidence: block.confidence
+        )
+    }
+
+    private static func hasUsableOCRGeometry(_ rect: CGRect) -> Bool {
+        rect.width > 0
+            && rect.height > 0
+            && rect.minX >= 0
+            && rect.minY >= 0
+            && rect.maxX <= 1.05
+            && rect.maxY <= 1.05
+    }
+
+    private static func ocrLineSort(_ lhs: OCRCandidateLine, _ rhs: OCRCandidateLine) -> Bool {
+        if abs(lhs.normalizedRect.minY - rhs.normalizedRect.minY) > 0.012 {
+            return lhs.normalizedRect.minY < rhs.normalizedRect.minY
+        }
+        return lhs.normalizedRect.minX < rhs.normalizedRect.minX
+    }
+
+    private static func shouldMergeOCRLine(_ line: OCRCandidateLine, into group: [OCRCandidateLine]) -> Bool {
+        guard let previous = group.last else { return false }
+        if isLikelyOCRNoise(previous.text) || isLikelyOCRNoise(line.text) {
+            return false
+        }
+        let verticalGap = line.normalizedRect.minY - previous.normalizedRect.maxY
+        let overlap = horizontalOverlap(line.normalizedRect, previous.normalizedRect)
+        let overlapRatio = overlap / max(0.001, min(line.normalizedRect.width, previous.normalizedRect.width))
+        let xDistance = abs(line.normalizedRect.minX - previous.normalizedRect.minX)
+        let compatibleColumn = overlapRatio > 0.16 || xDistance < 0.09
+        let closeVertically = verticalGap < max(0.032, previous.normalizedRect.height * 2.4)
+        let strongIndentChange = xDistance > 0.18 && overlapRatio < 0.08
+        return closeVertically && compatibleColumn && !strongIndentChange
+    }
+
+    private static func ocrCandidateScore(
+        text: String,
+        confidence: Float,
+        boundingBox: CGRect,
+        lineCount: Int
+    ) -> Double {
+        let tokenCount = text.split { !$0.isLetter && !$0.isNumber && $0 != "'" }.count
+        let lengthScore = min(Double(text.count) / 180.0, 1) * 28
+        let tokenScore = min(Double(tokenCount) / 28.0, 1) * 24
+        let lineScore = min(Double(lineCount) / 4.0, 1) * 12
+        let areaScore = min(max(Double(boundingBox.width * boundingBox.height) / 0.22, 0), 1) * 10
+        let centerScore = max(0, 1 - abs(Double(boundingBox.midY) - 0.48) * 1.7) * 10
+        let confidenceScore = Double(confidence) * 12
+        let roleBonus: Double
+        switch ocrCandidateKind(text: text, lineCount: lineCount, boundingBox: boundingBox) {
+        case .primaryBody:
+            roleBonus = 10
+        case .reply:
+            roleBonus = 5
+        case .block:
+            roleBonus = 0
+        case .fullText:
+            roleBonus = -10
+        }
+        let noisePenalty = isLikelyOCRNoise(text) ? 55.0 : 0
+        return max(0, lengthScore + tokenScore + lineScore + areaScore + centerScore + confidenceScore + roleBonus - noisePenalty)
+    }
+
+    private static func ocrCandidateKind(
+        text: String,
+        lineCount: Int,
+        boundingBox: CGRect
+    ) -> OCRCandidateViewState.Kind {
+        if lineCount > 1 || text.count >= 96 || boundingBox.height > 0.12 {
+            return .primaryBody
+        }
+        if isLikelyReplySentence(text) {
+            return .reply
+        }
+        return .block
+    }
+
+    private static func isLikelyOCRNoise(_ text: String) -> Bool {
+        let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return true }
+        if trimmed.count <= 2 { return true }
+        if trimmed.range(of: #"^(\d{1,2}:\d{2}|now|today|yesterday)(\s*[·•]\s*.*)?$"#, options: [.regularExpression, .caseInsensitive]) != nil {
+            return true
+        }
+        if trimmed.range(of: #"^\d+(\.\d+)?[kKmM]?\s*(replies|reply|likes|comments|shares|views|votes)?$"#, options: .regularExpression) != nil {
+            return true
+        }
+        let lower = trimmed.lowercased()
+        if ["reply", "share", "like", "more", "post", "send", "cancel", "home", "search", "notifications"].contains(lower) {
+            return true
+        }
+        let digits = trimmed.filter(\.isNumber).count
+        return trimmed.count <= 5 && digits >= max(2, trimmed.count - 1)
+    }
+
+    private static func isLikelyReplySentence(_ text: String) -> Bool {
+        let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard trimmed.count >= 18, trimmed.count <= 140 else { return false }
+        let sentenceEndings = Set(".?!。！？")
+        guard trimmed.contains(where: { sentenceEndings.contains($0) }) else { return false }
+        let lower = trimmed.lowercased()
+        return lower.hasPrefix("i ")
+            || lower.hasPrefix("we ")
+            || lower.hasPrefix("you ")
+            || lower.hasPrefix("can ")
+            || lower.hasPrefix("could ")
+            || lower.hasPrefix("would ")
+            || lower.hasPrefix("should ")
+            || lower.hasPrefix("a ")
+            || lower.hasPrefix("the ")
+    }
+
+    private static func horizontalOverlap(_ a: CGRect, _ b: CGRect) -> CGFloat {
+        max(0, min(a.maxX, b.maxX) - max(a.minX, b.minX))
+    }
+
+    private static func unionRect(_ rects: [CGRect]) -> CGRect {
+        guard var rect = rects.first else { return .zero }
+        for next in rects.dropFirst() {
+            rect = rect.union(next)
+        }
+        return rect
+    }
+
+    private func makeRequest(
+        text: String,
+        direction: ResolvedTranslationDirection,
+        mode: TranslateMode
+    ) -> TranslateRequest {
+        let terminology = settings.terminologySnapshot()
+        let context = makeContext(
+            text: text,
+            mode: mode,
+            terminology: terminology
+        )
+        return TranslateRequest(
+            text: text,
+            from: direction.from,
+            to: direction.to,
+            mode: mode,
+            terminology: terminology,
+            context: context
+        )
+    }
+
+    private func resolvedDirection(text: String, mode: TranslateMode) -> ResolvedTranslationDirection {
+        if mode == .polish {
+            return directionResolver.resolvePolish(text: text, from: settings.sourceLanguage)
+        }
+        return directionResolver.resolve(
+            text: text,
+            from: settings.sourceLanguage,
+            to: settings.targetLanguage
+        )
+    }
+
+    private func makeContext(
+        text: String,
+        mode: TranslateMode,
+        terminology: TerminologySnapshot?
+    ) -> TranslationContext {
+        let profile = contextProfile
+        let localProviderIDs = routedLocalProviderIDs()
+        let allowedProviderIDs = profile == .privateLocal ? localProviderIDs : nil
+        return TranslationContext(
+            profile: profile,
+            origin: currentOrigin,
+            sourceApp: currentContextSourceApp,
+            windowTitle: currentContextWindowTitle,
+            sourceURL: currentContextSourceURL,
+            selectedOCRBlockID: selectedOCRCandidateID,
+            paragraphHints: ParagraphSegmenter.segment(text),
+            privacyPolicy: privacyPolicy(for: profile),
+            routingHints: ProviderRoutingHints(
+                allowedProviderIDs: allowedProviderIDs,
+                preferLLM: profile.prefersLLM,
+                preferLocal: profile == .privateLocal
+            )
+        )
+    }
+
+    private func defaultProfile(
+        mode: TranslateMode,
+        origin: TranslationOrigin,
+        text: String
+    ) -> TranslationContextProfile {
+        if let ruleProfile = automaticRuleProfile(mode: mode, origin: origin, text: text) {
+            return ruleProfile
+        }
+        return TranslationContextProfile.defaultProfile(
+            mode: mode,
+            origin: origin,
+            text: text,
+            hasTerminology: settings.terminologySnapshot()?.isEmpty == false
+        )
+    }
+
+    private func automaticRuleProfile(
+        mode: TranslateMode,
+        origin: TranslationOrigin,
+        text: String
+    ) -> TranslationContextProfile? {
+        guard mode == .translate else { return nil }
+        let sourceApp = (currentContextSourceApp ?? "").lowercased()
+        let sourceURL = (currentContextSourceURL ?? "").lowercased()
+        let windowTitle = (currentContextWindowTitle ?? "").lowercased()
+        let combined = [sourceApp, sourceURL, windowTitle].joined(separator: " ")
+        let isPrivateSurface = combined.contains("1password")
+            || combined.contains("password")
+            || combined.contains("keychain")
+            || combined.contains("bank")
+            || combined.contains("wallet")
+        let isDeveloperSurface = combined.contains("github")
+            || combined.contains("gitlab")
+            || combined.contains("linear")
+            || combined.contains("jira")
+            || combined.contains("pull request")
+            || combined.contains("xcode")
+        let isDocumentSurface = origin == .url
+            || combined.contains("notion")
+            || combined.contains("docs.google")
+            || combined.contains("confluence")
+            || combined.contains("medium.com")
+            || combined.contains("safari")
+            || combined.contains("chrome")
+            || text.trimmingCharacters(in: .whitespacesAndNewlines).count >= 280
+
+        if settings.contextRulePrivateEnabled, isPrivateSurface {
+            return .privateLocal
+        }
+
+        if settings.contextRuleDeveloperEnabled, isDeveloperSurface {
+            return .github
+        }
+
+        if settings.contextRuleDocumentEnabled, isDocumentSurface {
+            return .document
+        }
+
+        return nil
+    }
+
+    private func manualInputProfile() -> TranslationContextProfile {
+        let profile = settings.lastContextProfile
+        switch profile {
+        case .nativePolish:
+            return .quickTranslate
+        default:
+            return profile
+        }
+    }
+
+    private func defaultSurface(
+        mode: TranslateMode,
+        origin: TranslationOrigin,
+        text: String
+    ) -> WorkspaceSurface {
+        if mode == .polish { return .workspace }
+        if mode == .lookup { return .quickPeek }
+        guard origin == .selection || origin == .shortcut || origin == .popClip || origin == .lookup else {
+            return .workspace
+        }
+        let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        if trimmed.contains("\n") { return .workspace }
+        return trimmed.count <= 180 ? .quickPeek : .workspace
+    }
+
+    private func privacyPolicy(for profile: TranslationContextProfile) -> PrivacyPolicy {
+        switch profile {
+        case .privateLocal:
+            return .localOnly
+        case .github, .email:
+            return .maskSensitive
+        default:
+            return .standard
+        }
+    }
+
+    private func routedActiveProviders(for context: TranslationContext?) -> [TranslationProvider] {
+        let providers = registry.activeProviders()
+        guard let allowed = context?.routingHints.allowedProviderIDs else {
+            return providers
+        }
+        let allowedSet = Set(allowed)
+        return providers.filter { allowedSet.contains($0.id) }
+    }
+
+    private static func cleanedMetadata(_ value: String?) -> String? {
+        guard let cleaned = value?.trimmingCharacters(in: .whitespacesAndNewlines),
+              !cleaned.isEmpty else { return nil }
+        return cleaned
+    }
+
+    private static func displaySnippet(_ text: String, limit: Int) -> String {
+        let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard trimmed.count > limit else { return trimmed }
+        return String(trimmed.prefix(limit)).trimmingCharacters(in: .whitespacesAndNewlines) + "..."
+    }
+
+    private func routedLocalProviderIDs() -> [String] {
+        registry.activeProviders()
+            .map(\.id)
+            .filter { providerID in
+                let baseID = EngineModelConfig.baseEngineID(forProviderID: providerID)
+                return baseID == "apple" || baseID == "ollama"
+            }
     }
 
     private func resetTranslationSession(keepDraft: Bool) {
@@ -470,6 +1064,7 @@ final class AppState: ObservableObject {
         resetManualLearningSelection()
         if !keepDraft {
             sourceDraft = ""
+            clearOCRCandidates()
         }
         sourceText = ""
         outcomes = []
@@ -480,6 +1075,7 @@ final class AppState: ObservableObject {
         savedRecordId = nil
         isFavorite = false
         didSaveCurrentTranslation = false
+        currentRequest = nil
         currentTranslationID = UUID()
     }
 
@@ -568,6 +1164,9 @@ final class AppState: ObservableObject {
             outcomes.append(outcome)
         }
         pendingProviders.removeAll { $0.id == outcome.providerId }
+        if let currentRequest {
+            outcomes = ResultQualityEvaluator.withRecommendation(outcomes: outcomes, request: currentRequest)
+        }
 
         if sourceLanguage == .auto, let detected = outcome.result?.detectedFrom {
             detectedSource = detected
@@ -578,6 +1177,9 @@ final class AppState: ObservableObject {
         guard currentTranslationID == runID else { return }
         isTranslating = false
         pendingProviders = []
+        if let currentRequest {
+            outcomes = ResultQualityEvaluator.withRecommendation(outcomes: outcomes, request: currentRequest)
+        }
         slowHintTasks.forEach { $0.cancel() }
         slowHintTasks = []
         await saveCurrentTranslationIfNeeded(runID: runID)
@@ -651,6 +1253,29 @@ final class AppState: ObservableObject {
         Task { _ = await history.setFavorite(id, value) }
     }
 
+    @discardableResult
+    func saveCurrentExpression(
+        translatedText: String,
+        sceneLabel: String = "工作区表达"
+    ) -> Bool {
+        let source = actionSourceText.trimmingCharacters(in: .whitespacesAndNewlines)
+        let translated = translatedText.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !source.isEmpty || !translated.isEmpty else { return false }
+        let termSource = source.isEmpty ? translated : source
+        let term = Self.displaySnippet(termSource, limit: 160)
+        let savedID = settings.addLearningVocabularyTerm(
+            term: term,
+            meaning: translated,
+            sourceSentence: source,
+            sceneLabel: sceneLabel
+        )
+        if savedID != nil {
+            refreshLearningHistory()
+            return true
+        }
+        return false
+    }
+
     func retryCurrentTranslation() {
         translateDraft(mode: currentMode)
     }
@@ -662,20 +1287,11 @@ final class AppState: ObservableObject {
         }
         let trimmed = committedSourceTrimmed
         guard !trimmed.isEmpty else { return }
-        let direction = directionResolver.resolve(
-            text: trimmed,
-            from: settings.sourceLanguage,
-            to: settings.targetLanguage
-        )
-        let req = TranslateRequest(
-            text: trimmed,
-            from: direction.from,
-            to: direction.to,
-            mode: currentMode,
-            terminology: settings.terminologySnapshot()
-        )
+        let direction = resolvedDirection(text: trimmed, mode: currentMode)
+        let req = makeRequest(text: trimmed, direction: direction, mode: currentMode)
+        currentRequest = req
 
-        guard let provider = registry.activeProviders().first(where: { $0.id == id }) else {
+        guard let provider = routedActiveProviders(for: req.context).first(where: { $0.id == id }) else {
             if let descriptor = EngineCatalog.descriptor(for: id) {
                 upsertOutcome(AggregatedOutcome(
                     providerId: id,

@@ -6,7 +6,7 @@ public struct MockEngine: TranslationProvider {
     public let id = "mock"
     public let displayName = "Mock (Demo)"
     public let supportedLanguages: [Language] = [.auto, .zh, .en, .ja, .ko, .fr, .de, .es, .ru]
-    public let capabilities = ProviderCapabilities(supportsLookup: true, supportsStream: true, supportsPolish: false)
+    public let capabilities = ProviderCapabilities(supportsLookup: true, supportsStream: true)
 
     public init() {}
 

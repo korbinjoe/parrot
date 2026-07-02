@@ -372,3 +372,14 @@
 "预计 %d 秒" = "About %d seconds";
 "默认" = "Default";
 "默认展示需要处理和已生效的服务；完整 provider 目录通过选择器添加，不再把所有低频服务平铺在主页面。" = "By default, show services that need attention or are already active. Add the full provider catalog through the picker instead of listing every low-frequency service on the main page.";
+"输入润色" = "Input Polish";
+"草稿" = "Draft";
+"润色中" = "Polishing";
+"输入或粘贴要润色的草稿…" = "Type or paste a draft to polish…";
+"整理草稿" = "Clean Up Draft";
+"润色" = "Polish";
+"润色当前草稿" = "Polish Current Draft";
+"编辑草稿" = "Edit Draft";
+"润色 %@" = "Polish %@";
+"校对文本后选择“润色”或“翻译”。" = "Review the text, then choose “Polish” or “Translate”.";
+"已修改，可重新润色或翻译" = "Edited; polish or translate again";

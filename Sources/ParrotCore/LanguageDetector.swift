@@ -58,6 +58,18 @@ public struct TranslationDirectionResolver: Sendable {
         )
     }
 
+    public func resolvePolish(text: String, from configuredFrom: Language) -> ResolvedTranslationDirection {
+        let detected = detector.detect(text, minConfidence: minConfidence)
+        let resolvedFrom = configuredFrom == .auto ? (detected ?? .auto) : configuredFrom
+        let polishLanguage = resolvedFrom == .auto ? (detected ?? .auto) : resolvedFrom
+        return ResolvedTranslationDirection(
+            from: resolvedFrom,
+            to: polishLanguage,
+            detected: detected ?? resolvedFrom,
+            targetWasAdjusted: false
+        )
+    }
+
     private static func fallbackTarget(for target: Language) -> Language {
         target == .en ? .zh : .en
     }

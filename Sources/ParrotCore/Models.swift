@@ -69,19 +69,44 @@ public struct TranslateRequest: Sendable {
     public let to: Language
     public let mode: TranslateMode
     public let terminology: TerminologySnapshot?
+    public let context: TranslationContext?
 
     public init(
         text: String,
         from: Language = .auto,
         to: Language,
         mode: TranslateMode = .translate,
-        terminology: TerminologySnapshot? = nil
+        terminology: TerminologySnapshot? = nil,
+        context: TranslationContext? = nil
     ) {
         self.text = text
         self.from = from
         self.to = to
         self.mode = mode
         self.terminology = terminology
+        self.context = context
+    }
+
+    public func withText(_ text: String) -> TranslateRequest {
+        TranslateRequest(
+            text: text,
+            from: from,
+            to: to,
+            mode: mode,
+            terminology: terminology,
+            context: context
+        )
+    }
+
+    public func withContext(_ context: TranslationContext?) -> TranslateRequest {
+        TranslateRequest(
+            text: text,
+            from: from,
+            to: to,
+            mode: mode,
+            terminology: terminology,
+            context: context
+        )
     }
 }
 
@@ -112,24 +137,32 @@ public struct TranslateResult: Sendable {
     public let phonetics: [Phonetic]?
     public let definitions: [Definition]?
     public let terminologyApplication: TerminologyApplication?
+    public let privacyMaskingReport: PrivacyMaskingReport?
+    public let qualitySummary: ResultQualitySummary?
 
     public init(providerId: String,
                 translated: String,
                 detectedFrom: Language? = nil,
                 phonetics: [Phonetic]? = nil,
                 definitions: [Definition]? = nil,
-                terminologyApplication: TerminologyApplication? = nil) {
+                terminologyApplication: TerminologyApplication? = nil,
+                privacyMaskingReport: PrivacyMaskingReport? = nil,
+                qualitySummary: ResultQualitySummary? = nil) {
         self.providerId = providerId
         self.translated = translated
         self.detectedFrom = detectedFrom
         self.phonetics = phonetics
         self.definitions = definitions
         self.terminologyApplication = terminologyApplication
+        self.privacyMaskingReport = privacyMaskingReport
+        self.qualitySummary = qualitySummary
     }
 
     public func withTranslated(
         _ translated: String,
-        terminologyApplication: TerminologyApplication? = nil
+        terminologyApplication: TerminologyApplication? = nil,
+        privacyMaskingReport: PrivacyMaskingReport? = nil,
+        qualitySummary: ResultQualitySummary? = nil
     ) -> TranslateResult {
         TranslateResult(
             providerId: providerId,
@@ -137,8 +170,18 @@ public struct TranslateResult: Sendable {
             detectedFrom: detectedFrom,
             phonetics: phonetics,
             definitions: definitions,
-            terminologyApplication: terminologyApplication ?? self.terminologyApplication
+            terminologyApplication: terminologyApplication ?? self.terminologyApplication,
+            privacyMaskingReport: privacyMaskingReport ?? self.privacyMaskingReport,
+            qualitySummary: qualitySummary ?? self.qualitySummary
         )
+    }
+
+    public func withPrivacyMaskingReport(_ report: PrivacyMaskingReport?) -> TranslateResult {
+        withTranslated(translated, privacyMaskingReport: report)
+    }
+
+    public func withQualitySummary(_ summary: ResultQualitySummary?) -> TranslateResult {
+        withTranslated(translated, qualitySummary: summary)
     }
 }
 
@@ -158,7 +201,7 @@ public struct ProviderCapabilities: Sendable {
     public init(
         supportsLookup: Bool = false,
         supportsStream: Bool = false,
-        supportsPolish: Bool = false,
+        supportsPolish: Bool = true,
         terminology: TerminologySupport = .placeholder
     ) {
         self.supportsLookup = supportsLookup

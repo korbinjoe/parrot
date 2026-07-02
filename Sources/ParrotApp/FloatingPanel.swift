@@ -1,4 +1,5 @@
 import AppKit
+import Combine
 import SwiftUI
 
 /// Shared presentation state for the floating result panel.
@@ -32,6 +33,8 @@ private final class WorkspacePanel: NSPanel {
 @MainActor
 final class FloatingPanel {
     private enum Metrics {
+        static let quickContentSize = NSSize(width: 420, height: 300)
+        static let quickMinContentSize = NSSize(width: 420, height: 220)
         static let defaultContentSize = NSSize(width: 520, height: 640)
         static let minContentSize = NSSize(width: 520, height: 320)
     }
@@ -41,12 +44,15 @@ final class FloatingPanel {
     private let state: AppState
     private let onConfigureProvider: (String?) -> Void
     private let onVocabulary: () -> Void
+    private let onContextMemory: () -> Void
+    private let onReplaceInSourceApp: (String) -> Bool
     private let onWorkspaceNoticeAction: (WorkspaceNotice.Action) -> Void
     private let presentation = FloatingPanelPresentation()
     private var anchorPoint: NSPoint?
     private var resizeObserver: NSObjectProtocol?
     private var screenObserver: NSObjectProtocol?
     private var resignObserver: NSObjectProtocol?
+    private var surfaceObserver: AnyCancellable?
     private var globalMouseDownMonitor: Any?
     private var localMouseDownMonitor: Any?
     private var moveObserver: NSObjectProtocol?
@@ -60,12 +66,21 @@ final class FloatingPanel {
         state: AppState,
         onConfigureProvider: @escaping (String?) -> Void = { _ in },
         onVocabulary: @escaping () -> Void = {},
+        onContextMemory: @escaping () -> Void = {},
+        onReplaceInSourceApp: @escaping (String) -> Bool = { _ in false },
         onWorkspaceNoticeAction: @escaping (WorkspaceNotice.Action) -> Void = { _ in }
     ) {
         self.state = state
         self.onConfigureProvider = onConfigureProvider
         self.onVocabulary = onVocabulary
+        self.onContextMemory = onContextMemory
+        self.onReplaceInSourceApp = onReplaceInSourceApp
         self.onWorkspaceNoticeAction = onWorkspaceNoticeAction
+        surfaceObserver = state.$workspaceSurface.sink { [weak self] surface in
+            Task { @MainActor in
+                self?.applySurfaceMetrics(surface: surface, resetSize: false)
+            }
+        }
     }
 
     func show(focusComposer: Bool = false) {
@@ -76,6 +91,7 @@ final class FloatingPanel {
             suppressFocusLossHideUntil = Date().addingTimeInterval(0.8)
         }
         let wasVisible = panel?.isVisible == true
+        applySurfaceMetrics(resetSize: !wasVisible)
         if !wasVisible {
             anchorPoint = NSEvent.mouseLocation
             userPositionedPanel = false
@@ -114,7 +130,7 @@ final class FloatingPanel {
 
     func hide(force: Bool = false) {
         guard force || !state.shouldKeepWorkspaceVisible else { return }
-        panel?.contentMinSize = Metrics.minContentSize
+        panel?.contentMinSize = metrics(for: state.workspaceSurface).min
         panel?.orderOut(nil)
         panel?.alphaValue = 1
         isHiding = false
@@ -151,6 +167,8 @@ final class FloatingPanel {
             onTogglePinned: { [weak self] in self?.togglePinned() },
             onConfigureProvider: onConfigureProvider,
             onVocabulary: onVocabulary,
+            onContextMemory: onContextMemory,
+            onReplaceInSourceApp: onReplaceInSourceApp,
             onWorkspaceNoticeAction: onWorkspaceNoticeAction,
             onClose: { [weak self] in self?.hide(force: true) }
         ))
@@ -163,8 +181,9 @@ final class FloatingPanel {
         p.setAccessibilityTitle(title)
         p.titleVisibility = .hidden
         p.titlebarAppearsTransparent = true
-        p.contentMinSize = Metrics.minContentSize
-        p.setContentSize(Metrics.defaultContentSize)
+        let initialMetrics = metrics(for: state.workspaceSurface)
+        p.contentMinSize = initialMetrics.min
+        p.setContentSize(initialMetrics.defaultSize)
         p.isReleasedWhenClosed = false
         p.isFloatingPanel = true
         p.level = .floating
@@ -217,6 +236,35 @@ final class FloatingPanel {
         }
 
         installOutsideClickMonitors()
+    }
+
+    private func metrics(for surface: WorkspaceSurface) -> (min: NSSize, defaultSize: NSSize) {
+        switch surface {
+        case .quickPeek:
+            return (Metrics.quickMinContentSize, Metrics.quickContentSize)
+        case .workspace:
+            return (Metrics.minContentSize, Metrics.defaultContentSize)
+        }
+    }
+
+    private func applySurfaceMetrics(
+        surface: WorkspaceSurface? = nil,
+        resetSize: Bool
+    ) {
+        guard let panel else { return }
+        let target = metrics(for: surface ?? state.workspaceSurface)
+        panel.contentMinSize = target.min
+        let currentSize = panel.contentView?.frame.size ?? panel.frame.size
+        let shouldResize = resetSize
+            || !userPositionedPanel
+            || currentSize.width < target.min.width
+            || currentSize.height < target.min.height
+            || (surface ?? state.workspaceSurface) == .workspace
+        guard shouldResize else { return }
+        panel.setContentSize(target.defaultSize)
+        if panel.isVisible {
+            keepCurrentPlacement()
+        }
     }
 
     private func togglePinned() {

@@ -1,7 +1,32 @@
 import AppKit
 import SwiftUI
+import ApplicationServices
 import Carbon.HIToolbox
 import ParrotCore
+
+struct AppURLRouteOptions: Equatable {
+    var surface: WorkspaceSurface?
+    var profile: TranslationContextProfile?
+    var sourceURL: String?
+
+    static func parse(queryItems: [URLQueryItem]) -> AppURLRouteOptions {
+        let surface = queryItems.first(where: { $0.name == "surface" })?.value.flatMap(parseSurface)
+        let profile = queryItems.first(where: { $0.name == "profile" })?.value.flatMap(TranslationContextProfile.init(rawValue:))
+        let sourceURL = queryItems.first(where: { $0.name == "sourceURL" || $0.name == "url" })?.value
+        return AppURLRouteOptions(surface: surface, profile: profile, sourceURL: sourceURL)
+    }
+
+    private static func parseSurface(_ value: String) -> WorkspaceSurface? {
+        switch value.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() {
+        case "peek", "quick", "quickpeek", "quick-peek":
+            return .quickPeek
+        case "workspace", "full", "expanded":
+            return .workspace
+        default:
+            return nil
+        }
+    }
+}
 
 /// Menu-bar agent: owns the status item, registers global hotkeys, and routes
 /// 划词(⌥D) / 截图OCR(⌥S) / 输入(⌥A) actions into the translation pipeline.
@@ -13,6 +38,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         state: state,
         onConfigureProvider: { [weak self] providerID in self?.showSettingsForProvider(providerID) },
         onVocabulary: { [weak self] in self?.vocabularyWindow.show() },
+        onContextMemory: { [weak self] in self?.contextMemoryWindow.show() },
+        onReplaceInSourceApp: { [weak self] text in self?.replaceInSourceApp(text) ?? false },
         onWorkspaceNoticeAction: { [weak self] action in self?.handleWorkspaceNoticeAction(action) }
     )
     private lazy var settingsWindow = SettingsWindow(state: state) { [weak self] providerID in
@@ -24,8 +51,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
     private lazy var learningReviewWindow = LearningReviewWindow(state: state)
     private lazy var vocabularyWindow = VocabularyWindow(state: state)
+    private lazy var contextMemoryWindow = ContextMemoryWindow(state: state)
     private let popover = NSPopover()
     private var previousFrontmostApp: NSRunningApplication?
+    private var sourceReplacementTargetApp: NSRunningApplication?
     private var shortcutObserver: NSObjectProtocol?
     private var languageObserver: NSObjectProtocol?
     private var lastHotkeyFireByAction: [String: Date] = [:]
@@ -84,6 +113,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         historyWindow.refreshTitle()
         learningReviewWindow.refreshTitle()
         vocabularyWindow.refreshTitle()
+        contextMemoryWindow.refreshTitle()
     }
 
     private func terminateOtherRunningInstances() {
@@ -105,9 +135,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         let appMenuItem = NSMenuItem()
         let appMenu = NSMenu(title: "Parrot")
         appMenu.addItem(appCommand("输入翻译", action: #selector(showInput), key: ""))
+        appMenu.addItem(appCommand("输入润色", action: #selector(showPolishInput), key: ""))
         appMenu.addItem(appCommand("查看历史", action: #selector(showHistory), key: ""))
         appMenu.addItem(appCommand("今日复习", action: #selector(showLearningReview), key: ""))
         appMenu.addItem(appCommand("个人词库", action: #selector(showVocabulary), key: ""))
+        appMenu.addItem(appCommand("规则记忆", action: #selector(showContextMemory), key: ""))
         appMenu.addItem(appCommand("设置…", action: #selector(showSettings), key: ","))
         appMenu.addItem(.separator())
         appMenu.addItem(NSMenuItem(title: L("退出 Parrot"), action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q"))
@@ -156,14 +188,37 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         let action = comps.host ?? url.host ?? "translate"
         let text = comps.queryItems?.first(where: { $0.name == "text" })?.value ?? ""
         guard !text.isEmpty else { return }
-        DebugLog.log("url: action=\(action) textLen=\(text.count)")
+        let options = AppURLRouteOptions.parse(queryItems: comps.queryItems ?? [])
+        DebugLog.log("url: action=\(action) textLen=\(text.count) surface=\(String(describing: options.surface)) profile=\(String(describing: options.profile))")
         switch action {
         case "ocr-fixture":
             openOCRFixture(text: text, queryItems: comps.queryItems ?? [])
         case "lookup":
-            runTranslation(text, mode: .lookup)
+            runTranslation(
+                text,
+                mode: .lookup,
+                origin: .url,
+                surface: options.surface,
+                profile: options.profile,
+                sourceURL: options.sourceURL
+            )
+        case "polish":
+            runTranslation(
+                text,
+                mode: .polish,
+                origin: .url,
+                surface: options.surface,
+                profile: options.profile,
+                sourceURL: options.sourceURL
+            )
         default:
-            runTranslation(text)
+            runTranslation(
+                text,
+                origin: .url,
+                surface: options.surface,
+                profile: options.profile,
+                sourceURL: options.sourceURL
+            )
         }
     }
 
@@ -190,10 +245,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             onLookup: { [weak self] in self?.closePopoverRestoringPreviousApp { self?.lookupSelection() } },
             onScreenshot: { [weak self] in self?.closePopoverThen { self?.translateScreenshot() } },
             onInput: { [weak self] in self?.closePopoverThen { self?.showInput() } },
+            onPolishInput: { [weak self] in self?.closePopoverThen { self?.showPolishInput() } },
             onSettings: { [weak self] in self?.closePopoverThen { self?.showSettings() } },
             onHistory: { [weak self] in self?.closePopoverThen { self?.historyWindow.show() } },
             onLearningReview: { [weak self] in self?.closePopoverThen { self?.learningReviewWindow.show() } },
             onVocabulary: { [weak self] in self?.closePopoverThen { self?.vocabularyWindow.show() } },
+            onContextMemory: { [weak self] in self?.closePopoverThen { self?.contextMemoryWindow.show() } },
             onRetranslate: { [weak self] text in self?.closePopoverThen { self?.runTranslation(text) } },
             onQuit: { NSApp.terminate(nil) }
         )
@@ -295,6 +352,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             showPermissionNotice(.accessibility)
             return
         }
+        let sourceApp = captureReplacementTarget()
         state.resetManualLearningSelection()
         floating.prepareForExternalCapture()
         let text = SelectionCapture.selectedText()
@@ -307,7 +365,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             restorePreviousWorkspace(reason: "selection unchanged")
             return
         }
-        runTranslation(text)
+        runTranslation(text, origin: .selection, sourceApp: sourceAppName(sourceApp))
     }
 
     @objc private func lookupSelection() {
@@ -316,10 +374,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             showPermissionNotice(.accessibility)
             return
         }
+        let sourceApp = captureReplacementTarget()
         state.resetManualLearningSelection()
         floating.prepareForExternalCapture()
         guard let text = SelectionCapture.selectedText(), !text.isEmpty else { warnIfNoAccessibility(); return }
-        runTranslation(text, mode: .lookup)
+        runTranslation(text, mode: .lookup, origin: .lookup, sourceApp: sourceAppName(sourceApp))
     }
 
     /// When selection capture comes back empty, distinguish "no text selected" (silent — 即用即走)
@@ -375,6 +434,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         vocabularyWindow.show()
     }
 
+    @objc private func showContextMemory() {
+        contextMemoryWindow.show()
+    }
+
     @objc private func translateScreenshot() {
         state.refreshPermissions()
         guard state.permissions.screenRecordingGranted else {
@@ -420,12 +483,41 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     @objc private func showInput() {
-        state.openManualInputWorkspace()
+        let sourceApp = captureReplacementTarget(preferred: previousFrontmostApp)
+        previousFrontmostApp = nil
+        state.openManualInputWorkspace(sourceApp: sourceAppName(sourceApp))
         floating.show(focusComposer: true)
     }
 
-    private func runTranslation(_ text: String, mode: TranslateMode = .translate) {
-        state.openWorkspace(text: text, mode: mode, autoRun: true, focusComposer: false)
+    @objc private func showPolishInput() {
+        let sourceApp = captureReplacementTarget(preferred: previousFrontmostApp)
+        previousFrontmostApp = nil
+        state.openManualPolishWorkspace(sourceApp: sourceAppName(sourceApp))
+        floating.show(focusComposer: true)
+    }
+
+    private func runTranslation(
+        _ text: String,
+        mode: TranslateMode = .translate,
+        origin: TranslationOrigin = .history,
+        surface: WorkspaceSurface? = nil,
+        profile: TranslationContextProfile? = nil,
+        sourceApp: String? = nil,
+        windowTitle: String? = nil,
+        sourceURL: String? = nil
+    ) {
+        state.openWorkspace(
+            text: text,
+            mode: mode,
+            autoRun: true,
+            focusComposer: false,
+            origin: origin,
+            surface: surface,
+            profile: profile,
+            sourceApp: sourceApp,
+            windowTitle: windowTitle,
+            sourceURL: sourceURL
+        )
         floating.show()
     }
 
@@ -433,6 +525,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         switch action {
         case .retryScreenshot:
             translateScreenshot()
+        case .openSettings:
+            settingsWindow.show()
         case .openScreenRecordingSettings:
             AppPermissions.openScreenRecordingSettings()
         case .openOCRSettings:
@@ -440,6 +534,66 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         case .dismiss:
             state.dismissWorkspaceNotice()
         }
+    }
+
+    private func captureReplacementTarget(preferred: NSRunningApplication? = nil) -> NSRunningApplication? {
+        let candidates = [preferred, NSWorkspace.shared.frontmostApplication]
+        let app = candidates.compactMap { $0 }.first { candidate in
+            candidate.processIdentifier != getpid() && !candidate.isTerminated
+        }
+        sourceReplacementTargetApp = app
+        return app
+    }
+
+    private func sourceAppName(_ app: NSRunningApplication?) -> String? {
+        guard let app else { return nil }
+        return app.localizedName ?? app.bundleIdentifier
+    }
+
+    private func replaceInSourceApp(_ text: String) -> Bool {
+        let replacement = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !replacement.isEmpty else { return false }
+        guard SelectionCapture.hasAccessibilityPermission(prompt: false) else {
+            showPermissionNotice(.accessibility)
+            return false
+        }
+        guard let target = sourceReplacementTargetApp,
+              target.processIdentifier != getpid(),
+              !target.isTerminated else {
+            return false
+        }
+
+        let pasteboard = NSPasteboard.general
+        let saved = pasteboard.string(forType: .string)
+        pasteboard.clearContents()
+        pasteboard.setString(replacement, forType: .string)
+        target.activate(options: [.activateIgnoringOtherApps])
+
+        Task { @MainActor in
+            try? await Task.sleep(nanoseconds: 160_000_000)
+            Self.sendCommandV()
+            try? await Task.sleep(nanoseconds: 650_000_000)
+            if pasteboard.string(forType: .string) == replacement {
+                pasteboard.clearContents()
+                if let saved {
+                    pasteboard.setString(saved, forType: .string)
+                }
+            }
+        }
+        return true
+    }
+
+    private static func sendCommandV() {
+        let source = CGEventSource(stateID: .privateState)
+        source?.setLocalEventsFilterDuringSuppressionState([], state: .eventSuppressionStateSuppressionInterval)
+
+        let vKey: CGKeyCode = 9
+        let down = CGEvent(keyboardEventSource: source, virtualKey: vKey, keyDown: true)
+        let up = CGEvent(keyboardEventSource: source, virtualKey: vKey, keyDown: false)
+        down?.flags = .maskCommand
+        up?.flags = .maskCommand
+        down?.post(tap: .cghidEventTap)
+        up?.post(tap: .cghidEventTap)
     }
 
     private func openOCRFixture(text: String, queryItems: [URLQueryItem]) {

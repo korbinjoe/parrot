@@ -11,7 +11,7 @@ public final class GoogleEngine: TranslationProvider, @unchecked Sendable {
     public let id = "google"
     public let displayName = "Google"
     public let supportedLanguages: [Language] = [.auto, .zh, .en, .ja, .ko, .fr, .de, .es, .ru]
-    public let capabilities = ProviderCapabilities(supportsLookup: false, supportsStream: false, supportsPolish: false)
+    public let capabilities = ProviderCapabilities(supportsLookup: false, supportsStream: false)
 
     private let session: URLSession
     public init(session: URLSession = .shared) { self.session = session }

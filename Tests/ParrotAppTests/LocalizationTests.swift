@@ -42,9 +42,12 @@ struct LocalizationTests {
 
         L10n.setLanguageCode("en", notify: false)
         #expect(L("%d 个字符", 3) == "3 characters")
+        #expect(L("润色") == "Polish")
+        #expect(L("输入润色") == "Input Polish")
 
         L10n.setLanguageCode("zh-Hans", notify: false)
         #expect(L("%d 个字符", 3) == "3 个字符")
+        #expect(L("润色") == "润色")
 
         L10n.setLanguageCode("fr", notify: false)
         #expect(L("通用") == "Général")

@@ -164,3 +164,27 @@ struct PrimaryActionButtonStyle: ButtonStyle {
             .opacity(isEnabled ? 1 : 0.55)
     }
 }
+
+struct SecondaryActionButtonStyle: ButtonStyle {
+    @Environment(\.isEnabled) private var isEnabled
+
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .font(Theme.Font.body)
+            .foregroundStyle(isEnabled ? Theme.Palette.label : Theme.Palette.label3)
+            .padding(.horizontal, 12)
+            .frame(minHeight: 28)
+            .background(
+                isEnabled
+                    ? (configuration.isPressed ? Theme.Palette.bgSelection : Theme.Palette.bgControl)
+                    : Theme.Palette.bgControl.opacity(0.6)
+            )
+            .clipShape(RoundedRectangle(cornerRadius: Theme.Radius.control))
+            .overlay(
+                RoundedRectangle(cornerRadius: Theme.Radius.control)
+                    .strokeBorder(Theme.Palette.separator, lineWidth: 0.5)
+            )
+            .scaleEffect(configuration.isPressed ? 0.985 : 1)
+            .opacity(isEnabled ? 1 : 0.55)
+    }
+}

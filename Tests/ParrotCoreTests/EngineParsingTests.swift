@@ -94,6 +94,31 @@ import Foundation
     #expect(result.translated == "你好")
 }
 
+@Test func openAICompatPolishPromptPreservesOriginalLanguage() {
+    let prompt = OpenAICompatEngine.systemPrompt(for: TranslateRequest(
+        text: "This draft needs polish.",
+        from: .en,
+        to: .en,
+        mode: .polish
+    ))
+
+    #expect(prompt.contains("Keep the output in the same language"))
+    #expect(prompt.contains("do not translate it into another language"))
+}
+
+@Test func openAICompatPromptUsesContextProfileInstruction() {
+    let context = TranslationContext(profile: .document, origin: .manualInput)
+    let prompt = OpenAICompatEngine.systemPrompt(for: TranslateRequest(
+        text: "Heading\n\nBody",
+        from: .en,
+        to: .zh,
+        context: context
+    ))
+
+    #expect(prompt.contains("Preserve paragraph breaks"))
+    #expect(prompt.contains("document structure"))
+}
+
 @Test func openCodeGoUsesGoDefaults() {
     let engine = OpenCodeGoEngine()
     #expect(engine.id == "opencode")

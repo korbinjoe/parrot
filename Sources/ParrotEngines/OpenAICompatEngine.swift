@@ -149,13 +149,40 @@ open class OpenAICompatEngine: TranslationProvider, @unchecked Sendable {
 
     static func systemPrompt(for req: TranslateRequest) -> String {
         let target = req.to.code ?? "the target language"
+        let terminology = TerminologyProcessor.promptBlock(for: req) ?? ""
         switch req.mode {
         case .translate:
-            return "You are a professional translator. Translate the user's text into \(target). Output only the translation, no explanations.\(TerminologyProcessor.promptBlock(for: req) ?? "")"
+            return "You are a professional translator. Translate the user's text into \(target). \(contextInstruction(for: req.context?.profile))\(terminology)"
         case .lookup:
             return "You are a dictionary. Explain the user's selected word or phrase in \(target). If a context sentence is provided, give the contextual meaning first. Include part of speech or phonetics only when useful. Output a concise answer with no markdown."
         case .polish:
-            return "Polish and improve the user's text in \(target) while preserving meaning. Output only the result.\(TerminologyProcessor.promptBlock(for: req) ?? "")"
+            let polishLanguage = req.to.code ?? "the original language"
+            return "Polish and improve the user's text in \(polishLanguage) while preserving meaning. Keep the output in the same language; do not translate it into another language. \(contextInstruction(for: req.context?.profile))\(terminology)"
+        }
+    }
+
+    private static func contextInstruction(for profile: TranslationContextProfile?) -> String {
+        switch profile {
+        case .understand:
+            return "Prioritize meaning, nuance, tone, and practical understanding. Include a concise natural translation, and only add brief clarification when it materially helps."
+        case .nativePolish:
+            return "Make the result native, clear, and polished while preserving intent. Output only the improved text."
+        case .reply:
+            return "Rewrite as a natural reply with an appropriate tone. Preserve the user's intent and output only the reply."
+        case .strictTerminology:
+            return "Follow terminology constraints exactly. Preserve protected product names, code terms, and proper nouns. Output only the translation."
+        case .privateLocal:
+            return "Treat the content as sensitive. Do not add explanations or retain unnecessary details. Output only the translation."
+        case .github:
+            return "Preserve code identifiers, Markdown, issue references, branch names, and command snippets. Output only the translation."
+        case .social:
+            return "Keep the tone natural for social reading. Preserve handles, hashtags, quoted text, and platform shorthand. Output only the translation."
+        case .email:
+            return "Preserve names, dates, addresses, signatures, and action items. Keep the translation business-appropriate. Output only the translation."
+        case .document:
+            return "Preserve paragraph breaks, headings, lists, tables, code fences, and document structure. Output only the translation."
+        case .quickTranslate, .none:
+            return "Output only the translation, no explanations."
         }
     }
 

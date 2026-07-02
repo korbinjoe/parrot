@@ -19,7 +19,7 @@ public final class PluginProvider: TranslationProvider, @unchecked Sendable {
         self.capabilities = ProviderCapabilities(
             supportsLookup: caps.contains("lookup"),
             supportsStream: false,
-            supportsPolish: caps.contains("polish"),
+            supportsPolish: caps.contains("translate") || caps.contains("polish"),
             terminology: manifest.supportsTerminology == true ? .prompt : .placeholder
         )
     }

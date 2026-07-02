@@ -45,6 +45,18 @@ final class AppSettings: ObservableObject {
     @Published var sourceLanguageCode: String {
         didSet { defaults.set(sourceLanguageCode, forKey: "sourceLanguageCode") }
     }
+    @Published var lastContextProfileCode: String {
+        didSet { defaults.set(lastContextProfileCode, forKey: "context.profile.last") }
+    }
+    @Published var contextRuleDocumentEnabled: Bool {
+        didSet { defaults.set(contextRuleDocumentEnabled, forKey: "context.rule.document.enabled") }
+    }
+    @Published var contextRuleDeveloperEnabled: Bool {
+        didSet { defaults.set(contextRuleDeveloperEnabled, forKey: "context.rule.developer.enabled") }
+    }
+    @Published var contextRulePrivateEnabled: Bool {
+        didSet { defaults.set(contextRulePrivateEnabled, forKey: "context.rule.private.enabled") }
+    }
 
     // MARK: - Engine toggles
 
@@ -146,6 +158,10 @@ final class AppSettings: ObservableObject {
         L10n.setLanguageCode(initialAppLanguageCode, defaults: defaults, notify: false)
         self.targetLanguageCode = defaults.string(forKey: "targetLanguageCode") ?? "zh"
         self.sourceLanguageCode = defaults.string(forKey: "sourceLanguageCode") ?? "auto"
+        self.lastContextProfileCode = defaults.string(forKey: "context.profile.last") ?? TranslationContextProfile.quickTranslate.rawValue
+        self.contextRuleDocumentEnabled = defaults.object(forKey: "context.rule.document.enabled") as? Bool ?? true
+        self.contextRuleDeveloperEnabled = defaults.object(forKey: "context.rule.developer.enabled") as? Bool ?? true
+        self.contextRulePrivateEnabled = defaults.object(forKey: "context.rule.private.enabled") as? Bool ?? true
         self.googleEnabled = defaults.object(forKey: "engine.google.enabled") as? Bool ?? true
         self.deepLEnabled = defaults.object(forKey: "engine.deepl.enabled") as? Bool ?? true
         self.openAIEnabled = defaults.object(forKey: "engine.openai.enabled") as? Bool ?? true
@@ -199,6 +215,14 @@ final class AppSettings: ObservableObject {
         min(6, max(1, value))
     }
 
+    var lastContextProfile: TranslationContextProfile {
+        TranslationContextProfile(rawValue: lastContextProfileCode) ?? .quickTranslate
+    }
+
+    func rememberContextProfile(_ profile: TranslationContextProfile) {
+        lastContextProfileCode = profile.rawValue
+    }
+
     func markLearningSaved(_ id: String) {
         guard !learningSavedExpressionIDs.contains(id) else { return }
         learningSavedExpressionIDs.append(id)
@@ -228,7 +252,8 @@ final class AppSettings: ObservableObject {
     func addLearningVocabularyTerm(
         term rawTerm: String,
         meaning rawMeaning: String = "",
-        sourceSentence rawSourceSentence: String = ""
+        sourceSentence rawSourceSentence: String = "",
+        sceneLabel rawSceneLabel: String = "手动添加"
     ) -> String? {
         let term = rawTerm.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !term.isEmpty else { return nil }
@@ -236,13 +261,14 @@ final class AppSettings: ObservableObject {
         let now = Date()
         let meaning = rawMeaning.trimmingCharacters(in: .whitespacesAndNewlines)
         let sourceSentence = rawSourceSentence.trimmingCharacters(in: .whitespacesAndNewlines)
+        let sceneLabel = rawSceneLabel.trimmingCharacters(in: .whitespacesAndNewlines)
         markLearningSaved(id)
         if let index = learningVocabularyEntries.firstIndex(where: { $0.id == id }) {
             var entries = learningVocabularyEntries
             entries[index].term = term
             if !meaning.isEmpty { entries[index].meaning = meaning }
             if !sourceSentence.isEmpty { entries[index].sourceSentence = sourceSentence }
-            entries[index].sceneLabel = entries[index].sceneLabel.isEmpty ? "手动添加" : entries[index].sceneLabel
+            entries[index].sceneLabel = sceneLabel.isEmpty ? (entries[index].sceneLabel.isEmpty ? "手动添加" : entries[index].sceneLabel) : sceneLabel
             entries[index].isManual = true
             entries[index].updatedAt = now
             learningVocabularyEntries = entries
@@ -253,7 +279,7 @@ final class AppSettings: ObservableObject {
                     term: term,
                     meaning: meaning,
                     sourceSentence: sourceSentence,
-                    sceneLabel: "手动添加",
+                    sceneLabel: sceneLabel.isEmpty ? "手动添加" : sceneLabel,
                     isManual: true,
                     savedAt: now,
                     updatedAt: now

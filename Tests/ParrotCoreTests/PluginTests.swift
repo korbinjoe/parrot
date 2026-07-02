@@ -81,4 +81,5 @@ import Foundation
     #expect(provider.id == "plugin.echo")
     let result = try await provider.translate(TranslateRequest(text: "hi", to: .zh))
     #expect(result.translated == "[zh]hi")
+    #expect(provider.capabilities.supportsPolish)
 }

@@ -6,6 +6,8 @@ import ParrotCore
 /// slots displayed in the order configured in Settings.
 struct ResultView: View {
     private enum Layout {
+        static let quickWidth: CGFloat = 420
+        static let quickMinHeight: CGFloat = 220
         static let minWidth: CGFloat = 520
         static let idealWidth: CGFloat = 560
         static let minHeight: CGFloat = 320
@@ -21,6 +23,8 @@ struct ResultView: View {
     let onTogglePinned: () -> Void
     let onConfigureProvider: (String?) -> Void
     let onVocabulary: () -> Void
+    let onContextMemory: () -> Void
+    let onReplaceInSourceApp: (String) -> Bool
     let onWorkspaceNoticeAction: (WorkspaceNotice.Action) -> Void
     let onClose: () -> Void
 
@@ -35,6 +39,8 @@ struct ResultView: View {
         onTogglePinned: @escaping () -> Void = {},
         onConfigureProvider: @escaping (String?) -> Void = { _ in },
         onVocabulary: @escaping () -> Void = {},
+        onContextMemory: @escaping () -> Void = {},
+        onReplaceInSourceApp: @escaping (String) -> Bool = { _ in false },
         onWorkspaceNoticeAction: @escaping (WorkspaceNotice.Action) -> Void = { _ in },
         onClose: @escaping () -> Void = {}
     ) {
@@ -43,12 +49,20 @@ struct ResultView: View {
         self.onTogglePinned = onTogglePinned
         self.onConfigureProvider = onConfigureProvider
         self.onVocabulary = onVocabulary
+        self.onContextMemory = onContextMemory
+        self.onReplaceInSourceApp = onReplaceInSourceApp
         self.onWorkspaceNoticeAction = onWorkspaceNoticeAction
         self.onClose = onClose
     }
 
     var body: some View {
-        expandedBody
+        Group {
+            if state.isQuickPeekSurface {
+                quickPeekBody
+            } else {
+                expandedBody
+            }
+        }
         .onPreferenceChange(ContentHeightKey.self) { contentHeight = $0 }
         .onDisappear {
             sourceComposerFocused = false
@@ -60,6 +74,39 @@ struct ResultView: View {
         .onExitCommand {
             onClose()
         }
+    }
+
+    private var quickPeekBody: some View {
+        VStack(spacing: 0) {
+            if state.isOffline {
+                WarningBar("无网络连接，翻译可能失败")
+            }
+            VStack(alignment: .leading, spacing: Theme.Spacing.s8) {
+                quickPeekHeader
+                if let notice = state.workspaceNotice {
+                    WorkspaceNoticeView(notice: notice, onAction: handleNoticeAction)
+                }
+                quickSourceBlock
+                quickPrimaryBlock
+            }
+            .padding(Theme.Spacing.s12)
+            if !feedbackText.isEmpty {
+                Divider()
+                Text(feedbackText)
+                    .font(Theme.Font.caption)
+                    .foregroundStyle(Theme.Palette.label2)
+                    .frame(maxWidth: .infinity, minHeight: 26)
+            }
+        }
+        .background(Theme.Palette.bgPanel)
+        .clipShape(RoundedRectangle(cornerRadius: Theme.Radius.window))
+        .overlay(panelStroke)
+        .frame(
+            minWidth: Layout.quickWidth,
+            idealWidth: Layout.quickWidth,
+            maxWidth: Layout.quickWidth,
+            minHeight: Layout.quickMinHeight
+        )
     }
 
     private var expandedBody: some View {
@@ -74,48 +121,16 @@ struct ResultView: View {
                         if let notice = state.workspaceNotice {
                             WorkspaceNoticeView(notice: notice, onAction: handleNoticeAction)
                         }
+                        if state.ocrCandidates.count > 1 {
+                            OCRCandidatesView(
+                                candidates: state.ocrCandidates,
+                                selectedID: state.selectedOCRCandidateID,
+                                onSelect: { state.selectOCRCandidate(id: $0) }
+                            )
+                        }
                         sourceBlock
 
-                        if state.isTranslating && state.outcomes.isEmpty && state.pendingProviders.isEmpty {
-                            ForEach(0..<2, id: \.self) { _ in SkeletonCard() }
-                        } else if state.outcomes.isEmpty && state.pendingProviders.isEmpty {
-                            if state.isRecognizingOCR {
-                                recognizingState
-                            } else if state.canTranslateDraft {
-                                readyToTranslateState
-                            } else {
-                                emptyState
-                            }
-                        } else {
-                            ForEach(orderedSlots) { slot in
-                                switch slot {
-                                case .outcome(let outcome):
-                                    TranslationOutcomeCard(outcome: outcome,
-                                                           isSlow: state.slowProviderIDs.contains(outcome.providerId),
-                                                           settings: state.settings,
-                                                           sourceText: state.sourceText,
-                                                           learningEnabled: state.settings.learningRecognitionEnabled,
-                                                           microPracticeEnabled: state.settings.learningMicroPracticeEnabled,
-                                                           occurrenceCounts: state.learningOccurrenceCounts,
-                                                           sourceSelection: sourceLearningSelection,
-                                                           onSpeak: { state.speakTranslation($0) },
-                                                           onCopy: { copy($0) },
-                                                           onLookupSelection: { selection, contextText, usesTranslation in
-                                                               await state.lookupLearningSelection(
-                                                                   selection,
-                                                                   contextText: contextText,
-                                                                   providerID: outcome.providerId,
-                                                                   usesTranslation: usesTranslation
-                                                               )
-                                                           },
-                                                           onRetry: { state.retryProvider(outcome.providerId) },
-                                                           onConfigure: { onConfigureProvider(outcome.providerId) })
-                                        .id("\(outcome.providerId)-\(state.manualLearningSelectionRevision)")
-                                case .pending(let provider):
-                                    PendingOutcomeCard(provider: provider)
-                                }
-                            }
-                        }
+                        resultsList
                     }
                     .padding(.horizontal, Theme.Spacing.s12)
                     .padding(.bottom, Theme.Spacing.s12)
@@ -169,6 +184,142 @@ struct ResultView: View {
             )
     }
 
+    private var quickPeekHeader: some View {
+        HStack(spacing: Theme.Spacing.s8) {
+            LearningStatusChip(text: state.isPolishMode ? "润色" : (state.contextProfile == .quickTranslate ? "快译" : profileLabel(state.contextProfile)),
+                               tone: Theme.Palette.accent)
+            if state.isTranslating {
+                ProgressView().controlSize(.small)
+            }
+            Spacer(minLength: 0)
+            IconButton("doc.on.doc", help: primaryTranslatedText.isEmpty ? "有译文后可复制" : "复制译文", size: 12, isEnabled: !primaryTranslatedText.isEmpty) {
+                copy(primaryTranslatedText)
+            }
+            IconButton("speaker.wave.2", help: "朗读译文", size: 12, isEnabled: !primaryTranslatedText.isEmpty) {
+                if !primaryTranslatedText.isEmpty { state.speakTranslation(primaryTranslatedText) }
+            }
+            IconButton("text.book.closed", help: "打开个人词库", size: 12) {
+                onVocabulary()
+            }
+            IconButton("slider.horizontal.3", help: "规则记忆", size: 12) {
+                onContextMemory()
+            }
+            IconButton("arrow.up.left.and.arrow.down.right", help: "展开工作台", size: 12) {
+                state.expandQuickPeek()
+            }
+            IconButton("xmark", help: "关闭", size: 12) { onClose() }
+        }
+        .frame(height: Layout.toolbarControlHeight)
+    }
+
+    private var quickSourceBlock: some View {
+        VStack(alignment: .leading, spacing: Theme.Spacing.s4) {
+            Text(sourceLanguageText)
+                .font(Theme.Font.caption)
+                .foregroundStyle(Theme.Palette.label3)
+            Text(state.actionSourceText)
+                .font(Theme.Font.callout)
+                .foregroundStyle(Theme.Palette.label2)
+                .lineLimit(3)
+                .textSelection(.enabled)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+        .padding(.horizontal, Theme.Spacing.s8)
+        .padding(.vertical, 9)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(Theme.Palette.bgContent)
+        .clipShape(RoundedRectangle(cornerRadius: Theme.Radius.card))
+        .overlay(RoundedRectangle(cornerRadius: Theme.Radius.card).strokeBorder(Theme.Palette.hairline, lineWidth: 0.5))
+    }
+
+    @ViewBuilder
+    private var quickPrimaryBlock: some View {
+        if let outcome = state.primarySuccessfulOutcome, let result = outcome.result {
+            VStack(alignment: .leading, spacing: Theme.Spacing.s8) {
+                HStack(spacing: Theme.Spacing.s4) {
+                    EngineTag(outcome.displayName, tone: .accent)
+                    qualityBadges(for: result)
+                    Spacer(minLength: 0)
+                    Text("\(outcome.latencyMs)ms")
+                        .font(Theme.Font.caption.monospacedDigit())
+                        .foregroundStyle(Theme.Palette.label3)
+                }
+                TranslationBody(result: result, lineLimit: 8)
+                HStack(spacing: Theme.Spacing.s4) {
+                    Spacer(minLength: 0)
+                    IconButton("bookmark", help: state.currentOrigin == .ocr ? "保存到研究摘录" : "存为表达", size: 11) {
+                        saveCurrentExpression(result.translated)
+                    }
+                    if state.isPolishMode {
+                        IconButton("arrowshape.turn.up.left", help: "替换到原 App", size: 11) {
+                            replaceInSourceApp(result.translated)
+                        }
+                    }
+                    IconButton("arrow.clockwise", help: "重试此引擎", size: 11) { state.retryProvider(outcome.providerId) }
+                    IconButton("doc.on.doc", help: "复制译文", size: 11) { copy(result.translated) }
+                    IconButton("speaker.wave.2", help: "朗读译文", size: 11) { state.speakTranslation(result.translated) }
+                }
+            }
+            .padding(.horizontal, Theme.Spacing.s12)
+            .padding(.vertical, 11)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(Theme.Palette.bgContent)
+            .clipShape(RoundedRectangle(cornerRadius: Theme.Radius.card))
+            .overlay(RoundedRectangle(cornerRadius: Theme.Radius.card).strokeBorder(quickPrimaryStroke(result), lineWidth: 0.7))
+        } else if let errorOutcome = state.outcomes.first(where: { $0.error != nil }) {
+            quickErrorBlock(errorOutcome)
+        } else if state.isTranslating || !state.pendingProviders.isEmpty {
+            PendingOutcomeCard(provider: state.pendingProviders.first ?? PendingProviderViewState(
+                id: "pending",
+                displayName: L("翻译中"),
+                modelName: nil,
+                isSlow: false
+            ))
+        } else if state.canTranslateDraft {
+            readyToTranslateState
+        } else {
+            emptyState
+        }
+    }
+
+    private func quickErrorBlock(_ outcome: AggregatedOutcome) -> some View {
+        VStack(alignment: .leading, spacing: Theme.Spacing.s8) {
+            HStack(spacing: Theme.Spacing.s8) {
+                EngineTag(outcome.displayName, tone: .danger)
+                Spacer(minLength: 0)
+                Text(providerStatusText(outcome.error))
+                    .font(Theme.Font.caption.monospacedDigit())
+                    .foregroundStyle(Theme.Palette.danger)
+            }
+            Text(providerErrorText(outcome.error ?? .network))
+                .font(Theme.Font.callout)
+                .foregroundStyle(Theme.Palette.danger)
+                .fixedSize(horizontal: false, vertical: true)
+            HStack(spacing: Theme.Spacing.s8) {
+                Button { state.retryProvider(outcome.providerId) } label: {
+                    Label(L("重试"), systemImage: "arrow.clockwise")
+                }
+                .controlSize(.small)
+                if let error = outcome.error, providerNeedsConfiguration(error) {
+                    Button { onConfigureProvider(outcome.providerId) } label: {
+                        Label(L("配置"), systemImage: "gearshape")
+                    }
+                    .controlSize(.small)
+                }
+                Button { state.expandQuickPeek() } label: {
+                    Label(L("展开"), systemImage: "arrow.up.left.and.arrow.down.right")
+                }
+                .controlSize(.small)
+            }
+        }
+        .padding(.horizontal, Theme.Spacing.s12)
+        .padding(.vertical, 11)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(Theme.Palette.bgContent)
+        .clipShape(RoundedRectangle(cornerRadius: Theme.Radius.card))
+        .overlay(RoundedRectangle(cornerRadius: Theme.Radius.card).strokeBorder(Theme.Palette.danger.opacity(0.6), lineWidth: 0.5))
+    }
+
     private var emptyState: some View {
         Text(L("输入、划词或截图后，源文会出现在这里。"))
             .foregroundStyle(Theme.Palette.label2)
@@ -182,7 +333,7 @@ struct ResultView: View {
             Image(systemName: "keyboard")
                 .font(.system(size: 12))
                 .foregroundStyle(Theme.Palette.accent)
-            Text(L("校对源文后按 ⌘↩ 翻译，或点击源文区右下角的“翻译”。"))
+            Text(L("校对文本后选择“润色”或“翻译”。"))
                 .font(Theme.Font.callout)
                 .foregroundStyle(Theme.Palette.label2)
             Spacer(minLength: 0)
@@ -209,6 +360,72 @@ struct ResultView: View {
         .overlay(RoundedRectangle(cornerRadius: Theme.Radius.card).strokeBorder(Theme.Palette.hairline, lineWidth: 0.5))
     }
 
+    @ViewBuilder
+    private var resultsList: some View {
+        if state.isTranslating && state.outcomes.isEmpty && state.pendingProviders.isEmpty {
+            ForEach(0..<2, id: \.self) { _ in SkeletonCard() }
+        } else if state.outcomes.isEmpty && state.pendingProviders.isEmpty {
+            if state.isRecognizingOCR {
+                recognizingState
+            } else if state.canTranslateDraft {
+                readyToTranslateState
+            } else {
+                emptyState
+            }
+        } else {
+            if state.canShowParagraphBilingualView,
+               let outcome = state.primarySuccessfulOutcome,
+               let result = outcome.result,
+               BilingualParagraphView.canAlign(
+                    sourceHints: state.paragraphHints,
+                    translatedText: result.translated
+               ) {
+                BilingualParagraphView(
+                    sourceHints: state.paragraphHints,
+                    translatedText: result.translated,
+                    providerName: outcome.displayName,
+                    onCopyParagraph: { copy($0) },
+                    onCopyAll: { copy(result.translated) }
+                )
+            }
+            ForEach(orderedSlots) { slot in
+                providerSlotView(slot)
+            }
+        }
+    }
+
+    @ViewBuilder
+    private func providerSlotView(_ slot: TranslationSlot) -> some View {
+        switch slot {
+        case .outcome(let outcome):
+            TranslationOutcomeCard(outcome: outcome,
+                                   isSlow: state.slowProviderIDs.contains(outcome.providerId),
+                                   settings: state.settings,
+                                   sourceText: state.sourceText,
+                                   learningEnabled: state.settings.learningRecognitionEnabled,
+                                   microPracticeEnabled: state.settings.learningMicroPracticeEnabled,
+                                   occurrenceCounts: state.learningOccurrenceCounts,
+                                   sourceSelection: sourceLearningSelection,
+                                   onSpeak: { state.speakTranslation($0) },
+                                   onCopy: { copy($0) },
+                                   onLookupSelection: { selection, contextText, usesTranslation in
+                                       await state.lookupLearningSelection(
+                                           selection,
+                                           contextText: contextText,
+                                           providerID: outcome.providerId,
+                                           usesTranslation: usesTranslation
+                                       )
+                                   },
+                                   onSaveExpression: { saveCurrentExpression($0) },
+                                   onReplaceInSourceApp: state.isPolishMode ? { replaceInSourceApp($0) } : nil,
+                                   onRetry: { state.retryProvider(outcome.providerId) },
+                                   onConfigure: { onConfigureProvider(outcome.providerId) })
+                .id("\(outcome.providerId)-\(state.manualLearningSelectionRevision)")
+        case .pending(let provider):
+            PendingOutcomeCard(provider: provider)
+        }
+    }
+
     // MARK: - Header (language direction + global actions)
 
     private var fixedToolbar: some View {
@@ -230,6 +447,9 @@ struct ResultView: View {
                 onTargetChange: { state.setLanguageDirection(targetCode: $0) },
                 onSwap: swapLanguages
             )
+            ContextProfileMenu(selection: state.contextProfile) { profile in
+                state.setContextProfile(profile)
+            }
             toolbarStatus
             Spacer(minLength: 0)
             HStack(spacing: Theme.Spacing.s4) {
@@ -251,6 +471,7 @@ struct ResultView: View {
                 IconButton("text.alignleft", help: "复制原文", isEnabled: !state.actionSourceText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty) { copy(state.actionSourceText) }
                 IconButton("speaker.wave.2", help: "朗读原文", isEnabled: !state.actionSourceText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty) { state.speakSource() }
                 IconButton("text.book.closed", help: "打开个人词库") { onVocabulary() }
+                IconButton("slider.horizontal.3", help: "规则记忆") { onContextMemory() }
                 IconButton(
                     panelPresentation.isPinned ? "pin.fill" : "pin",
                     help: panelPresentation.isPinned ? "取消常驻" : "常驻",
@@ -269,7 +490,7 @@ struct ResultView: View {
     @ViewBuilder
     private var toolbarStatus: some View {
         if state.isTranslating {
-            LearningStatusChip(text: "翻译中", tone: Theme.Palette.accent)
+            LearningStatusChip(text: state.isPolishMode ? "润色中" : "翻译中", tone: Theme.Palette.accent)
         } else if state.isSourceDirty {
             LearningStatusChip(text: "已修改", tone: Theme.Palette.warning)
         } else if state.settings.learningRecognitionEnabled {
@@ -290,7 +511,9 @@ struct ResultView: View {
         VStack(alignment: .leading, spacing: Theme.Spacing.s8) {
             ZStack(alignment: .topLeading) {
                 if state.sourceDraft.isEmpty {
-                    Text(L("输入或粘贴要翻译的文本…"))
+                    Text(state.isPolishMode
+                        ? L("输入或粘贴要润色的草稿…")
+                        : L("输入或粘贴要翻译的文本…"))
                         .font(Theme.Font.body)
                         .foregroundStyle(Theme.Palette.label3)
                         .padding(.top, 8)
@@ -319,7 +542,7 @@ struct ResultView: View {
                 if state.isTranslating {
                     ProgressView().controlSize(.small)
                 } else if state.isSourceDirty {
-                    Text(L("已修改，⌘↩ 重新翻译"))
+                    Text(L("已修改，可重新润色或翻译"))
                 } else {
                     Text(L("%d 个字符", state.sourceDraft.count))
                 }
@@ -335,11 +558,21 @@ struct ResultView: View {
                         .frame(width: 26, height: 26)
                 }
                 .menuStyle(.borderlessButton)
+                .fixedSize()
                 .disabled(!state.canTranslateDraft)
-                .help(L("整理源文"))
-                .accessibilityLabel(L("整理源文"))
+                .help(state.isPolishMode ? L("整理草稿") : L("整理源文"))
+                .accessibilityLabel(state.isPolishMode ? L("整理草稿") : L("整理源文"))
                 Button {
-                    state.translateDraft()
+                    state.translateDraft(mode: .polish)
+                } label: {
+                    Label(L("润色"), systemImage: "sparkles")
+                }
+                .buttonStyle(SecondaryActionButtonStyle())
+                .disabled(!state.canTranslateDraft)
+                .help(L("润色当前草稿"))
+                .accessibilityLabel(L("润色当前草稿"))
+                Button {
+                    state.translateDraft(mode: .translate)
                 } label: {
                     Label(L("翻译"), systemImage: "arrow.right.circle.fill")
                 }
@@ -379,12 +612,16 @@ struct ResultView: View {
 
     private var sourceStatusText: String {
         if state.sourceDraftTrimmed.isEmpty {
-            return L("编辑源文")
+            return state.isPolishMode ? L("编辑草稿") : L("编辑源文")
         }
         return sourceLanguageText
     }
 
     private var sourceLanguageText: String {
+        if state.isPolishMode {
+            let language = state.targetLanguage == .auto ? state.detectedSource : state.targetLanguage
+            return L("润色 %@", LangPill.label(language, auto: "原文"))
+        }
         if state.sourceLanguage == .auto {
             if state.detectedSource == .auto { return L("自动检测") }
             return L("自动检测 %@", LangPill.label(state.detectedSource, auto: ""))
@@ -400,17 +637,63 @@ struct ResultView: View {
         showFeedback("已复制")
     }
 
+    private func saveCurrentExpression(_ translatedText: String) {
+        let label = state.currentOrigin == .ocr ? "研究摘录" : "工作区表达"
+        if state.saveCurrentExpression(translatedText: translatedText, sceneLabel: label) {
+            showFeedback(state.currentOrigin == .ocr ? "已保存到研究摘录" : "已存为表达")
+        } else {
+            showFeedback("暂无可保存内容")
+        }
+    }
+
+    private func replaceInSourceApp(_ translatedText: String) {
+        showFeedback(onReplaceInSourceApp(translatedText) ? "已发送替换" : "没有可替换的原 App")
+    }
+
     private var primaryTranslatedText: String {
         primarySuccessfulOutcome?.result?.translated.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
     }
 
     private var primarySuccessfulOutcome: AggregatedOutcome? {
-        for slot in orderedSlots {
-            if case .outcome(let outcome) = slot, outcome.result != nil {
-                return outcome
-            }
+        state.primarySuccessfulOutcome
+    }
+
+    private func quickPrimaryStroke(_ result: TranslateResult) -> Color {
+        if result.qualitySummary?.isRecommended == true {
+            return Theme.Palette.accent.opacity(0.65)
         }
-        return nil
+        if result.qualitySummary?.needsReview == true {
+            return Theme.Palette.warning.opacity(0.65)
+        }
+        return Theme.Palette.hairline
+    }
+
+    @ViewBuilder
+    private func qualityBadges(for result: TranslateResult) -> some View {
+        if result.qualitySummary?.isRecommended == true {
+            QualityStatusBadge("推荐", tone: .accent)
+        }
+        if result.qualitySummary?.needsReview == true {
+            QualityStatusBadge("需复核", tone: .warning)
+        }
+        if let report = result.privacyMaskingReport, report.applied {
+            QualityStatusBadge("隐私遮罩 \(report.totalCount)", tone: .secondary)
+        }
+    }
+
+    private func profileLabel(_ profile: TranslationContextProfile) -> String {
+        switch profile {
+        case .quickTranslate: return L("快译")
+        case .understand: return L("理解")
+        case .nativePolish: return L("润色")
+        case .reply: return L("回复")
+        case .strictTerminology: return L("术语")
+        case .privateLocal: return L("隐私")
+        case .github: return "GitHub"
+        case .social: return L("社媒")
+        case .email: return L("邮件")
+        case .document: return L("长文")
+        }
     }
 
     private func showFeedback(_ text: String) {
@@ -794,6 +1077,8 @@ private struct TranslationOutcomeCard: View {
     let onSpeak: (String) -> Void
     let onCopy: (String) -> Void
     let onLookupSelection: (String, String, Bool) async -> TranslateResult?
+    let onSaveExpression: (String) -> Void
+    let onReplaceInSourceApp: ((String) -> Void)?
     let onRetry: () -> Void
     let onConfigure: () -> Void
     @State private var showTerminologyDetails = false
@@ -810,11 +1095,16 @@ private struct TranslationOutcomeCard: View {
             if let result = outcome.result {
                 HStack(spacing: 2) {
                     Spacer(minLength: 0)
+                    IconButton("bookmark", help: "存为表达", size: 11) { onSaveExpression(result.translated) }
+                    if let onReplaceInSourceApp {
+                        IconButton("arrowshape.turn.up.left", help: "替换到原 App", size: 11) { onReplaceInSourceApp(result.translated) }
+                    }
                     IconButton("arrow.clockwise", help: "重试此引擎", size: 11) { onRetry() }
                     IconButton("doc.on.doc", help: "复制译文", size: 11) { onCopy(result.translated) }
                     IconButton("speaker.wave.2", help: "朗读译文", size: 11) { onSpeak(result.translated) }
                 }
-                .padding(.top, -2)
+                .frame(maxWidth: .infinity, minHeight: 26, alignment: .trailing)
+                .padding(.top, Theme.Spacing.s4)
             }
         }
         .padding(.horizontal, Theme.Spacing.s12)
@@ -824,7 +1114,7 @@ private struct TranslationOutcomeCard: View {
         .clipShape(RoundedRectangle(cornerRadius: Theme.Radius.card))
         .overlay(
             RoundedRectangle(cornerRadius: Theme.Radius.card)
-                .strokeBorder(outcome.error != nil ? Theme.Palette.danger.opacity(0.6) : Theme.Palette.hairline, lineWidth: 0.5)
+                .strokeBorder(cardStroke, lineWidth: cardStrokeWidth)
         )
     }
 
@@ -840,6 +1130,15 @@ private struct TranslationOutcomeCard: View {
                     isExpanded: $showTerminologyDetails
                 )
             }
+            if outcome.result?.qualitySummary?.isRecommended == true {
+                QualityStatusBadge("推荐", tone: .accent)
+            }
+            if outcome.result?.qualitySummary?.needsReview == true {
+                QualityStatusBadge("需复核", tone: .warning)
+            }
+            if let report = outcome.result?.privacyMaskingReport, report.applied {
+                QualityStatusBadge("隐私遮罩 \(report.totalCount)", tone: .secondary)
+            }
             if isSlow {
                 Text(L("较慢生成"))
                     .font(Theme.Font.caption)
@@ -850,6 +1149,17 @@ private struct TranslationOutcomeCard: View {
                 .font(Theme.Font.caption.monospacedDigit())
                 .foregroundStyle(outcome.error == nil ? Theme.Palette.label3 : Theme.Palette.danger)
         }
+    }
+
+    private var cardStroke: Color {
+        if outcome.error != nil { return Theme.Palette.danger.opacity(0.6) }
+        if outcome.result?.qualitySummary?.isRecommended == true { return Theme.Palette.accent.opacity(0.65) }
+        if outcome.result?.qualitySummary?.needsReview == true { return Theme.Palette.warning.opacity(0.65) }
+        return Theme.Palette.hairline
+    }
+
+    private var cardStrokeWidth: CGFloat {
+        outcome.result?.qualitySummary?.isRecommended == true || outcome.result?.qualitySummary?.needsReview == true ? 0.8 : 0.5
     }
 
     @ViewBuilder
@@ -1176,6 +1486,7 @@ private struct TranslationBody: View {
                 )
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .fixedSize(horizontal: false, vertical: true)
+                .clipped()
             } else {
                 Text(result.translated)
                     .font(Theme.Font.result)
@@ -1268,7 +1579,8 @@ private struct SelectableResultTextView: NSViewRepresentable {
         )
     }
 
-    private static let textContainerInset = NSSize(width: 0, height: 3)
+    private static let textContainerInset = NSSize(width: 0, height: 5)
+    private static let measurementWidthSafety: CGFloat = 18
 
     private static var font: NSFont {
         NSFont.systemFont(ofSize: 15)
@@ -1284,7 +1596,7 @@ private struct SelectableResultTextView: NSViewRepresentable {
     }
 
     private static func textContainerWidth(for width: CGFloat) -> CGFloat {
-        max(1, width - textContainerInset.width * 2)
+        max(1, width - textContainerInset.width * 2 - measurementWidthSafety)
     }
 
     private static func measuredHeight(for text: String, width: CGFloat, lineLimit: Int?) -> CGFloat {
@@ -1304,7 +1616,8 @@ private struct SelectableResultTextView: NSViewRepresentable {
 
         let usedRect = layoutManager.usedRect(for: textContainer)
         let lineHeight = ceil(font.ascender - font.descender + font.leading)
-        return max(ceil(usedRect.height), lineHeight) + textContainerInset.height * 2 + 2
+        let tailRoom = lineLimit == nil ? lineHeight : 4
+        return max(ceil(usedRect.height), lineHeight) + textContainerInset.height * 2 + tailRoom
     }
 
     final class SizingTextView: NSTextView {
@@ -1349,6 +1662,343 @@ private struct SelectableResultTextView: NSViewRepresentable {
                 String(textView.string[swiftRange])
                     .trimmingCharacters(in: .whitespacesAndNewlines)
             )
+        }
+    }
+}
+
+private struct OCRCandidatesView: View {
+    let candidates: [OCRCandidateViewState]
+    let selectedID: UUID?
+    let onSelect: (UUID) -> Void
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: Theme.Spacing.s8) {
+            HStack(spacing: Theme.Spacing.s8) {
+                LearningStatusChip(text: "OCR 候选", tone: Theme.Palette.accent)
+                if candidates.contains(where: \.isLowConfidence) {
+                    QualityStatusBadge("含低置信块", tone: .warning)
+                }
+                Spacer(minLength: 0)
+                Text(L("%d 个候选", candidates.count))
+                    .font(Theme.Font.caption)
+                    .foregroundStyle(Theme.Palette.label3)
+            }
+            ScrollView(.horizontal, showsIndicators: false) {
+                HStack(spacing: Theme.Spacing.s8) {
+                    ForEach(candidates) { candidate in
+                        Button {
+                            onSelect(candidate.id)
+                        } label: {
+                            VStack(alignment: .leading, spacing: Theme.Spacing.s4) {
+                                HStack(spacing: Theme.Spacing.s4) {
+                                    Image(systemName: candidateIcon(candidate.kind))
+                                        .font(.system(size: 10, weight: .semibold))
+                                    Text(candidateTitle(candidate.kind))
+                                        .font(Theme.Font.tag)
+                                    Text("\(Int((candidate.confidence * 100).rounded()))%")
+                                        .font(Theme.Font.tag.monospacedDigit())
+                                        .foregroundStyle(candidate.isLowConfidence ? Theme.Palette.warning : Theme.Palette.label3)
+                                }
+                                Text(candidate.text)
+                                    .font(Theme.Font.caption)
+                                    .foregroundStyle(Theme.Palette.label2)
+                                    .lineLimit(2)
+                                    .frame(width: 150, alignment: .leading)
+                                    .fixedSize(horizontal: false, vertical: true)
+                            }
+                            .padding(.horizontal, Theme.Spacing.s8)
+                            .padding(.vertical, 7)
+                            .frame(width: 174, alignment: .leading)
+                            .background(selectedID == candidate.id ? Theme.Palette.bgSelection : Theme.Palette.bgControl.opacity(0.55))
+                            .clipShape(RoundedRectangle(cornerRadius: Theme.Radius.control))
+                            .overlay(
+                                RoundedRectangle(cornerRadius: Theme.Radius.control)
+                                    .strokeBorder(selectedID == candidate.id ? Theme.Palette.accent.opacity(0.65) : Theme.Palette.separator, lineWidth: 0.5)
+                            )
+                        }
+                        .buttonStyle(.plain)
+                        .help(L("切换 OCR 候选并重新翻译"))
+                    }
+                }
+                .padding(.bottom, 1)
+            }
+        }
+        .padding(.horizontal, Theme.Spacing.s12)
+        .padding(.vertical, 10)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(Theme.Palette.bgContent)
+        .clipShape(RoundedRectangle(cornerRadius: Theme.Radius.card))
+        .overlay(RoundedRectangle(cornerRadius: Theme.Radius.card).strokeBorder(Theme.Palette.hairline, lineWidth: 0.5))
+    }
+
+    private func candidateTitle(_ kind: OCRCandidateViewState.Kind) -> String {
+        switch kind {
+        case .fullText:
+            return L("全文")
+        case .primaryBody:
+            return L("正文")
+        case .reply:
+            return L("回复句")
+        case .block:
+            return L("文本块")
+        }
+    }
+
+    private func candidateIcon(_ kind: OCRCandidateViewState.Kind) -> String {
+        switch kind {
+        case .fullText:
+            return "doc.text"
+        case .primaryBody:
+            return "text.alignleft"
+        case .reply:
+            return "bubble.left"
+        case .block:
+            return "viewfinder"
+        }
+    }
+}
+
+private struct ContextProfileMenu: View {
+    let selection: TranslationContextProfile
+    let onSelect: (TranslationContextProfile) -> Void
+
+    private let taskProfiles: [TranslationContextProfile] = [
+        .quickTranslate, .understand, .document, .nativePolish, .reply
+    ]
+    private let sceneProfiles: [TranslationContextProfile] = [
+        .github, .email, .social
+    ]
+    private let policyProfiles: [TranslationContextProfile] = [
+        .strictTerminology, .privateLocal
+    ]
+
+    var body: some View {
+        Menu {
+            Section(L("处理方式")) {
+                profileButtons(taskProfiles)
+            }
+            Section(L("内容场景")) {
+                profileButtons(sceneProfiles)
+            }
+            Section(L("约束策略")) {
+                profileButtons(policyProfiles)
+            }
+        } label: {
+            HStack(spacing: 5) {
+                Image(systemName: icon(for: selection))
+                    .font(.system(size: 10, weight: .semibold))
+                Text(label(for: selection))
+                    .font(.system(size: 11, weight: .semibold))
+                    .lineLimit(1)
+                Image(systemName: "chevron.down")
+                    .font(.system(size: 8, weight: .semibold))
+                    .foregroundStyle(Theme.Palette.label3)
+            }
+            .foregroundStyle(Theme.Palette.label2)
+            .frame(height: 24)
+            .padding(.horizontal, 9)
+            .background(Theme.Palette.bgControl)
+            .clipShape(Capsule())
+            .overlay(Capsule().strokeBorder(Theme.Palette.separator, lineWidth: 0.5))
+        }
+        .menuStyle(.borderlessButton)
+        .fixedSize()
+        .help(L("切换上下文模式"))
+        .accessibilityLabel(L("上下文模式"))
+    }
+
+    @ViewBuilder
+    private func profileButtons(_ profiles: [TranslationContextProfile]) -> some View {
+        ForEach(profiles, id: \.self) { profile in
+            Button {
+                onSelect(profile)
+            } label: {
+                Label(label(for: profile), systemImage: profile == selection ? "checkmark" : icon(for: profile))
+            }
+        }
+    }
+
+    private func label(for profile: TranslationContextProfile) -> String {
+        switch profile {
+        case .quickTranslate: return L("快译")
+        case .understand: return L("理解")
+        case .nativePolish: return L("润色")
+        case .reply: return L("回复")
+        case .strictTerminology: return L("术语严格")
+        case .privateLocal: return L("隐私本地")
+        case .github: return "GitHub"
+        case .social: return L("社媒")
+        case .email: return L("邮件")
+        case .document: return L("长文")
+        }
+    }
+
+    private func icon(for profile: TranslationContextProfile) -> String {
+        switch profile {
+        case .quickTranslate: return "bolt"
+        case .understand: return "brain.head.profile"
+        case .nativePolish: return "sparkles"
+        case .reply: return "arrowshape.turn.up.left"
+        case .strictTerminology: return "text.book.closed"
+        case .privateLocal: return "lock.shield"
+        case .github: return "chevron.left.forwardslash.chevron.right"
+        case .social: return "bubble.left.and.bubble.right"
+        case .email: return "envelope"
+        case .document: return "doc.text"
+        }
+    }
+}
+
+private struct BilingualParagraphView: View {
+    let sourceHints: [ParagraphHint]
+    let translatedText: String
+    let providerName: String
+    let onCopyParagraph: (String) -> Void
+    let onCopyAll: () -> Void
+
+    static func canAlign(sourceHints: [ParagraphHint], translatedText: String) -> Bool {
+        sourceHints.count > 1
+            && splitTranslatedParagraphs(translatedText).count == sourceHints.count
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: Theme.Spacing.s8) {
+            HStack(spacing: Theme.Spacing.s8) {
+                LearningStatusChip(text: "双语段落", tone: Theme.Palette.accent)
+                Text(providerName)
+                    .font(Theme.Font.caption)
+                    .foregroundStyle(Theme.Palette.label3)
+                    .lineLimit(1)
+                Spacer(minLength: 0)
+                IconButton("doc.on.doc", help: "复制全部译文", size: 11) { onCopyAll() }
+            }
+            ForEach(Array(rows.enumerated()), id: \.element.id) { index, row in
+                HStack(alignment: .top, spacing: Theme.Spacing.s12) {
+                    VStack(alignment: .leading, spacing: Theme.Spacing.s4) {
+                        HStack(spacing: Theme.Spacing.s4) {
+                            Text("#\(index + 1)")
+                                .font(Theme.Font.tag.monospacedDigit())
+                                .foregroundStyle(Theme.Palette.label3)
+                            Text(L("原文"))
+                                .font(Theme.Font.tag)
+                                .foregroundStyle(Theme.Palette.label3)
+                            if row.isProtected {
+                                QualityStatusBadge("保留格式", tone: .secondary)
+                            }
+                        }
+                        Text(row.source)
+                            .font(Theme.Font.callout)
+                            .foregroundStyle(Theme.Palette.label2)
+                            .textSelection(.enabled)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+                    .frame(maxWidth: .infinity, alignment: .leading)
+
+                    Rectangle()
+                        .fill(Theme.Palette.separator.opacity(0.65))
+                        .frame(width: 0.5)
+
+                    VStack(alignment: .leading, spacing: Theme.Spacing.s4) {
+                        HStack(spacing: Theme.Spacing.s4) {
+                            Text(L("译文"))
+                                .font(Theme.Font.tag)
+                                .foregroundStyle(Theme.Palette.label3)
+                            Spacer(minLength: 0)
+                            IconButton("doc.on.doc", help: "复制本段译文", size: 10, isEnabled: !row.translation.isEmpty) {
+                                onCopyParagraph(row.translation)
+                            }
+                        }
+                        Text(row.translation)
+                            .font(Theme.Font.result)
+                            .foregroundStyle(Theme.Palette.label)
+                            .textSelection(.enabled)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                }
+                .padding(.horizontal, Theme.Spacing.s8)
+                .padding(.vertical, 9)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .background(Theme.Palette.bgControl.opacity(0.55))
+                .clipShape(RoundedRectangle(cornerRadius: Theme.Radius.control))
+                .overlay(RoundedRectangle(cornerRadius: Theme.Radius.control).strokeBorder(Theme.Palette.separator, lineWidth: 0.5))
+            }
+        }
+        .padding(.horizontal, Theme.Spacing.s12)
+        .padding(.vertical, 11)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(Theme.Palette.bgContent)
+        .clipShape(RoundedRectangle(cornerRadius: Theme.Radius.card))
+        .overlay(RoundedRectangle(cornerRadius: Theme.Radius.card).strokeBorder(Theme.Palette.accent.opacity(0.32), lineWidth: 0.6))
+    }
+
+    private var rows: [BilingualParagraphRow] {
+        let translations = Self.splitTranslatedParagraphs(translatedText)
+        return sourceHints.enumerated().map { index, hint in
+            BilingualParagraphRow(
+                id: hint.id,
+                source: hint.source,
+                translation: index < translations.count ? translations[index] : "",
+                isProtected: hint.isProtected
+            )
+        }
+    }
+
+    private static func splitTranslatedParagraphs(_ text: String) -> [String] {
+        let normalized = text.replacingOccurrences(of: "\r\n", with: "\n")
+        return normalized
+            .components(separatedBy: "\n\n")
+            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+            .filter { !$0.isEmpty }
+    }
+}
+
+private struct BilingualParagraphRow: Identifiable {
+    let id: UUID
+    let source: String
+    let translation: String
+    let isProtected: Bool
+}
+
+private struct QualityStatusBadge: View {
+    enum Tone {
+        case accent
+        case warning
+        case secondary
+    }
+
+    let text: String
+    let tone: Tone
+
+    init(_ text: String, tone: Tone) {
+        self.text = text
+        self.tone = tone
+    }
+
+    var body: some View {
+        Text(L(text))
+            .font(Theme.Font.tag)
+            .lineLimit(1)
+            .foregroundStyle(foreground)
+            .padding(.horizontal, 6)
+            .frame(height: 20)
+            .background(background)
+            .clipShape(RoundedRectangle(cornerRadius: Theme.Radius.control))
+    }
+
+    private var foreground: Color {
+        switch tone {
+        case .accent: return Theme.Palette.accent
+        case .warning: return Theme.Palette.warning
+        case .secondary: return Theme.Palette.label2
+        }
+    }
+
+    private var background: Color {
+        switch tone {
+        case .accent: return Theme.Palette.accentSoft
+        case .warning: return Theme.Palette.warning.opacity(0.12)
+        case .secondary: return Theme.Palette.bgControl
         }
     }
 }

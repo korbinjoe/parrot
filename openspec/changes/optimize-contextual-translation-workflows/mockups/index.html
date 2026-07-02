@@ -1,0 +1,613 @@
+<!doctype html>
+<html lang="zh-CN" data-theme="dark">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Parrot Immersive Translation Prototype</title>
+<style>
+:root {
+  color-scheme: dark;
+  --font: -apple-system, BlinkMacSystemFont, "SF Pro Text", "PingFang SC", "Helvetica Neue", Arial, sans-serif;
+  --bg0: #17191d;
+  --bg1: #202127;
+  --bg2: #292b32;
+  --bg3: #343740;
+  --panel: rgba(38, 40, 48, .88);
+  --panel-solid: #282a31;
+  --card: rgba(255, 255, 255, .055);
+  --card-strong: rgba(255, 255, 255, .082);
+  --line: rgba(255, 255, 255, .13);
+  --line-soft: rgba(255, 255, 255, .075);
+  --text: #f5f6f3;
+  --text2: rgba(245, 246, 243, .72);
+  --text3: rgba(245, 246, 243, .48);
+  --blue: #8fb7ff;
+  --blue-ink: #081222;
+  --green: #7fd89b;
+  --amber: #f5bd5b;
+  --rose: #f18a8f;
+  --violet: #bca2ff;
+  --teal: #7bd7cd;
+  --focus: rgba(143, 183, 255, .34);
+  --shadow: 0 34px 100px rgba(0, 0, 0, .48), 0 0 0 .5px var(--line);
+  --shadow-soft: 0 20px 55px rgba(0, 0, 0, .28), 0 0 0 .5px var(--line-soft);
+  --r-window: 13px;
+  --r-card: 8px;
+  --r-control: 7px;
+  --ease: cubic-bezier(.16, 1, .3, 1);
+}
+
+[data-theme="light"] {
+  color-scheme: light;
+  --bg0: #e7e9ed;
+  --bg1: #f3f4f5;
+  --bg2: #ffffff;
+  --bg3: #eef0f3;
+  --panel: rgba(253, 253, 252, .9);
+  --panel-solid: #fbfbfa;
+  --card: rgba(20, 23, 28, .045);
+  --card-strong: rgba(20, 23, 28, .072);
+  --line: rgba(23, 25, 29, .14);
+  --line-soft: rgba(23, 25, 29, .085);
+  --text: #17191d;
+  --text2: rgba(23, 25, 29, .68);
+  --text3: rgba(23, 25, 29, .44);
+  --blue: #2f6fd6;
+  --blue-ink: #ffffff;
+  --green: #0f8e4f;
+  --amber: #a86d00;
+  --rose: #c84551;
+  --violet: #7255ce;
+  --teal: #16877e;
+  --focus: rgba(47, 111, 214, .16);
+  --shadow: 0 34px 100px rgba(31, 35, 43, .18), 0 0 0 .5px var(--line);
+  --shadow-soft: 0 20px 55px rgba(31, 35, 43, .13), 0 0 0 .5px var(--line-soft);
+}
+
+* { box-sizing: border-box; }
+html, body { margin: 0; min-height: 100%; }
+body {
+  font-family: var(--font);
+  color: var(--text);
+  background:
+    linear-gradient(130deg, rgba(127, 216, 155, .16), transparent 26%),
+    linear-gradient(232deg, rgba(245, 189, 91, .16), transparent 32%),
+    linear-gradient(145deg, var(--bg0), #222735 46%, #34404a);
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+  overflow: hidden;
+}
+button, textarea, input { font: inherit; }
+button { border: 0; color: inherit; cursor: pointer; }
+button:focus-visible, textarea:focus-visible { outline: 2px solid var(--blue); outline-offset: 2px; }
+
+.desktop { min-height: 100dvh; position: relative; overflow: hidden; }
+.desktop::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  background-image:
+    linear-gradient(90deg, rgba(255,255,255,.028) 1px, transparent 1px),
+    linear-gradient(0deg, rgba(255,255,255,.022) 1px, transparent 1px);
+  background-size: 44px 44px;
+  mask-image: linear-gradient(to bottom, black, transparent 78%);
+  pointer-events: none;
+}
+
+.menu-bar {
+  position: relative;
+  z-index: 30;
+  height: 28px;
+  padding: 0 14px;
+  display: flex;
+  align-items: center;
+  gap: 15px;
+  background: rgba(14, 15, 18, .72);
+  border-bottom: .5px solid rgba(255, 255, 255, .12);
+  -webkit-backdrop-filter: blur(24px) saturate(160%);
+  backdrop-filter: blur(24px) saturate(160%);
+  font-size: 13px;
+}
+[data-theme="light"] .menu-bar { background: rgba(255,255,255,.72); }
+.menu-bar b { font-weight: 700; }
+.menu-bar .right { margin-left: auto; display: flex; align-items: center; gap: 14px; color: var(--text2); }
+.theme-toggle {
+  height: 21px;
+  padding: 0 8px;
+  border-radius: 999px;
+  background: rgba(255,255,255,.08);
+  color: var(--text2);
+  font-size: 12px;
+}
+[data-theme="light"] .theme-toggle { background: rgba(20,23,28,.07); }
+
+.scene-tabs {
+  position: fixed;
+  z-index: 25;
+  top: 44px;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  gap: 4px;
+  padding: 6px;
+  border-radius: 14px;
+  background: rgba(30, 32, 38, .74);
+  border: .5px solid var(--line);
+  box-shadow: var(--shadow-soft);
+  -webkit-backdrop-filter: blur(24px) saturate(160%);
+  backdrop-filter: blur(24px) saturate(160%);
+}
+[data-theme="light"] .scene-tabs { background: rgba(255,255,255,.74); }
+.scene-tabs button {
+  height: 30px;
+  min-width: 74px;
+  padding: 0 12px;
+  border-radius: 9px;
+  background: transparent;
+  color: var(--text2);
+  font-size: 12px;
+  font-weight: 650;
+  transition: transform .18s var(--ease), background .18s var(--ease), color .18s var(--ease);
+}
+.scene-tabs button:hover { background: var(--card-strong); color: var(--text); }
+.scene-tabs button:active { transform: translateY(1px); }
+.scene-tabs button.active { background: var(--blue); color: var(--blue-ink); }
+
+.stage {
+  position: relative;
+  z-index: 2;
+  height: calc(100dvh - 28px);
+  padding-top: 86px;
+}
+.context-window {
+  position: absolute;
+  left: clamp(24px, 5vw, 78px);
+  top: 106px;
+  width: min(610px, 44vw);
+  height: min(650px, calc(100vh - 150px));
+  border-radius: 18px;
+  background: rgba(24, 26, 31, .56);
+  border: .5px solid rgba(255, 255, 255, .12);
+  box-shadow: 0 26px 90px rgba(0, 0, 0, .24);
+  -webkit-backdrop-filter: blur(24px) saturate(140%);
+  backdrop-filter: blur(24px) saturate(140%);
+  overflow: hidden;
+  transition: opacity .32s var(--ease), transform .32s var(--ease);
+}
+[data-theme="light"] .context-window { background: rgba(255,255,255,.52); }
+.window-bar {
+  height: 38px;
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  padding: 0 12px;
+  border-bottom: .5px solid var(--line-soft);
+}
+.dot { width: 10px; height: 10px; border-radius: 50%; background: #ff5f57; }
+.dot:nth-child(2) { background: #febc2e; }
+.dot:nth-child(3) { background: #28c840; }
+.window-title { margin-left: 8px; color: var(--text3); font-size: 12px; }
+.article, .chat, .screenshot, .composer-bg, .memory-bg { padding: 28px 34px; height: calc(100% - 38px); overflow: hidden; }
+.article h1 { margin: 0 0 18px; font-size: clamp(28px, 3.1vw, 43px); line-height: 1.07; letter-spacing: 0; }
+.article p { margin: 0 0 14px; color: var(--text2); font-size: 14px; line-height: 1.75; }
+.selected-text { color: var(--text); background: rgba(143, 183, 255, .32); border-radius: 5px; box-shadow: 0 0 0 2px rgba(143, 183, 255, .12); }
+.chat { display: flex; flex-direction: column; gap: 12px; justify-content: flex-end; }
+.bubble { max-width: 78%; padding: 12px 14px; border-radius: 17px; background: var(--card-strong); color: var(--text2); font-size: 14px; line-height: 1.45; }
+.bubble.me { align-self: flex-end; background: rgba(143, 183, 255, .24); color: var(--text); }
+.composer-bg .input-shell { margin-top: auto; height: 86px; border-radius: 16px; border: .5px solid var(--line); background: var(--card); padding: 14px; color: var(--text2); }
+.screenshot { display: grid; grid-template-rows: 1fr auto; gap: 18px; }
+.phone-shot { border-radius: 24px; background: linear-gradient(160deg, #15171c, #29313a); border: 8px solid rgba(255,255,255,.1); padding: 22px; position: relative; }
+.phone-card { border-radius: 18px; padding: 16px; margin-bottom: 14px; background: rgba(255,255,255,.08); color: rgba(255,255,255,.82); font-size: 13px; line-height: 1.5; }
+.ocr-box { position: absolute; left: 58px; right: 58px; top: 126px; height: 88px; border-radius: 10px; border: 1.5px solid var(--blue); background: rgba(143,183,255,.14); box-shadow: 0 0 0 4px rgba(143,183,255,.1); }
+.memory-bg { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+.memory-tile { border-radius: 14px; background: var(--card); border: .5px solid var(--line-soft); padding: 14px; align-self: start; }
+.memory-tile h3 { margin: 0 0 9px; font-size: 13px; }
+.memory-tile p { margin: 0; color: var(--text2); font-size: 12px; line-height: 1.55; }
+
+.panel {
+  position: absolute;
+  right: clamp(22px, 6vw, 104px);
+  top: 116px;
+  width: 590px;
+  max-width: calc(100vw - 44px);
+  border-radius: var(--r-window);
+  background: var(--panel);
+  border: .5px solid var(--line);
+  box-shadow: var(--shadow);
+  overflow: hidden;
+  -webkit-backdrop-filter: blur(26px) saturate(152%);
+  backdrop-filter: blur(26px) saturate(152%);
+  transform-origin: 74% 14%;
+  animation: panelIn .42s var(--ease) both;
+}
+.panel.peek { top: 150px; width: 432px; }
+.panel.compose { top: 128px; width: 560px; }
+.panel.memory { top: 118px; width: 640px; }
+@keyframes panelIn { from { opacity: 0; transform: translateY(18px) scale(.982); } to { opacity: 1; transform: translateY(0) scale(1); } }
+.panel-bar {
+  height: 44px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0 10px 0 12px;
+  background: rgba(255,255,255,.035);
+  border-bottom: .5px solid var(--line);
+}
+.traffic { display: flex; gap: 7px; margin-right: 4px; }
+.traffic span { width: 10px; height: 10px; border-radius: 50%; background: #ff5f57; }
+.traffic span:nth-child(2) { background: #febc2e; }
+.traffic span:nth-child(3) { background: #28c840; }
+.pill {
+  height: 25px;
+  padding: 0 9px;
+  border-radius: 999px;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: var(--card-strong);
+  color: var(--text2);
+  font-size: 11px;
+  font-weight: 650;
+  white-space: nowrap;
+}
+.pill.blue { color: var(--blue); background: rgba(143,183,255,.14); }
+.pill.green { color: var(--green); background: rgba(127,216,155,.13); }
+.pill.amber { color: var(--amber); background: rgba(245,189,91,.13); }
+.pill.rose { color: var(--rose); background: rgba(241,138,143,.13); }
+.spacer { flex: 1; min-width: 0; }
+.icon-btn {
+  width: 27px;
+  height: 27px;
+  border-radius: var(--r-control);
+  background: transparent;
+  color: var(--text2);
+  display: grid;
+  place-items: center;
+  transition: background .16s var(--ease), color .16s var(--ease), transform .16s var(--ease);
+}
+.icon-btn:hover { background: var(--card-strong); color: var(--text); }
+.icon-btn:active { transform: translateY(1px); }
+.primary, .secondary {
+  height: 30px;
+  padding: 0 12px;
+  border-radius: var(--r-control);
+  font-size: 12px;
+  font-weight: 700;
+  transition: transform .16s var(--ease), filter .16s var(--ease), background .16s var(--ease);
+}
+.primary { background: var(--blue); color: var(--blue-ink); }
+.secondary { background: var(--card-strong); color: var(--text2); }
+.primary:hover, .secondary:hover { filter: brightness(1.06); }
+.primary:active, .secondary:active { transform: translateY(1px); }
+.panel-body { padding: 12px; max-height: calc(100vh - 190px); overflow: auto; }
+.card {
+  border-radius: var(--r-card);
+  background: var(--card);
+  border: .5px solid var(--line-soft);
+  padding: 12px;
+  box-shadow: inset 0 1px 0 rgba(255,255,255,.04);
+}
+.card + .card { margin-top: 10px; }
+.card.strong { background: var(--card-strong); }
+.card.recommended { border-color: rgba(143,183,255,.42); box-shadow: inset 2px 0 0 var(--blue); }
+.card.warn { border-color: rgba(245,189,91,.44); box-shadow: inset 2px 0 0 var(--amber); }
+.card h3 { margin: 0 0 8px; font-size: 13px; letter-spacing: 0; }
+.meta { display: flex; align-items: center; gap: 6px; color: var(--text3); font-size: 11px; }
+.text { margin: 0; font-size: 13px; line-height: 1.62; color: var(--text2); }
+.text.primary-text { color: var(--text); font-size: 14px; }
+.card-actions { display: flex; align-items: center; justify-content: flex-end; gap: 4px; margin-top: 10px; }
+
+.profile-strip { display: flex; gap: 5px; padding: 6px; border-radius: 10px; background: rgba(0,0,0,.13); }
+[data-theme="light"] .profile-strip { background: rgba(20,23,28,.045); }
+.profile-strip button { height: 26px; padding: 0 9px; border-radius: 7px; background: transparent; color: var(--text2); font-size: 11px; font-weight: 650; }
+.profile-strip button.active { background: var(--blue); color: var(--blue-ink); }
+.source-editor { width: 100%; min-height: 112px; resize: vertical; border: 0; outline: 0; color: var(--text); background: transparent; line-height: 1.55; font-size: 13px; }
+.editor-footer { display: flex; align-items: center; gap: 8px; color: var(--text3); font-size: 11px; border-top: .5px solid var(--line-soft); padding-top: 9px; }
+
+.bilingual { display: grid; gap: 10px; }
+.para-row { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.para-cell { min-height: 94px; border-radius: 8px; padding: 11px; background: rgba(255,255,255,.042); border: .5px solid var(--line-soft); }
+.para-cell .label { display: flex; justify-content: space-between; color: var(--text3); font-size: 11px; margin-bottom: 7px; }
+.para-cell p { margin: 0; color: var(--text2); font-size: 12.5px; line-height: 1.58; }
+.para-cell.translated { background: rgba(143,183,255,.09); }
+.para-cell.translated p { color: var(--text); }
+
+.provider-grid { display: grid; gap: 10px; }
+.provider-head { display: flex; align-items: center; gap: 6px; margin-bottom: 8px; }
+.provider-head strong { font-size: 12px; }
+.provider-head .time { margin-left: auto; color: var(--text3); font-size: 11px; font-variant-numeric: tabular-nums; }
+
+.peek-result { font-size: 18px; line-height: 1.42; color: var(--text); margin: 0; }
+.peek-actions { display: flex; gap: 8px; margin-top: 12px; }
+.lookup-row { display: grid; grid-template-columns: 46px 1fr; gap: 10px; align-items: center; }
+.sound-circle { width: 46px; height: 46px; border-radius: 50%; display: grid; place-items: center; background: rgba(127,216,155,.13); color: var(--green); font-weight: 800; }
+
+.candidates { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+.candidate { text-align: left; min-height: 76px; border-radius: 8px; background: var(--card); border: .5px solid var(--line-soft); color: var(--text2); padding: 10px; transition: border .16s var(--ease), background .16s var(--ease), transform .16s var(--ease); }
+.candidate:hover { transform: translateY(-1px); }
+.candidate.active { border-color: rgba(143,183,255,.55); background: rgba(143,183,255,.12); }
+.candidate strong { display: block; color: var(--text); font-size: 12px; margin-bottom: 5px; }
+.candidate span { display: block; font-size: 11px; line-height: 1.35; }
+
+.output-options { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
+.output-options .card { margin-top: 0; min-height: 140px; }
+.big-action { display: flex; gap: 8px; align-items: center; margin-top: 10px; }
+
+.rules-layout { display: grid; grid-template-columns: 1fr 1.1fr; gap: 10px; }
+.rule-row, .memory-row { display: flex; align-items: center; gap: 10px; padding: 10px 0; border-top: .5px solid var(--line-soft); }
+.rule-row:first-child, .memory-row:first-child { border-top: 0; }
+.toggle { width: 36px; height: 21px; border-radius: 999px; padding: 2px; background: rgba(255,255,255,.13); flex: 0 0 auto; }
+.toggle span { display: block; width: 17px; height: 17px; border-radius: 50%; background: var(--text3); transition: transform .2s var(--ease), background .2s var(--ease); }
+.toggle.on { background: rgba(127,216,155,.18); }
+.toggle.on span { transform: translateX(15px); background: var(--green); }
+.rule-copy, .memory-copy { min-width: 0; }
+.rule-copy strong, .memory-copy strong { display: block; font-size: 12px; margin-bottom: 3px; }
+.rule-copy span, .memory-copy span { color: var(--text3); font-size: 11px; line-height: 1.35; }
+
+.toast {
+  position: fixed;
+  z-index: 60;
+  left: 50%;
+  bottom: 28px;
+  transform: translate(-50%, 18px);
+  opacity: 0;
+  pointer-events: none;
+  height: 36px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0 14px;
+  border-radius: 999px;
+  background: rgba(28, 30, 36, .86);
+  border: .5px solid var(--line);
+  box-shadow: var(--shadow-soft);
+  color: var(--text);
+  font-size: 12px;
+  transition: opacity .24s var(--ease), transform .24s var(--ease);
+  -webkit-backdrop-filter: blur(18px);
+  backdrop-filter: blur(18px);
+}
+.toast.show { opacity: 1; transform: translate(-50%, 0); }
+.hidden { display: none !important; }
+.fade-enter { animation: fadeContent .32s var(--ease) both; }
+@keyframes fadeContent { from { opacity: 0; transform: translateX(14px); } to { opacity: 1; transform: translateX(0); } }
+
+@media (max-width: 980px) {
+  body { overflow: auto; }
+  .desktop { min-height: 100vh; overflow: visible; }
+  .scene-tabs { position: sticky; top: 36px; transform: none; left: auto; margin: 12px auto; width: max-content; max-width: calc(100vw - 20px); overflow: auto; }
+  .stage { height: auto; padding: 12px 12px 28px; }
+  .context-window, .panel { position: relative; left: auto; right: auto; top: auto; width: 100%; max-width: none; margin: 12px 0; }
+  .context-window { height: 360px; }
+  .panel.peek, .panel.compose, .panel.memory { width: 100%; top: auto; }
+  .para-row, .rules-layout, .output-options { grid-template-columns: 1fr; }
+  .candidates { grid-template-columns: 1fr; }
+}
+</style>
+</head>
+<body>
+<div class="desktop">
+  <div class="menu-bar">
+    <b>Parrot</b><span>File</span><span>Edit</span><span>Window</span><span>Help</span>
+    <div class="right"><span>Option D</span><span>Option S</span><button class="theme-toggle" id="themeToggle">浅色</button><span>19:42</span></div>
+  </div>
+
+  <nav class="scene-tabs" aria-label="原型场景">
+    <button class="active" data-scene="peek">Quick Peek</button>
+    <button data-scene="reading">长文工作区</button>
+    <button data-scene="ocr">OCR 候选</button>
+    <button data-scene="compose">输入改写</button>
+    <button data-scene="memory">规则记忆</button>
+  </nav>
+
+  <main class="stage" id="stage">
+    <section class="context-window" id="contextWindow"></section>
+    <section class="panel" id="panel"></section>
+  </main>
+</div>
+<div class="toast" id="toast"><span id="toastIcon">OK</span><span id="toastText">已复制</span></div>
+
+<template id="context-peek">
+  <div class="window-bar"><span class="dot"></span><span class="dot"></span><span class="dot"></span><span class="window-title">Safari · Anthropic docs</span></div>
+  <div class="article">
+    <h1>Context is the product surface.</h1>
+    <p>Translation tools are strongest when they preserve what the user was already doing. The translated text should appear near the original paragraph, not in a disconnected destination.</p>
+    <p><span class="selected-text">The best translation flow feels less like copying text into a tool and more like adding a temporary layer of understanding to the page.</span></p>
+    <p>For builders tracking foreign product updates, this saves real time because trust and context stay visible.</p>
+  </div>
+</template>
+
+<template id="panel-peek">
+  <div class="panel-bar">
+    <div class="traffic"><span></span><span></span><span></span></div>
+    <span class="pill blue">快译</span><span class="pill">EN -> 中文</span><span class="spacer"></span>
+    <button class="icon-btn" data-action="copy">Cp</button><button class="icon-btn" data-action="speak">Sp</button><button class="icon-btn" data-scene="reading">Ex</button><button class="icon-btn" data-action="close">X</button>
+  </div>
+  <div class="panel-body">
+    <div class="card">
+      <div class="meta">源文 · Safari selection</div>
+      <p class="text">The best translation flow feels less like copying text into a tool and more like adding a temporary layer of understanding to the page.</p>
+    </div>
+    <div class="card recommended">
+      <div class="provider-head"><strong>Parrot 推荐</strong><span class="pill green">推荐</span><span class="time">384ms</span></div>
+      <p class="peek-result">最好的翻译流程，不像把文本复制进一个工具；更像是在当前页面上临时叠加一层理解。</p>
+      <div class="peek-actions"><button class="primary" data-action="copy">复制译文</button><button class="secondary" data-scene="reading">展开工作台</button><button class="secondary" data-action="save">存为表达</button></div>
+    </div>
+    <div class="card strong lookup-row">
+      <div class="sound-circle">A</div>
+      <div><h3>layer of understanding</h3><p class="text">不是字面“理解层”，更接近“帮助理解的临时上下文层”。适合产品设计语境。</p></div>
+    </div>
+  </div>
+</template>
+
+<template id="context-reading">
+  <div class="window-bar"><span class="dot"></span><span class="dot"></span><span class="dot"></span><span class="window-title">Notes · Research clipping</span></div>
+  <div class="article">
+    <h1>Reading without losing the original.</h1>
+    <p><span class="selected-text">Immersive translation works because the source text remains visible. Users compare, verify, and continue reading without rebuilding context.</span></p>
+    <p>For Parrot, the advantage is system reach. A bilingual reading block can appear after selection, screenshot OCR, manual paste, history reopen, or PopClip.</p>
+    <p>The workspace should stay editable. If OCR is noisy or the paragraph split is wrong, the user fixes it once and reruns in place.</p>
+  </div>
+</template>
+
+<template id="panel-reading">
+  <div class="panel-bar">
+    <div class="traffic"><span></span><span></span><span></span></div>
+    <span class="pill">自动 -> 中文</span>
+    <div class="profile-strip" id="profiles"><button class="active" data-profile="understand">理解</button><button data-profile="document">长文</button><button data-profile="github">GitHub</button><button data-profile="private">隐私</button></div>
+    <span class="spacer"></span><button class="icon-btn" data-action="copy">Cp</button><button class="icon-btn" data-action="pin">Pn</button><button class="icon-btn" data-action="close">X</button>
+  </div>
+  <div class="panel-body">
+    <div class="card strong">
+      <textarea class="source-editor" id="sourceText">Immersive translation works because the source text remains visible. Users compare, verify, and continue reading without rebuilding context.
+
+For Parrot, the advantage is system reach. A bilingual reading block can appear after selection, screenshot OCR, manual paste, history reopen, or PopClip.</textarea>
+      <div class="editor-footer"><span id="profileHint">理解 · 输出含含义与语气</span><span class="spacer"></span><button class="secondary" data-action="clean">合并空行</button><button class="primary" data-action="retranslate">重新翻译</button></div>
+    </div>
+    <div class="card recommended">
+      <div class="provider-head"><strong>段落双语阅读</strong><span class="pill green">推荐</span><span class="pill">隐私遮罩 0</span><span class="time">612ms</span></div>
+      <div class="bilingual" id="bilingualRows">
+        <div class="para-row"><div class="para-cell"><div class="label"><span>原文 1</span><span>52 words</span></div><p>Immersive translation works because the source text remains visible. Users compare, verify, and continue reading without rebuilding context.</p></div><div class="para-cell translated"><div class="label"><span>译文 1</span><button class="icon-btn" data-action="copy">Cp</button></div><p>沉浸式翻译之所以有效，是因为原文始终可见。用户可以对照、核验，并在不重建上下文的情况下继续阅读。</p></div></div>
+        <div class="para-row"><div class="para-cell"><div class="label"><span>原文 2</span><span>49 words</span></div><p>For Parrot, the advantage is system reach. A bilingual reading block can appear after selection, screenshot OCR, manual paste, history reopen, or PopClip.</p></div><div class="para-cell translated"><div class="label"><span>译文 2</span><button class="icon-btn" data-action="copy">Cp</button></div><p>对 Parrot 来说，优势在于系统级触达。双语阅读块可以出现在划词、截图 OCR、手动粘贴、历史重开或 PopClip 之后。</p></div></div>
+      </div>
+    </div>
+    <div class="provider-grid"><div class="card"><div class="provider-head"><strong>DeepL</strong><span class="pill">质量锚点</span><span class="time">704ms</span></div><p class="text primary-text">沉浸式翻译有效，是因为源文本保持可见，用户可以比较、验证并继续阅读。</p></div><div class="card warn"><div class="provider-head"><strong>Google</strong><span class="pill amber">需复核</span><span class="time">221ms</span></div><p class="text">沉浸式翻译工作，因为源文本仍然可见。</p></div></div>
+  </div>
+</template>
+
+<template id="context-ocr">
+  <div class="window-bar"><span class="dot"></span><span class="dot"></span><span class="dot"></span><span class="window-title">Latest screenshot · X thread</span></div>
+  <div class="screenshot"><div class="phone-shot"><div class="phone-card">AI products do not fail because translation is missing. They fail because users lose the next action.</div><div class="phone-card">A workspace should help people understand, rewrite, reply, and remember.</div><div class="phone-card">12:41 · Product notes</div><div class="ocr-box"></div></div><p class="text">Parrot 识别最近截图中的文本块，并把最佳候选送入可编辑工作区。</p></div>
+</template>
+
+<template id="panel-ocr">
+  <div class="panel-bar"><div class="traffic"><span></span><span></span><span></span></div><span class="pill blue">OCR · 理解</span><span class="pill">3 个候选</span><span class="spacer"></span><button class="icon-btn" data-action="copy">Cp</button><button class="icon-btn" data-action="close">X</button></div>
+  <div class="panel-body">
+    <div class="card"><h3>候选文本块</h3><div class="candidates" id="ocrCandidates"><button class="candidate active" data-candidate="0"><strong>正文</strong><span>AI products do not fail because translation is missing...</span></button><button class="candidate" data-candidate="1"><strong>回复句</strong><span>A workspace should help people understand...</span></button><button class="candidate" data-candidate="2"><strong>全文</strong><span>AI products... A workspace...</span></button></div></div>
+    <div class="card strong"><textarea class="source-editor" id="ocrText">AI products do not fail because translation is missing. They fail because users lose the next action.</textarea><div class="editor-footer"><span>可编辑 OCR 源文</span><span class="spacer"></span><button class="secondary" data-action="clean">删除噪声</button><button class="primary" data-action="retranslate">翻译候选</button></div></div>
+    <div class="card recommended"><div class="provider-head"><strong>Understand</strong><span class="pill green">推荐</span><span class="time">918ms</span></div><p class="text primary-text" id="ocrResult">这句话的重点不是“翻译缺失”，而是 AI 产品失败常常发生在用户不知道下一步该做什么。适合转成 Parrot 的任务闭环设计原则。</p><div class="card-actions"><button class="secondary" data-action="save">保存到研究摘录</button><button class="primary" data-action="copy">复制解释</button></div></div>
+  </div>
+</template>
+
+<template id="context-compose">
+  <div class="window-bar"><span class="dot"></span><span class="dot"></span><span class="dot"></span><span class="window-title">Linear · comment field</span></div>
+  <div class="chat"><div class="bubble">Can you share feedback on the onboarding copy?</div><div class="bubble me">这个流程有点重，用户还没看到价值就被要求配置太多东西。</div><div class="input-shell">Parrot 将当前输入框草稿润色成英文，用户确认后替换回原 App。</div></div>
+</template>
+
+<template id="panel-compose">
+  <div class="panel-bar"><div class="traffic"><span></span><span></span><span></span></div><span class="pill blue">Native Polish</span><span class="pill">中文 -> English</span><span class="spacer"></span><button class="icon-btn" data-action="copy">Cp</button><button class="icon-btn" data-action="close">X</button></div>
+  <div class="panel-body">
+    <div class="card strong"><textarea class="source-editor" id="composeText">这个流程有点重，用户还没看到价值就被要求配置太多东西。</textarea><div class="editor-footer"><span>来自当前输入框</span><span class="spacer"></span><button class="secondary" data-action="tone">切换语气</button><button class="primary" data-action="retranslate">生成改写</button></div></div>
+    <div class="output-options"><div class="card recommended"><div class="provider-head"><strong>清晰直接</strong><span class="pill green">推荐</span></div><p class="text primary-text">The flow feels a bit heavy: users are asked to configure too much before they have seen the product's value.</p><div class="big-action"><button class="primary" data-action="replace">替换到原 App</button></div></div><div class="card"><div class="provider-head"><strong>更柔和</strong><span class="pill">Email</span></div><p class="text primary-text">I think the flow may be asking for too much configuration before users understand the value.</p></div><div class="card"><div class="provider-head"><strong>更短</strong><span class="pill">X Short</span></div><p class="text primary-text">The setup asks too much before users see the value.</p></div></div>
+    <div class="card"><h3>改动说明</h3><p class="text">保留“流程重”的判断，把“配置太多”改成更自然的 product feedback 表达，并避免听起来像责备。</p></div>
+  </div>
+</template>
+
+<template id="context-memory">
+  <div class="window-bar"><span class="dot"></span><span class="dot"></span><span class="dot"></span><span class="window-title">Parrot memory</span></div>
+  <div class="memory-bg"><div class="memory-tile"><h3>来源规则</h3><p>Safari docs 默认长文；Linear comments 默认 Native Polish；X screenshots 默认 Understand。</p></div><div class="memory-tile"><h3>表达记忆</h3><p>保存用户采纳过的回复、术语和常用表达，让第二周比第一周更快。</p></div><div class="memory-tile"><h3>术语</h3><p>first-pass rate 保留英文，task success rate 译为任务成功率。</p></div><div class="memory-tile"><h3>隐私</h3><p>GitHub 和 Email profile 默认遮罩 token、邮箱和链接参数。</p></div></div>
+</template>
+
+<template id="panel-memory">
+  <div class="panel-bar"><div class="traffic"><span></span><span></span><span></span></div><span class="pill blue">规则与记忆</span><span class="pill green">本地优先</span><span class="spacer"></span><button class="icon-btn" data-action="copy">Cp</button><button class="icon-btn" data-action="close">X</button></div>
+  <div class="panel-body"><div class="rules-layout"><div class="card"><h3>来源自动规则</h3><div class="rule-row"><button class="toggle on"><span></span></button><div class="rule-copy"><strong>Safari / docs</strong><span>默认 Document profile，显示段落双语阅读。</span></div></div><div class="rule-row"><button class="toggle on"><span></span></button><div class="rule-copy"><strong>Linear / GitHub</strong><span>默认 GitHub profile，保护代码块和 issue 格式。</span></div></div><div class="rule-row"><button class="toggle"><span></span></button><div class="rule-copy"><strong>Bank / Passwords</strong><span>默认 Private Local，仅允许本地或 Apple 引擎。</span></div></div></div><div class="card"><h3>表达与术语记忆</h3><div class="memory-row"><span class="pill amber">术语</span><div class="memory-copy"><strong>first-pass rate</strong><span>固定保留英文；解释为“一次命中率”。</span></div></div><div class="memory-row"><span class="pill blue">表达</span><div class="memory-copy"><strong>The flow asks too much...</strong><span>用户已采纳 4 次，用于产品反馈场景。</span></div></div><div class="memory-row"><span class="pill green">回复</span><div class="memory-copy"><strong>Fair point. I would...</strong><span>社交回复自然、短、非攻击性。</span></div></div></div></div><div class="card recommended"><div class="provider-head"><strong>下一次会更快</strong><span class="pill green">命中 3 条记忆</span></div><p class="text primary-text">当用户再次在 docs、Linear 或截图中触发 Parrot，系统自动选择合适 profile、套用术语，并优先推荐用户曾经采纳过的表达风格。</p></div></div>
+</template>
+
+<script>
+const state = { scene: 'peek', theme: 'dark', profile: 'understand' };
+const stage = document.getElementById('stage');
+const contextWindow = document.getElementById('contextWindow');
+const panel = document.getElementById('panel');
+const toast = document.getElementById('toast');
+const toastText = document.getElementById('toastText');
+const tabs = [...document.querySelectorAll('.scene-tabs button')];
+
+function render(scene = state.scene) {
+  state.scene = scene;
+  tabs.forEach(btn => btn.classList.toggle('active', btn.dataset.scene === scene));
+  contextWindow.innerHTML = document.getElementById(`context-${scene}`).innerHTML;
+  panel.innerHTML = document.getElementById(`panel-${scene}`).innerHTML;
+  panel.className = 'panel fade-enter';
+  if (scene === 'peek') panel.classList.add('peek');
+  if (scene === 'compose') panel.classList.add('compose');
+  if (scene === 'memory') panel.classList.add('memory');
+  bindPanel();
+}
+
+function showToast(text) {
+  toastText.textContent = text;
+  toast.classList.add('show');
+  window.clearTimeout(showToast.timer);
+  showToast.timer = window.setTimeout(() => toast.classList.remove('show'), 1400);
+}
+
+function bindPanel() {
+  panel.querySelectorAll('[data-scene]').forEach(el => el.addEventListener('click', () => render(el.dataset.scene)));
+  panel.querySelectorAll('[data-action]').forEach(el => el.addEventListener('click', () => handleAction(el.dataset.action)));
+  panel.querySelectorAll('[data-profile]').forEach(el => el.addEventListener('click', () => {
+    panel.querySelectorAll('[data-profile]').forEach(p => p.classList.remove('active'));
+    el.classList.add('active');
+    const hint = document.getElementById('profileHint');
+    const map = { understand: '理解 · 输出含含义与语气', document: '长文 · 优先段落对照', github: 'GitHub · 保护代码和 Markdown', private: '隐私 · 本地/遮罩优先' };
+    if (hint) hint.textContent = map[el.dataset.profile];
+    showToast(`已切换为 ${el.textContent} profile`);
+  }));
+  panel.querySelectorAll('[data-candidate]').forEach(el => el.addEventListener('click', () => selectCandidate(Number(el.dataset.candidate))));
+  panel.querySelectorAll('.toggle').forEach(el => el.addEventListener('click', () => { el.classList.toggle('on'); showToast(el.classList.contains('on') ? '规则已启用' : '规则已暂停'); }));
+}
+
+function handleAction(action) {
+  if (action === 'copy') return showToast('已复制到剪贴板');
+  if (action === 'speak') return showToast('正在朗读译文');
+  if (action === 'save') return showToast('已保存到表达记忆');
+  if (action === 'pin') return showToast('工作区已常驻');
+  if (action === 'close') return showToast('原型中保留窗口以便演示');
+  if (action === 'replace') return showToast('已替换回原 App 输入框');
+  if (action === 'tone') return showToast('语气已切到更柔和');
+  if (action === 'clean') return showToast('已整理源文');
+  if (action === 'retranslate') return simulateTranslate();
+}
+
+function simulateTranslate() {
+  const button = panel.querySelector('[data-action="retranslate"]');
+  if (!button) return;
+  const old = button.textContent;
+  button.textContent = '生成中';
+  button.disabled = true;
+  showToast('正在用当前 profile 重译');
+  window.setTimeout(() => {
+    button.textContent = old;
+    button.disabled = false;
+    const first = panel.querySelector('.recommended .primary-text, .recommended .peek-result');
+    if (first) first.style.animation = 'fadeContent .32s var(--ease) both';
+    showToast('推荐结果已更新');
+  }, 720);
+}
+
+function selectCandidate(index) {
+  const texts = [
+    'AI products do not fail because translation is missing. They fail because users lose the next action.',
+    'A workspace should help people understand, rewrite, reply, and remember.',
+    'AI products do not fail because translation is missing. They fail because users lose the next action.\n\nA workspace should help people understand, rewrite, reply, and remember.'
+  ];
+  const results = [
+    '这句话的重点不是“翻译缺失”，而是 AI 产品失败常常发生在用户不知道下一步该做什么。适合转成 Parrot 的任务闭环设计原则。',
+    '工作区不应只给译文，还应帮助用户理解、改写、回复并沉淀记忆。',
+    '整段截图表达了同一个产品原则：翻译只是入口，真正的价值是把理解、表达和记忆串成闭环。'
+  ];
+  panel.querySelectorAll('.candidate').forEach((c, i) => c.classList.toggle('active', i === index));
+  document.getElementById('ocrText').value = texts[index];
+  document.getElementById('ocrResult').textContent = results[index];
+  showToast('已切换 OCR 候选并重译');
+}
+
+tabs.forEach(btn => btn.addEventListener('click', () => render(btn.dataset.scene)));
+document.getElementById('themeToggle').addEventListener('click', () => {
+  state.theme = state.theme === 'dark' ? 'light' : 'dark';
+  document.documentElement.dataset.theme = state.theme;
+  document.getElementById('themeToggle').textContent = state.theme === 'dark' ? '浅色' : '深色';
+});
+render('peek');
+</script>
+</body>
+</html>
