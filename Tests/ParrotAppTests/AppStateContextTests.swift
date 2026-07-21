@@ -5,58 +5,6 @@ import ParrotCore
 @testable import ParrotApp
 
 @MainActor
-@Test func shortSelectionUsesQuickPeekAndExpandPreservesDraft() {
-    let state = AppState()
-
-    state.openWorkspace(
-        text: "Ship it when the tests are green.",
-        autoRun: false,
-        focusComposer: false,
-        origin: .selection
-    )
-
-    #expect(state.isQuickPeekSurface)
-    #expect(state.sourceDraft == "Ship it when the tests are green.")
-
-    state.expandQuickPeek()
-
-    #expect(!state.isQuickPeekSurface)
-    #expect(state.sourceDraft == "Ship it when the tests are green.")
-}
-
-@MainActor
-@Test func longSelectionUsesFullWorkspace() {
-    let state = AppState()
-    let text = String(repeating: "This paragraph needs a roomy bilingual workspace. ", count: 8)
-
-    state.openWorkspace(
-        text: text,
-        autoRun: false,
-        focusComposer: false,
-        origin: .selection
-    )
-
-    #expect(!state.isQuickPeekSurface)
-    #expect(state.sourceDraft == text)
-}
-
-@MainActor
-@Test func explicitURLSurfaceCanOpenQuickPeek() {
-    let state = AppState()
-
-    state.openWorkspace(
-        text: "Short URL translation.",
-        autoRun: false,
-        focusComposer: false,
-        origin: .url,
-        surface: .quickPeek
-    )
-
-    #expect(state.isQuickPeekSurface)
-    #expect(state.contextProfile == .document)
-}
-
-@MainActor
 @Test func sourceMetadataRulesSelectDeveloperProfile() {
     let state = AppState()
     state.settings.contextRuleDeveloperEnabled = true
@@ -74,13 +22,128 @@ import ParrotCore
 }
 
 @MainActor
+@Test func shortSelectionUsesCompactWorkspaceButManualInputDoesNot() {
+    let state = AppState()
+
+    state.openWorkspace(
+        text: "Ship the recommended result first.",
+        autoRun: false,
+        focusComposer: false,
+        origin: .selection
+    )
+    #expect(state.prefersCompactWorkspace)
+
+    state.openWorkspace(
+        text: "Ship the recommended result first.",
+        autoRun: false,
+        focusComposer: false,
+        origin: .manualInput
+    )
+    #expect(!state.prefersCompactWorkspace)
+}
+
+@MainActor
+@Test func historyWorkspaceRestoresLanguageDirection() {
+    let state = AppState()
+    let record = TranslationRecord(
+        sourceText: "Review the release note.",
+        translated: "リリースノートを確認してください。",
+        providerId: "fixture",
+        sourceLang: "en",
+        targetLang: "ja"
+    )
+
+    state.openHistoryWorkspace(record, autoRun: false)
+
+    #expect(state.sourceDraft == record.sourceText)
+    #expect(state.sourceLanguage == .en)
+    #expect(state.targetLanguage == .ja)
+    #expect(state.currentOrigin == .history)
+}
+
+@MainActor
+@Test func lookupPrefersDictionaryOutcomeAsPrimaryResult() {
+    let state = AppState()
+    state.openWorkspace(
+        text: "context",
+        mode: .lookup,
+        autoRun: false,
+        focusComposer: false,
+        origin: .lookup
+    )
+    state.outcomes = [
+        AggregatedOutcome(
+            providerId: "generic",
+            displayName: "Generic",
+            result: TranslateResult(providerId: "generic", translated: "上下文"),
+            error: nil,
+            latencyMs: 1
+        ),
+        AggregatedOutcome(
+            providerId: "dictionary",
+            displayName: "Dictionary",
+            result: TranslateResult(
+                providerId: "dictionary",
+                translated: "上下文；语境",
+                phonetics: [Phonetic(type: "UK", value: "/ˈkɒntekst/")],
+                definitions: [Definition(partOfSpeech: "n.", meanings: ["上下文", "语境"])]
+            ),
+            error: nil,
+            latencyMs: 2
+        )
+    ]
+
+    #expect(state.primarySuccessfulOutcome?.providerId == "dictionary")
+}
+
+@MainActor
 @Test func manualPolishOpensNativePolishWorkspace() {
     let state = AppState()
 
     state.openManualPolishWorkspace()
 
-    #expect(!state.isQuickPeekSurface)
     #expect(state.contextProfile == .nativePolish)
+}
+
+@MainActor
+@Test func manualPolishPrefillsFocusedInputDraft() {
+    let state = AppState()
+
+    state.openManualPolishWorkspace(
+        sourceApp: "Linear",
+        initialDraft: "这个流程有点重，用户还没看到价值就被要求配置太多东西。"
+    )
+
+    #expect(state.sourceDraft == "这个流程有点重，用户还没看到价值就被要求配置太多东西。")
+    #expect(state.currentContextSourceApp == "Linear")
+    #expect(state.didCaptureFocusedInputDraft)
+}
+
+@MainActor
+@Test func manualPolishBuildsToneVariantsAndCanSwitchTone() {
+    let state = AppState()
+    state.openManualPolishWorkspace(initialDraft: "这个流程有点重。")
+    state.outcomes = [
+        AggregatedOutcome(
+            providerId: "fixture",
+            displayName: "Fixture",
+            result: TranslateResult(
+                providerId: "fixture",
+                translated: "The flow feels a bit heavy: users are asked to configure too much before they have seen the product's value."
+            ),
+            error: nil,
+            latencyMs: 1
+        )
+    ]
+
+    #expect(state.polishVariants.count == 3)
+    #expect(state.polishVariants.first { $0.tone == .direct }?.text.hasPrefix("The flow feels") == true)
+    #expect(state.polishVariants.first { $0.tone == .softer }?.text.hasPrefix("I think") == true)
+    #expect(state.polishVariants.first { $0.tone == .concise }?.text.hasSuffix(".") == true)
+
+    state.selectPolishTone(.softer, autoRun: false)
+    #expect(state.selectedPolishTone == .softer)
+    #expect(state.polishVariants.first { $0.tone == .softer }?.isRecommended == true)
 }
 
 @MainActor
@@ -134,14 +197,13 @@ import ParrotCore
     })
 }
 
-@Test func urlRouteOptionsParseSurfaceProfileAndSourceURL() {
+@Test func urlRouteOptionsParseProfileAndSourceURL() {
     let options = AppURLRouteOptions.parse(queryItems: [
         URLQueryItem(name: "surface", value: "peek"),
         URLQueryItem(name: "profile", value: TranslationContextProfile.github.rawValue),
         URLQueryItem(name: "sourceURL", value: "https://github.com/example/parrot")
     ])
 
-    #expect(options.surface == .quickPeek)
     #expect(options.profile == .github)
     #expect(options.sourceURL == "https://github.com/example/parrot")
 }

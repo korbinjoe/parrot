@@ -157,7 +157,8 @@ open class OpenAICompatEngine: TranslationProvider, @unchecked Sendable {
             return "You are a dictionary. Explain the user's selected word or phrase in \(target). If a context sentence is provided, give the contextual meaning first. Include part of speech or phonetics only when useful. Output a concise answer with no markdown."
         case .polish:
             let polishLanguage = req.to.code ?? "the original language"
-            return "Polish and improve the user's text in \(polishLanguage) while preserving meaning. Keep the output in the same language; do not translate it into another language. \(contextInstruction(for: req.context?.profile))\(terminology)"
+            let tone = req.context?.rewriteTone.map { "Rewrite tone: \($0) " } ?? ""
+            return "Polish and improve the user's text in \(polishLanguage) while preserving meaning. Keep the output in the same language; do not translate it into another language. \(tone)\(contextInstruction(for: req.context?.profile))\(terminology)"
         }
     }
 

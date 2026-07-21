@@ -115,6 +115,7 @@ public struct TranslationContext: Codable, Equatable, Sendable {
     public var sourceApp: String?
     public var windowTitle: String?
     public var sourceURL: String?
+    public var rewriteTone: String?
     public var selectedOCRBlockID: UUID?
     public var paragraphHints: [ParagraphHint]
     public var privacyPolicy: PrivacyPolicy
@@ -126,6 +127,7 @@ public struct TranslationContext: Codable, Equatable, Sendable {
         sourceApp: String? = nil,
         windowTitle: String? = nil,
         sourceURL: String? = nil,
+        rewriteTone: String? = nil,
         selectedOCRBlockID: UUID? = nil,
         paragraphHints: [ParagraphHint] = [],
         privacyPolicy: PrivacyPolicy = .standard,
@@ -136,6 +138,7 @@ public struct TranslationContext: Codable, Equatable, Sendable {
         self.sourceApp = sourceApp
         self.windowTitle = windowTitle
         self.sourceURL = sourceURL
+        self.rewriteTone = rewriteTone
         self.selectedOCRBlockID = selectedOCRBlockID
         self.paragraphHints = paragraphHints
         self.privacyPolicy = privacyPolicy

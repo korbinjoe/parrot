@@ -106,6 +106,24 @@ import Foundation
     #expect(prompt.contains("do not translate it into another language"))
 }
 
+@Test func openAICompatPolishPromptIncludesRewriteTone() {
+    let context = TranslationContext(
+        profile: .nativePolish,
+        origin: .manualInput,
+        rewriteTone: "Use a softer, collaborative tone."
+    )
+    let prompt = OpenAICompatEngine.systemPrompt(for: TranslateRequest(
+        text: "This draft needs polish.",
+        from: .en,
+        to: .en,
+        mode: .polish,
+        context: context
+    ))
+
+    #expect(prompt.contains("Rewrite tone: Use a softer, collaborative tone."))
+    #expect(prompt.contains("Make the result native"))
+}
+
 @Test func openAICompatPromptUsesContextProfileInstruction() {
     let context = TranslationContext(profile: .document, origin: .manualInput)
     let prompt = OpenAICompatEngine.systemPrompt(for: TranslateRequest(

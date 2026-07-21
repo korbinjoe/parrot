@@ -5,26 +5,13 @@ import Carbon.HIToolbox
 import ParrotCore
 
 struct AppURLRouteOptions: Equatable {
-    var surface: WorkspaceSurface?
     var profile: TranslationContextProfile?
     var sourceURL: String?
 
     static func parse(queryItems: [URLQueryItem]) -> AppURLRouteOptions {
-        let surface = queryItems.first(where: { $0.name == "surface" })?.value.flatMap(parseSurface)
         let profile = queryItems.first(where: { $0.name == "profile" })?.value.flatMap(TranslationContextProfile.init(rawValue:))
         let sourceURL = queryItems.first(where: { $0.name == "sourceURL" || $0.name == "url" })?.value
-        return AppURLRouteOptions(surface: surface, profile: profile, sourceURL: sourceURL)
-    }
-
-    private static func parseSurface(_ value: String) -> WorkspaceSurface? {
-        switch value.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() {
-        case "peek", "quick", "quickpeek", "quick-peek":
-            return .quickPeek
-        case "workspace", "full", "expanded":
-            return .workspace
-        default:
-            return nil
-        }
+        return AppURLRouteOptions(profile: profile, sourceURL: sourceURL)
     }
 }
 
@@ -40,14 +27,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         onVocabulary: { [weak self] in self?.vocabularyWindow.show() },
         onContextMemory: { [weak self] in self?.contextMemoryWindow.show() },
         onReplaceInSourceApp: { [weak self] text in self?.replaceInSourceApp(text) ?? false },
+        onReturnToSourceApp: { [weak self] in self?.returnToSourceApp() },
         onWorkspaceNoticeAction: { [weak self] action in self?.handleWorkspaceNoticeAction(action) }
     )
     private lazy var settingsWindow = SettingsWindow(state: state) { [weak self] providerID in
         self?.state.retryProvider(providerID)
         self?.floating.show()
     }
-    private lazy var historyWindow = HistoryWindow(state: state) { [weak self] text in
-        self?.runTranslation(text)
+    private lazy var historyWindow = HistoryWindow(state: state) { [weak self] record in
+        self?.runHistoryTranslation(record)
     }
     private lazy var learningReviewWindow = LearningReviewWindow(state: state)
     private lazy var vocabularyWindow = VocabularyWindow(state: state)
@@ -55,6 +43,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private let popover = NSPopover()
     private var previousFrontmostApp: NSRunningApplication?
     private var sourceReplacementTargetApp: NSRunningApplication?
+    private var sourceReplacementShouldReplaceFocusedInput = false
     private var shortcutObserver: NSObjectProtocol?
     private var languageObserver: NSObjectProtocol?
     private var lastHotkeyFireByAction: [String: Date] = [:]
@@ -136,6 +125,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         let appMenu = NSMenu(title: "Parrot")
         appMenu.addItem(appCommand("输入翻译", action: #selector(showInput), key: ""))
         appMenu.addItem(appCommand("输入润色", action: #selector(showPolishInput), key: ""))
+        appMenu.addItem(appCommand("聚焦源文", action: #selector(focusSourceComposer), key: "l"))
         appMenu.addItem(appCommand("查看历史", action: #selector(showHistory), key: ""))
         appMenu.addItem(appCommand("今日复习", action: #selector(showLearningReview), key: ""))
         appMenu.addItem(appCommand("个人词库", action: #selector(showVocabulary), key: ""))
@@ -152,7 +142,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         editMenu.addItem(command("重做", action: Selector(("redo:")), key: "Z"))
         editMenu.addItem(.separator())
         editMenu.addItem(command("剪切", action: #selector(NSText.cut(_:)), key: "x"))
-        editMenu.addItem(command("复制", action: #selector(NSText.copy(_:)), key: "c"))
+        editMenu.addItem(appCommand("复制", action: #selector(copySelectionOrPrimaryResult(_:)), key: "c"))
         editMenu.addItem(command("粘贴", action: #selector(NSText.paste(_:)), key: "v"))
         editMenu.addItem(command("删除", action: #selector(NSText.delete(_:)), key: ""))
         editMenu.addItem(.separator())
@@ -189,7 +179,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         let text = comps.queryItems?.first(where: { $0.name == "text" })?.value ?? ""
         guard !text.isEmpty else { return }
         let options = AppURLRouteOptions.parse(queryItems: comps.queryItems ?? [])
-        DebugLog.log("url: action=\(action) textLen=\(text.count) surface=\(String(describing: options.surface)) profile=\(String(describing: options.profile))")
+        DebugLog.log("url: action=\(action) textLen=\(text.count) profile=\(String(describing: options.profile))")
         switch action {
         case "ocr-fixture":
             openOCRFixture(text: text, queryItems: comps.queryItems ?? [])
@@ -198,7 +188,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 text,
                 mode: .lookup,
                 origin: .url,
-                surface: options.surface,
                 profile: options.profile,
                 sourceURL: options.sourceURL
             )
@@ -207,7 +196,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 text,
                 mode: .polish,
                 origin: .url,
-                surface: options.surface,
                 profile: options.profile,
                 sourceURL: options.sourceURL
             )
@@ -215,7 +203,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             runTranslation(
                 text,
                 origin: .url,
-                surface: options.surface,
                 profile: options.profile,
                 sourceURL: options.sourceURL
             )
@@ -245,13 +232,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             onLookup: { [weak self] in self?.closePopoverRestoringPreviousApp { self?.lookupSelection() } },
             onScreenshot: { [weak self] in self?.closePopoverThen { self?.translateScreenshot() } },
             onInput: { [weak self] in self?.closePopoverThen { self?.showInput() } },
-            onPolishInput: { [weak self] in self?.closePopoverThen { self?.showPolishInput() } },
+            onPolishInput: { [weak self] in self?.closePopoverRestoringPreviousApp { self?.showPolishInput() } },
             onSettings: { [weak self] in self?.closePopoverThen { self?.showSettings() } },
             onHistory: { [weak self] in self?.closePopoverThen { self?.historyWindow.show() } },
             onLearningReview: { [weak self] in self?.closePopoverThen { self?.learningReviewWindow.show() } },
             onVocabulary: { [weak self] in self?.closePopoverThen { self?.vocabularyWindow.show() } },
             onContextMemory: { [weak self] in self?.closePopoverThen { self?.contextMemoryWindow.show() } },
-            onRetranslate: { [weak self] text in self?.closePopoverThen { self?.runTranslation(text) } },
+            onRetranslate: { [weak self] record in self?.closePopoverThen { self?.runHistoryTranslation(record) } },
             onQuit: { NSApp.terminate(nil) }
         )
         popover.contentViewController = NSHostingController(rootView: content)
@@ -345,6 +332,25 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     // MARK: - Actions
+
+    @objc private func focusSourceComposer() {
+        floating.show(focusComposer: true)
+    }
+
+    @objc private func copySelectionOrPrimaryResult(_ sender: Any?) {
+        if let textView = NSApp.keyWindow?.firstResponder as? NSTextView,
+           textView.selectedRange().length > 0 {
+            textView.copy(sender)
+            return
+        }
+        let translated = state.primaryActionTranslatedText
+        guard !translated.isEmpty else {
+            NSSound.beep()
+            return
+        }
+        NSPasteboard.general.clearContents()
+        NSPasteboard.general.setString(translated, forType: .string)
+    }
 
     @objc private func translateSelection() {
         state.refreshPermissions()
@@ -492,7 +498,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     @objc private func showPolishInput() {
         let sourceApp = captureReplacementTarget(preferred: previousFrontmostApp)
         previousFrontmostApp = nil
-        state.openManualPolishWorkspace(sourceApp: sourceAppName(sourceApp))
+        let initialDraft = captureFocusedInputDraft(from: sourceApp)
+        state.openManualPolishWorkspace(
+            sourceApp: sourceAppName(sourceApp),
+            initialDraft: initialDraft
+        )
         floating.show(focusComposer: true)
     }
 
@@ -500,24 +510,33 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         _ text: String,
         mode: TranslateMode = .translate,
         origin: TranslationOrigin = .history,
-        surface: WorkspaceSurface? = nil,
         profile: TranslationContextProfile? = nil,
         sourceApp: String? = nil,
         windowTitle: String? = nil,
         sourceURL: String? = nil
     ) {
+        if sourceApp == nil {
+            sourceReplacementTargetApp = nil
+            sourceReplacementShouldReplaceFocusedInput = false
+        }
         state.openWorkspace(
             text: text,
             mode: mode,
             autoRun: true,
             focusComposer: false,
             origin: origin,
-            surface: surface,
             profile: profile,
             sourceApp: sourceApp,
             windowTitle: windowTitle,
             sourceURL: sourceURL
         )
+        floating.show()
+    }
+
+    private func runHistoryTranslation(_ record: TranslationRecord) {
+        let sourceApp = captureReplacementTarget(preferred: previousFrontmostApp)
+        previousFrontmostApp = nil
+        state.openHistoryWorkspace(record, sourceApp: sourceAppName(sourceApp))
         floating.show()
     }
 
@@ -542,12 +561,70 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             candidate.processIdentifier != getpid() && !candidate.isTerminated
         }
         sourceReplacementTargetApp = app
+        sourceReplacementShouldReplaceFocusedInput = false
         return app
     }
 
     private func sourceAppName(_ app: NSRunningApplication?) -> String? {
         guard let app else { return nil }
         return app.localizedName ?? app.bundleIdentifier
+    }
+
+    private func captureFocusedInputDraft(from app: NSRunningApplication?) -> String? {
+        guard SelectionCapture.hasAccessibilityPermission(prompt: false),
+              let element = focusedEditableElement(in: app) else { return nil }
+
+        var value: AnyObject?
+        guard AXUIElementCopyAttributeValue(element, kAXValueAttribute as CFString, &value) == .success,
+              let text = value as? String else { return nil }
+
+        let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return nil }
+        sourceReplacementShouldReplaceFocusedInput = true
+        return text
+    }
+
+    private func focusedEditableElement(in app: NSRunningApplication?) -> AXUIElement? {
+        guard let app,
+              app.processIdentifier != getpid(),
+              !app.isTerminated else { return nil }
+        let applicationElement = AXUIElementCreateApplication(app.processIdentifier)
+        var focused: AnyObject?
+        guard AXUIElementCopyAttributeValue(applicationElement, kAXFocusedUIElementAttribute as CFString, &focused) == .success,
+              let focused else { return nil }
+        let element = focused as! AXUIElement
+
+        var roleValue: AnyObject?
+        let role = AXUIElementCopyAttributeValue(element, kAXRoleAttribute as CFString, &roleValue) == .success
+            ? roleValue as? String
+            : nil
+        let editableRoles = [
+            kAXTextFieldRole as String,
+            kAXTextAreaRole as String,
+            kAXComboBoxRole as String
+        ]
+        guard let role, editableRoles.contains(role) else { return nil }
+
+        var settable = DarwinBoolean(false)
+        if AXUIElementIsAttributeSettable(element, kAXValueAttribute as CFString, &settable) == .success,
+           settable.boolValue {
+            return element
+        }
+
+        var value: AnyObject?
+        if AXUIElementCopyAttributeValue(element, kAXValueAttribute as CFString, &value) == .success,
+           value is String {
+            return element
+        }
+        return nil
+    }
+
+    private func replaceFocusedInputValue(_ text: String, in app: NSRunningApplication?) -> Bool {
+        guard let element = focusedEditableElement(in: app) else { return false }
+        var settable = DarwinBoolean(false)
+        guard AXUIElementIsAttributeSettable(element, kAXValueAttribute as CFString, &settable) == .success,
+              settable.boolValue else { return false }
+        return AXUIElementSetAttributeValue(element, kAXValueAttribute as CFString, text as CFTypeRef) == .success
     }
 
     private func replaceInSourceApp(_ text: String) -> Bool {
@@ -563,14 +640,24 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             return false
         }
 
-        let pasteboard = NSPasteboard.general
-        let saved = pasteboard.string(forType: .string)
-        pasteboard.clearContents()
-        pasteboard.setString(replacement, forType: .string)
+        let shouldReplaceFocusedInput = sourceReplacementShouldReplaceFocusedInput
         target.activate(options: [.activateIgnoringOtherApps])
 
         Task { @MainActor in
             try? await Task.sleep(nanoseconds: 160_000_000)
+            if shouldReplaceFocusedInput,
+               replaceFocusedInputValue(replacement, in: target) {
+                return
+            }
+
+            let pasteboard = NSPasteboard.general
+            let saved = pasteboard.string(forType: .string)
+            pasteboard.clearContents()
+            pasteboard.setString(replacement, forType: .string)
+            if shouldReplaceFocusedInput {
+                Self.sendCommandA()
+                try? await Task.sleep(nanoseconds: 60_000_000)
+            }
             Self.sendCommandV()
             try? await Task.sleep(nanoseconds: 650_000_000)
             if pasteboard.string(forType: .string) == replacement {
@@ -583,13 +670,29 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         return true
     }
 
+    private func returnToSourceApp() {
+        let target = sourceReplacementTargetApp
+        floating.hide(force: true)
+        guard let target,
+              target.processIdentifier != getpid(),
+              !target.isTerminated else { return }
+        target.activate(options: [.activateIgnoringOtherApps])
+    }
+
+    private static func sendCommandA() {
+        sendCommandKey(0)
+    }
+
     private static func sendCommandV() {
+        sendCommandKey(9)
+    }
+
+    private static func sendCommandKey(_ key: CGKeyCode) {
         let source = CGEventSource(stateID: .privateState)
         source?.setLocalEventsFilterDuringSuppressionState([], state: .eventSuppressionStateSuppressionInterval)
 
-        let vKey: CGKeyCode = 9
-        let down = CGEvent(keyboardEventSource: source, virtualKey: vKey, keyDown: true)
-        let up = CGEvent(keyboardEventSource: source, virtualKey: vKey, keyDown: false)
+        let down = CGEvent(keyboardEventSource: source, virtualKey: key, keyDown: true)
+        let up = CGEvent(keyboardEventSource: source, virtualKey: key, keyDown: false)
         down?.flags = .maskCommand
         up?.flags = .maskCommand
         down?.post(tap: .cghidEventTap)

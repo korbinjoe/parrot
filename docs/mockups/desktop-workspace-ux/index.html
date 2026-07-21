@@ -1,0 +1,597 @@
+<!doctype html>
+<html lang="zh-CN" data-theme="dark">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Parrot Desktop — Unified Workspace Prototype</title>
+<style>
+:root {
+  color-scheme: dark;
+  --font: -apple-system, BlinkMacSystemFont, "SF Pro Text", "PingFang SC", "Helvetica Neue", sans-serif;
+  --wallpaper-a: #162533;
+  --wallpaper-b: #654c3f;
+  --menubar: rgba(19, 21, 24, .72);
+  --app: rgba(30, 32, 37, .84);
+  --panel: rgba(35, 37, 43, .92);
+  --surface: rgba(255,255,255,.055);
+  --surface-strong: rgba(255,255,255,.085);
+  --surface-hover: rgba(255,255,255,.115);
+  --line: rgba(255,255,255,.13);
+  --line-soft: rgba(255,255,255,.075);
+  --text: #f5f5f2;
+  --text-2: rgba(245,245,242,.72);
+  --text-3: rgba(245,245,242,.46);
+  --accent: #8ea8e9;
+  --accent-ink: #10182c;
+  --accent-soft: rgba(142,168,233,.16);
+  --success: #76ce95;
+  --success-soft: rgba(118,206,149,.14);
+  --warning: #efbb60;
+  --warning-soft: rgba(239,187,96,.14);
+  --danger: #ef858b;
+  --danger-soft: rgba(239,133,139,.13);
+  --shadow: 0 34px 100px rgba(0,0,0,.48), 0 0 0 .5px rgba(255,255,255,.14);
+  --shadow-soft: 0 18px 50px rgba(0,0,0,.28), 0 0 0 .5px var(--line-soft);
+  --r-window: 14px;
+  --r-card: 10px;
+  --r-control: 7px;
+  --ease: cubic-bezier(.16,1,.3,1);
+}
+[data-theme="light"] {
+  color-scheme: light;
+  --wallpaper-a: #b9cad3;
+  --wallpaper-b: #ead4b8;
+  --menubar: rgba(255,255,255,.74);
+  --app: rgba(246,247,248,.82);
+  --panel: rgba(250,250,249,.93);
+  --surface: rgba(18,22,29,.045);
+  --surface-strong: rgba(18,22,29,.075);
+  --surface-hover: rgba(18,22,29,.105);
+  --line: rgba(20,23,28,.15);
+  --line-soft: rgba(20,23,28,.085);
+  --text: #191b1f;
+  --text-2: rgba(25,27,31,.7);
+  --text-3: rgba(25,27,31,.46);
+  --accent: #526fac;
+  --accent-ink: #fff;
+  --accent-soft: rgba(82,111,172,.13);
+  --success: #25834a;
+  --success-soft: rgba(37,131,74,.1);
+  --warning: #9a670d;
+  --warning-soft: rgba(154,103,13,.1);
+  --danger: #c74b55;
+  --danger-soft: rgba(199,75,85,.1);
+  --shadow: 0 34px 100px rgba(47,48,54,.2), 0 0 0 .5px rgba(20,23,28,.14);
+  --shadow-soft: 0 18px 50px rgba(47,48,54,.13), 0 0 0 .5px var(--line-soft);
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; width: 100%; height: 100%; overflow: hidden; }
+body { font-family: var(--font); color: var(--text); -webkit-font-smoothing: antialiased; }
+button, textarea, input { font: inherit; }
+button { border: 0; color: inherit; cursor: pointer; }
+button:focus-visible, textarea:focus-visible, input:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.hidden { display: none !important; }
+
+.desktop {
+  width: 100%; height: 100%; position: relative; overflow: hidden;
+  background:
+    radial-gradient(90% 65% at 15% 82%, rgba(93,128,142,.9), transparent 61%),
+    radial-gradient(70% 80% at 87% 5%, rgba(247,190,132,.66), transparent 58%),
+    linear-gradient(145deg, var(--wallpaper-a), var(--wallpaper-b));
+}
+.desktop::after { content:""; position:absolute; inset:28px 0 0; pointer-events:none; background:linear-gradient(to bottom, rgba(255,255,255,.025), transparent 28%); }
+.menu-bar {
+  height: 28px; padding: 0 13px; display:flex; align-items:center; gap:16px; position:relative; z-index:50;
+  background:var(--menubar); border-bottom:.5px solid var(--line-soft); backdrop-filter:blur(24px) saturate(150%); font-size:12px;
+}
+.menu-bar strong { font-weight:700; }
+.menu-right { margin-left:auto; display:flex; gap:14px; align-items:center; color:var(--text-2); }
+.menu-logo { width:20px; height:20px; padding:0; border-radius:5px; display:grid; place-items:center; background:transparent; }
+.menu-logo:hover { background:var(--surface-hover); }
+.menu-logo img { width:16px; height:16px; border-radius:4px; }
+.menu-popover {
+  position:absolute; z-index:70; right:100px; top:34px; width:250px; padding:6px; border-radius:12px;
+  background:var(--panel); border:.5px solid var(--line); box-shadow:var(--shadow-soft); backdrop-filter:blur(24px) saturate(150%);
+  transform-origin:90% 0; animation:popoverIn .18s var(--ease) both;
+}
+.menu-row { width:100%; min-height:31px; padding:0 9px; border-radius:7px; display:flex; align-items:center; gap:9px; background:transparent; color:var(--text-2); text-align:left; }
+.menu-row:hover { background:var(--accent-soft); color:var(--text); }
+.menu-row .shortcut { margin-left:auto; color:var(--text-3); font-size:11px; }
+.menu-section { padding:7px 9px 4px; color:var(--text-3); font-size:10px; font-weight:700; text-transform:uppercase; letter-spacing:.06em; }
+.menu-divider { height:.5px; background:var(--line-soft); margin:5px; }
+
+.prototype-nav {
+  position:absolute; z-index:45; top:44px; left:50%; transform:translateX(-50%); padding:5px; display:flex; gap:3px;
+  background:rgba(25,27,31,.74); border:.5px solid rgba(255,255,255,.12); border-radius:12px; box-shadow:var(--shadow-soft); backdrop-filter:blur(22px) saturate(150%);
+}
+[data-theme="light"] .prototype-nav { background:rgba(255,255,255,.72); }
+.prototype-nav button { height:30px; min-width:70px; padding:0 11px; border-radius:8px; background:transparent; color:var(--text-2); font-size:11px; font-weight:650; }
+.prototype-nav button:hover { background:var(--surface-hover); color:var(--text); }
+.prototype-nav button.active { background:var(--accent); color:var(--accent-ink); }
+
+.context-app {
+  position:absolute; z-index:3; left:clamp(22px,5vw,78px); top:112px; width:min(650px,45vw); height:min(690px,calc(100vh - 150px));
+  border-radius:16px; overflow:hidden; background:var(--app); border:.5px solid var(--line); box-shadow:var(--shadow-soft); backdrop-filter:blur(24px) saturate(130%);
+}
+.fake-titlebar { height:40px; display:flex; align-items:center; gap:7px; padding:0 12px; border-bottom:.5px solid var(--line-soft); background:rgba(255,255,255,.025); }
+.traffic { display:flex; gap:7px; }
+.traffic i { width:10px; height:10px; border-radius:50%; background:#ff5f57; }
+.traffic i:nth-child(2) { background:#febc2e; }
+.traffic i:nth-child(3) { background:#28c840; }
+.fake-title { margin-left:7px; color:var(--text-3); font-size:11px; }
+.context-body { height:calc(100% - 40px); padding:30px 34px; overflow:hidden; }
+.context-kicker { color:var(--accent); font-size:11px; font-weight:700; text-transform:uppercase; letter-spacing:.08em; }
+.context-body h1 { margin:9px 0 18px; max-width:540px; font-size:clamp(27px,3vw,42px); line-height:1.07; letter-spacing:-.025em; }
+.context-body p { margin:0 0 14px; color:var(--text-2); font-size:14px; line-height:1.72; }
+.selection { background:var(--accent-soft); color:var(--text); border-radius:5px; box-shadow:0 0 0 2px rgba(142,168,233,.1); }
+.word-selection { padding:1px 3px; border-bottom:2px solid var(--accent); background:var(--accent-soft); border-radius:3px; }
+.shot { height:100%; border-radius:22px; padding:24px; background:linear-gradient(150deg,#151820,#303945); border:8px solid rgba(255,255,255,.09); position:relative; }
+.post { margin-bottom:13px; padding:15px; border-radius:15px; background:rgba(255,255,255,.08); color:rgba(255,255,255,.78); font-size:13px; line-height:1.5; }
+.ocr-outline { position:absolute; left:30px; right:30px; top:91px; height:104px; border:1.5px solid #9bb5ff; border-radius:10px; background:rgba(142,168,233,.12); box-shadow:0 0 0 4px rgba(142,168,233,.09); }
+.history-layout { margin:-30px -34px; height:calc(100% + 60px); display:grid; grid-template-columns:220px 1fr; }
+.history-list { padding:15px 10px; border-right:.5px solid var(--line-soft); }
+.history-search { height:27px; padding:0 9px; border-radius:7px; background:var(--surface-strong); color:var(--text-3); font-size:11px; display:flex; align-items:center; }
+.history-item { padding:10px; margin-top:5px; border-radius:8px; color:var(--text-2); font-size:11px; line-height:1.35; }
+.history-item.active { background:var(--accent-soft); color:var(--text); }
+.history-item b { display:block; font-size:12px; margin-bottom:3px; }
+.history-detail { padding:25px; }
+.history-detail h2 { margin:0 0 7px; font-size:20px; }
+.history-detail .record { margin-top:18px; padding:14px; border-radius:10px; background:var(--surface); border:.5px solid var(--line-soft); }
+
+.workspace {
+  position:absolute; z-index:20; right:clamp(22px,6vw,102px); top:112px; width:560px; min-width:500px; min-height:360px;
+  max-width:calc(100vw - 44px); max-height:calc(100vh - 130px); overflow:hidden; resize:both;
+  border-radius:var(--r-window); background:var(--panel); border:.5px solid var(--line); box-shadow:var(--shadow); backdrop-filter:blur(28px) saturate(155%);
+  transform-origin:78% 10%; animation:windowIn .32s var(--ease) both; transition:height .34s var(--ease), opacity .2s ease, transform .3s var(--ease);
+}
+.workspace.compact { height:472px; }
+.workspace.lookup { height:580px; }
+.workspace.expanded { height:min(700px,calc(100vh - 136px)); }
+.workspace.returning { opacity:0; transform:translateY(22px) scale(.97); pointer-events:none; }
+.workspace.pinned { box-shadow:0 34px 100px rgba(0,0,0,.48),0 0 0 1px var(--accent); }
+.workspace-titlebar { height:42px; padding:0 9px 0 12px; display:flex; align-items:center; gap:8px; border-bottom:.5px solid var(--line); background:rgba(255,255,255,.025); cursor:grab; user-select:none; }
+.workspace-titlebar:active { cursor:grabbing; }
+.brand { display:flex; align-items:center; gap:7px; font-size:12px; font-weight:700; }
+.brand img { width:20px; height:20px; border-radius:6px; }
+.status-pill, .tag { height:22px; padding:0 8px; border-radius:999px; display:inline-flex; align-items:center; gap:5px; white-space:nowrap; font-size:10px; font-weight:700; }
+.status-pill { margin-left:4px; color:var(--text-2); background:var(--surface-strong); }
+.status-pill.running { color:var(--accent); background:var(--accent-soft); }
+.status-pill.dirty { color:var(--warning); background:var(--warning-soft); }
+.status-pill.done { color:var(--success); background:var(--success-soft); }
+.title-spacer { flex:1; min-width:0; }
+.icon-button { width:28px; height:28px; padding:0; display:grid; place-items:center; border-radius:7px; background:transparent; color:var(--text-2); }
+.icon-button:hover { color:var(--text); background:var(--surface-hover); }
+.icon-button.active { color:var(--accent); background:var(--accent-soft); }
+.icon { width:15px; height:15px; stroke:currentColor; fill:none; stroke-width:1.8; stroke-linecap:round; stroke-linejoin:round; pointer-events:none; }
+.workspace-scroll { height:calc(100% - 42px); overflow:auto; scrollbar-width:thin; scrollbar-color:var(--line) transparent; }
+.workspace-content { padding:12px; }
+.control-row { min-height:31px; display:flex; align-items:center; gap:7px; margin-bottom:10px; }
+.segmented { height:28px; display:flex; align-items:center; border:.5px solid var(--line-soft); border-radius:7px; background:var(--surface); overflow:hidden; }
+.segmented button { height:100%; padding:0 9px; background:transparent; color:var(--text-2); font-size:11px; }
+.segmented button + button { border-left:.5px solid var(--line-soft); }
+.segmented button:hover { background:var(--surface-hover); color:var(--text); }
+.profile-button { height:28px; padding:0 9px; border-radius:7px; background:var(--surface); border:.5px solid var(--line-soft); color:var(--text-2); font-size:11px; }
+.context-label { margin-left:auto; color:var(--text-3); font-size:10px; white-space:nowrap; }
+.card { border:.5px solid var(--line-soft); border-radius:var(--r-card); background:var(--surface); padding:12px; }
+.card + .card, .card + .disclosure, .disclosure + .card { margin-top:10px; }
+.card.source { background:var(--surface-strong); }
+.card.primary-result { border-color:rgba(142,168,233,.45); box-shadow:inset 2px 0 0 var(--accent); }
+.card.error { border-color:rgba(239,133,139,.44); box-shadow:inset 2px 0 0 var(--danger); }
+.card.permission { border-color:rgba(239,187,96,.4); box-shadow:inset 2px 0 0 var(--warning); }
+.card-head { display:flex; align-items:center; gap:7px; min-height:22px; margin-bottom:8px; }
+.card-head strong { font-size:12px; }
+.eyebrow { color:var(--text-3); font-size:10px; font-weight:700; text-transform:uppercase; letter-spacing:.055em; }
+.card-time { margin-left:auto; color:var(--text-3); font-size:10px; font-variant-numeric:tabular-nums; }
+.tag.recommended { color:var(--accent); background:var(--accent-soft); }
+.tag.success { color:var(--success); background:var(--success-soft); }
+.tag.warning { color:var(--warning); background:var(--warning-soft); }
+.source-editor { width:100%; min-height:48px; max-height:180px; resize:none; padding:0; border:0; outline:0; background:transparent; color:var(--text); font-size:13px; line-height:1.52; }
+.workspace.expanded .source-editor { min-height:76px; }
+.source-footer { margin-top:8px; padding-top:8px; border-top:.5px solid var(--line-soft); display:flex; align-items:center; gap:7px; color:var(--text-3); font-size:10px; }
+.source-footer .grow { flex:1; }
+.text-button { height:27px; padding:0 9px; border-radius:6px; background:transparent; color:var(--text-2); font-size:11px; font-weight:650; }
+.text-button:hover { background:var(--surface-hover); color:var(--text); }
+.primary-button, .secondary-button { height:30px; padding:0 11px; border-radius:7px; font-size:11px; font-weight:700; display:inline-flex; align-items:center; justify-content:center; gap:6px; }
+.primary-button { background:var(--accent); color:var(--accent-ink); }
+.secondary-button { background:var(--surface-strong); color:var(--text-2); border:.5px solid var(--line-soft); }
+.primary-button:hover, .secondary-button:hover { filter:brightness(1.07); }
+.result-text { margin:0; color:var(--text); font-size:15px; line-height:1.58; }
+.result-note { margin:7px 0 0; color:var(--text-2); font-size:11px; line-height:1.5; }
+.result-actions { margin-top:11px; display:flex; align-items:center; gap:6px; }
+.result-actions .push { margin-left:auto; }
+.disclosure { border:.5px solid var(--line-soft); border-radius:var(--r-card); overflow:hidden; background:var(--surface); }
+.disclosure-trigger { width:100%; min-height:39px; padding:0 11px; display:flex; align-items:center; gap:8px; background:transparent; color:var(--text-2); text-align:left; font-size:11px; }
+.disclosure-trigger:hover { background:var(--surface-hover); color:var(--text); }
+.disclosure-trigger .count { margin-left:auto; color:var(--text-3); }
+.disclosure-body { padding:0 11px 11px; border-top:.5px solid var(--line-soft); }
+.provider-row { padding:10px 0; border-bottom:.5px solid var(--line-soft); }
+.provider-row:last-child { border-bottom:0; padding-bottom:0; }
+.provider-row .provider-meta { display:flex; gap:6px; color:var(--text-3); font-size:10px; margin-bottom:5px; }
+.provider-row p { margin:0; color:var(--text-2); font-size:12px; line-height:1.45; }
+.lookup-word { display:flex; align-items:flex-start; gap:13px; }
+.sound { width:38px; height:38px; flex:0 0 auto; display:grid; place-items:center; border-radius:50%; background:var(--accent-soft); color:var(--accent); }
+.dictionary { flex:1; min-width:0; }
+.dictionary h2 { margin:0; font-size:22px; letter-spacing:-.015em; }
+.phonetic { margin-top:3px; color:var(--text-2); font-size:11px; }
+.definition { margin-top:12px; padding-top:10px; border-top:.5px solid var(--line-soft); }
+.definition b { display:inline-block; width:31px; color:var(--accent); font-size:10px; font-style:italic; }
+.definition span { color:var(--text); font-size:13px; }
+.example { margin:6px 0 0 35px; color:var(--text-3); font-size:11px; line-height:1.45; }
+.bilingual { display:grid; gap:8px; }
+.para { display:grid; grid-template-columns:1fr 1fr; gap:8px; }
+.para > div { padding:10px; border-radius:8px; background:var(--surface); border:.5px solid var(--line-soft); }
+.para > div:last-child { background:var(--accent-soft); }
+.para small { display:block; margin-bottom:6px; color:var(--text-3); font-size:9px; font-weight:700; text-transform:uppercase; }
+.para p { margin:0; color:var(--text-2); font-size:11px; line-height:1.48; }
+.para > div:last-child p { color:var(--text); }
+.ocr-best { display:flex; align-items:center; gap:8px; margin-bottom:10px; padding:8px 9px; border-radius:8px; background:var(--accent-soft); color:var(--text-2); font-size:10px; }
+.candidate-strip { display:flex; gap:7px; overflow:auto; padding-bottom:2px; }
+.candidate { width:154px; flex:0 0 auto; min-height:61px; padding:8px; border-radius:8px; text-align:left; background:var(--surface); border:.5px solid var(--line-soft); color:var(--text-2); }
+.candidate.active { border-color:var(--accent); background:var(--accent-soft); }
+.candidate b { display:block; margin-bottom:4px; font-size:10px; color:var(--text); }
+.candidate span { font-size:10px; line-height:1.3; display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden; }
+.notice { padding:10px; border-radius:8px; background:var(--warning-soft); color:var(--warning); font-size:11px; line-height:1.45; margin-bottom:10px; }
+.error-switch { display:flex; gap:4px; margin-bottom:10px; }
+.error-switch button { height:26px; padding:0 9px; border-radius:7px; background:var(--surface); color:var(--text-2); font-size:10px; }
+.error-switch button.active { background:var(--accent); color:var(--accent-ink); }
+.error-title { display:flex; gap:9px; align-items:flex-start; }
+.error-icon { width:30px; height:30px; display:grid; place-items:center; border-radius:8px; background:var(--danger-soft); color:var(--danger); flex:0 0 auto; }
+.error-copy h3 { margin:0 0 4px; font-size:13px; }
+.error-copy p { margin:0; color:var(--text-2); font-size:11px; line-height:1.5; }
+.skeleton { height:13px; margin:8px 0; border-radius:5px; background:linear-gradient(90deg,var(--surface),var(--surface-hover),var(--surface)); background-size:200% 100%; animation:shimmer 1.15s linear infinite; }
+.skeleton.short { width:63%; }
+
+.more-menu { position:absolute; z-index:90; right:42px; top:36px; width:174px; padding:5px; border-radius:10px; background:var(--panel); border:.5px solid var(--line); box-shadow:var(--shadow-soft); }
+.more-menu button { width:100%; height:30px; padding:0 9px; border-radius:6px; background:transparent; color:var(--text-2); text-align:left; font-size:11px; }
+.more-menu button:hover { background:var(--surface-hover); color:var(--text); }
+.settings-sheet { position:absolute; z-index:85; inset:42px 0 0; padding:18px; background:var(--panel); overflow:auto; animation:sheetIn .28s var(--ease) both; }
+.settings-sheet h2 { margin:0 0 5px; font-size:18px; }
+.settings-sheet > p { margin:0 0 18px; color:var(--text-2); font-size:11px; }
+.field { margin-bottom:12px; }
+.field label { display:block; margin-bottom:5px; color:var(--text-3); font-size:10px; font-weight:700; }
+.field input { width:100%; height:32px; padding:0 9px; border-radius:7px; border:.5px solid var(--line); background:var(--surface); color:var(--text); outline:0; }
+.sheet-actions { display:flex; justify-content:flex-end; gap:7px; margin-top:18px; }
+.modal-backdrop { position:fixed; z-index:110; inset:0; display:grid; place-items:center; background:rgba(0,0,0,.28); backdrop-filter:blur(3px); }
+.modal { width:340px; padding:18px; border-radius:13px; background:var(--panel); border:.5px solid var(--line); box-shadow:var(--shadow); }
+.modal h3 { margin:0 0 7px; font-size:15px; }
+.modal p { margin:0 0 17px; color:var(--text-2); font-size:12px; line-height:1.48; }
+.modal-actions { display:flex; justify-content:flex-end; gap:7px; }
+.toast { position:fixed; z-index:120; left:50%; bottom:27px; min-height:36px; padding:0 13px; display:flex; align-items:center; gap:8px; border-radius:999px; background:rgba(29,31,36,.9); border:.5px solid var(--line); box-shadow:var(--shadow-soft); color:#f7f7f4; font-size:11px; opacity:0; transform:translate(-50%,14px); pointer-events:none; transition:.23s var(--ease); backdrop-filter:blur(18px); }
+.toast.show { opacity:1; transform:translate(-50%,0); }
+.reopen-chip { position:absolute; z-index:18; right:32px; top:112px; height:34px; padding:0 12px; border-radius:999px; background:var(--panel); border:.5px solid var(--line); color:var(--text-2); box-shadow:var(--shadow-soft); font-size:11px; animation:popoverIn .2s var(--ease) both; }
+.shortcut-hint { position:absolute; z-index:5; left:clamp(22px,5vw,78px); bottom:25px; color:rgba(255,255,255,.66); font-size:11px; text-shadow:0 1px 4px rgba(0,0,0,.35); }
+
+@keyframes windowIn { from { opacity:0; transform:translateY(16px) scale(.982); } to { opacity:1; transform:none; } }
+@keyframes popoverIn { from { opacity:0; transform:translateY(-5px) scale(.98); } to { opacity:1; transform:none; } }
+@keyframes sheetIn { from { opacity:0; transform:translateX(22px); } to { opacity:1; transform:none; } }
+@keyframes shimmer { to { background-position:-200% 0; } }
+@keyframes pulse { 50% { box-shadow:inset 2px 0 0 var(--accent),0 0 0 3px var(--accent-soft); } }
+
+@media (max-width:1050px) {
+  body, html { overflow:auto; }
+  .desktop { min-height:1050px; overflow:auto; }
+  .prototype-nav { position:sticky; top:36px; margin:12px auto; width:max-content; max-width:calc(100vw - 20px); overflow:auto; transform:none; left:auto; }
+  .context-app, .workspace { position:relative; inset:auto; width:calc(100vw - 28px); max-width:none; margin:14px; }
+  .context-app { height:360px; }
+  .workspace { min-width:0; resize:none; }
+  .shortcut-hint { display:none; }
+}
+@media (max-width:620px) {
+  .menu-bar > span, .menu-right span:not(:last-child) { display:none; }
+  .prototype-nav button { min-width:60px; }
+  .para { grid-template-columns:1fr; }
+  .control-row { flex-wrap:wrap; }
+  .context-label { width:100%; margin-left:0; }
+  .workspace.compact, .workspace.lookup, .workspace.expanded { height:680px; }
+}
+</style>
+</head>
+<body>
+<svg width="0" height="0" aria-hidden="true" style="position:absolute">
+  <symbol id="i-pin" viewBox="0 0 24 24"><path d="M8 3h8l-1 6 3 3v2H6v-2l3-3-1-6Z"/><path d="M12 14v7"/></symbol>
+  <symbol id="i-more" viewBox="0 0 24 24"><circle cx="5" cy="12" r="1" fill="currentColor" stroke="none"/><circle cx="12" cy="12" r="1" fill="currentColor" stroke="none"/><circle cx="19" cy="12" r="1" fill="currentColor" stroke="none"/></symbol>
+  <symbol id="i-x" viewBox="0 0 24 24"><path d="m7 7 10 10M17 7 7 17"/></symbol>
+  <symbol id="i-copy" viewBox="0 0 24 24"><rect x="8" y="8" width="11" height="11" rx="2"/><path d="M16 8V6a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v8a2 2 0 0 0 2 2h2"/></symbol>
+  <symbol id="i-return" viewBox="0 0 24 24"><path d="M9 7 4 12l5 5"/><path d="M5 12h10a5 5 0 0 1 5 5v1"/></symbol>
+  <symbol id="i-chevron" viewBox="0 0 24 24"><path d="m8 10 4 4 4-4"/></symbol>
+  <symbol id="i-sound" viewBox="0 0 24 24"><path d="M6 9H3v6h3l5 4V5L6 9Z"/><path d="M15 9a4 4 0 0 1 0 6M18 6a8 8 0 0 1 0 12"/></symbol>
+  <symbol id="i-check" viewBox="0 0 24 24"><path d="m5 12 4 4L19 6"/></symbol>
+  <symbol id="i-alert" viewBox="0 0 24 24"><path d="M12 3 2.8 19h18.4L12 3Z"/><path d="M12 9v4M12 16h.01"/></symbol>
+  <symbol id="i-gear" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19 13.5v-3l-2.2-.7-.6-1.4 1-2-2.1-2.1-2 1-1.5-.6L11 2.5H8l-.7 2.2-1.4.6-2-1-2.1 2.1 1 2-.6 1.4-2.2.7v3l2.2.7.6 1.4-1 2 2.1 2.1 2-1 1.4.6.7 2.2h3l.7-2.2 1.5-.6 2 1 2.1-2.1-1-2 .6-1.4 2.1-.7Z" transform="scale(.82) translate(2.6 2.6)"/></symbol>
+</svg>
+
+<div class="desktop" id="desktop">
+  <header class="menu-bar">
+    <button class="menu-logo" id="menuLogo" aria-label="打开 Parrot 菜单"><img src="../../screenshots/app-icon.png" alt=""></button>
+    <strong>Parrot</strong><span>编辑</span><span>窗口</span>
+    <div class="menu-right"><span>⌥D 划词</span><span>⌘↩ 翻译</span><button class="text-button" id="themeToggle">浅色</button><span>19:42</span></div>
+  </header>
+  <div class="menu-popover hidden" id="menuPopover">
+    <button class="menu-row" data-scene="selection">划词翻译 <span class="shortcut">⌥D</span></button>
+    <button class="menu-row" data-scene="lookup">查词 <span class="shortcut">⌥E</span></button>
+    <button class="menu-row" data-scene="ocr">截图翻译 <span class="shortcut">⌥S</span></button>
+    <button class="menu-row" data-scene="selection">输入翻译 <span class="shortcut">⌥A</span></button>
+    <div class="menu-divider"></div><div class="menu-section">最近</div>
+    <button class="menu-row" data-scene="history">Context is the product… <span class="shortcut">EN→中</span></button>
+    <div class="menu-divider"></div>
+    <button class="menu-row" data-action="learning">学习与词库</button>
+    <button class="menu-row" data-action="open-settings">设置… <span class="shortcut">⌘,</span></button>
+  </div>
+
+  <nav class="prototype-nav" aria-label="原型场景">
+    <button class="active" data-scene="selection">划词</button>
+    <button data-scene="lookup">查词</button>
+    <button data-scene="document">长文</button>
+    <button data-scene="ocr">OCR</button>
+    <button data-scene="history">历史恢复</button>
+    <button data-scene="error">异常恢复</button>
+  </nav>
+
+  <section class="context-app" id="contextApp" aria-label="原应用上下文"></section>
+  <section class="workspace compact" id="workspace" aria-label="Parrot 翻译工作区">
+    <div class="workspace-titlebar" id="dragHandle">
+      <div class="brand"><img src="../../screenshots/app-icon.png" alt=""><span>Parrot</span></div>
+      <span class="status-pill done" id="statusPill">已完成</span>
+      <span class="title-spacer"></span>
+      <button class="icon-button" id="pinButton" aria-label="固定工作区"><svg class="icon"><use href="#i-pin"/></svg></button>
+      <button class="icon-button" id="moreButton" aria-label="更多"><svg class="icon"><use href="#i-more"/></svg></button>
+      <button class="icon-button" id="closeButton" aria-label="关闭"><svg class="icon"><use href="#i-x"/></svg></button>
+    </div>
+    <div class="more-menu hidden" id="moreMenu">
+      <button data-action="open-settings">设置与引擎…</button>
+      <button data-action="learning">学习与词库</button>
+      <button data-action="copy-source">复制原文</button>
+      <button data-action="clear-source">清空源文</button>
+    </div>
+    <div class="workspace-scroll"><div class="workspace-content" id="workspaceContent"></div></div>
+    <aside class="settings-sheet hidden" id="settingsSheet">
+      <h2>配置 OpenAI</h2><p>保存后自动回到刚才的翻译任务并重试，不需要重新输入源文。</p>
+      <div class="field"><label>API Key</label><input id="apiKey" type="password" value="sk-parrot-demo-key"></div>
+      <div class="field"><label>模型</label><input value="gpt-4o-mini"></div>
+      <div class="field"><label>Endpoint</label><input value="https://api.openai.com/v1/chat/completions"></div>
+      <div class="sheet-actions"><button class="secondary-button" data-action="cancel-settings">取消</button><button class="primary-button" data-action="save-retry">保存并重试</button></div>
+    </aside>
+  </section>
+  <button class="reopen-chip hidden" id="reopenChip">⌥D 再次打开 Parrot</button>
+  <div class="shortcut-hint">可拖动、缩放工作区 · ⌘L 聚焦源文 · ⌘↩ 重新翻译 · Esc 关闭</div>
+</div>
+
+<div class="modal-backdrop hidden" id="dirtyModal">
+  <div class="modal"><h3>源文还有未翻译的修改</h3><p>草稿不会丢失。你可以继续编辑，或保留草稿并暂时关闭工作区。</p><div class="modal-actions"><button class="secondary-button" data-action="continue-editing">继续编辑</button><button class="primary-button" data-action="keep-close">保留草稿并关闭</button></div></div>
+</div>
+<div class="toast" id="toast"><svg class="icon"><use href="#i-check"/></svg><span id="toastText">已复制</span></div>
+
+<template id="context-selection">
+  <div class="fake-titlebar"><div class="traffic"><i></i><i></i><i></i></div><span class="fake-title">Safari · Product notes</span></div>
+  <div class="context-body"><span class="context-kicker">Designing for continuity</span><h1>Context is the product surface.</h1><p>Translation tools work best when they preserve what the user was already doing.</p><p><span class="selection">The best translation flow feels less like copying text into a tool and more like adding a temporary layer of understanding to the page.</span></p><p>The user should be able to verify the source, consume the answer, and return without rebuilding context.</p></div>
+</template>
+<template id="context-lookup">
+  <div class="fake-titlebar"><div class="traffic"><i></i><i></i><i></i></div><span class="fake-title">Safari · Product design article</span></div>
+  <div class="context-body"><span class="context-kicker">A product principle</span><h1>Context is not metadata.</h1><p>The interface should preserve enough surrounding information for users to judge meaning.</p><p>A translation becomes trustworthy when the <span class="word-selection">context</span> remains visible and editable.</p><p>Good tools expose the specific meaning first, then let the user expand into examples or full-sentence translation.</p></div>
+</template>
+<template id="context-document">
+  <div class="fake-titlebar"><div class="traffic"><i></i><i></i><i></i></div><span class="fake-title">Notes · Research clipping</span></div>
+  <div class="context-body"><span class="context-kicker">Research note</span><h1>Reading without losing the original.</h1><p><span class="selection">Immersive translation works because the source text remains visible. Users compare, verify, and continue reading without rebuilding context.</span></p><p><span class="selection">For Parrot, the advantage is system reach. One editable workspace can serve selections, OCR, manual input, and history.</span></p><p>Alternative engines should be available for comparison without duplicating the primary reading experience.</p></div>
+</template>
+<template id="context-ocr">
+  <div class="fake-titlebar"><div class="traffic"><i></i><i></i><i></i></div><span class="fake-title">Screenshot · Product thread</span></div>
+  <div class="context-body"><div class="shot"><div class="post">AI products do not fail because translation is missing. They fail because users lose the next action.</div><div class="post">A workspace should help people understand, rewrite, reply, and remember.</div><div class="post">12:41 · Product notes</div><div class="ocr-outline"></div></div></div>
+</template>
+<template id="context-history">
+  <div class="fake-titlebar"><div class="traffic"><i></i><i></i><i></i></div><span class="fake-title">Parrot 历史</span></div>
+  <div class="context-body"><div class="history-layout"><div class="history-list"><div class="history-search">搜索原文或译文</div><div class="history-item active"><b>Context is the product…</b>上下文就是产品界面</div><div class="history-item"><b>Ship it when tests…</b>测试通过后发布</div><div class="history-item"><b>The onboarding flow…</b>这个引导流程有点重</div></div><div class="history-detail"><span class="tag recommended">EN → 中文</span><h2>Context is the product surface.</h2><p>2026 年 6 月 18 日 · Safari · 标准模式</p><div class="record"><span class="eyebrow">历史主结果</span><p>上下文就是产品界面。翻译必须保留用户原本正在做的事。</p></div></div></div></div>
+</template>
+<template id="context-error">
+  <div class="fake-titlebar"><div class="traffic"><i></i><i></i><i></i></div><span class="fake-title">Mail · Product update</span></div>
+  <div class="context-body"><span class="context-kicker">Recovery matters</span><h1>Errors need a visible next step.</h1><p><span class="selection">Please translate this product update before the meeting and preserve the action items.</span></p><p>The source stays available while Parrot explains what failed, lets the user fix it, and returns to the same task.</p></div>
+</template>
+
+<template id="panel-selection">
+  <div class="control-row"><div class="segmented"><button>自动</button><button>→</button><button>中文</button></div><button class="profile-button">标准 · 直译</button><span class="context-label">来自 Safari 选区</span></div>
+  <div class="card source"><div class="card-head"><span class="eyebrow">可编辑源文</span><span class="card-time">142 个字符</span></div><textarea class="source-editor" data-role="source">The best translation flow feels less like copying text into a tool and more like adding a temporary layer of understanding to the page.</textarea><div class="source-footer"><span>自动检测 · English</span><span class="grow"></span><button class="text-button" data-action="copy-source">复制原文</button><button class="primary-button" data-action="translate">翻译 <span>⌘↩</span></button></div></div>
+  <div class="card primary-result" data-role="result"><div class="card-head"><strong>主结果</strong><span class="tag recommended">Parrot 推荐</span><span class="card-time">Google · 284ms</span></div><p class="result-text" data-role="primary-text">最好的翻译流程，不像把文本复制进一个工具；更像是在当前页面临时叠加一层理解。</p><div class="result-actions"><button class="secondary-button" data-action="copy"><svg class="icon"><use href="#i-copy"/></svg>复制</button><span class="push"></span><button class="primary-button" data-action="copy-return"><svg class="icon"><use href="#i-return"/></svg>复制并返回 Safari</button></div></div>
+  <div class="disclosure"><button class="disclosure-trigger" data-action="toggle-compare"><span>对比其他引擎</span><span class="count">2 个结果⌄</span></button><div class="disclosure-body hidden" data-role="compare"><div class="provider-row"><div class="provider-meta"><b>DeepL</b><span>471ms</span></div><p>最佳翻译体验不应像把文本搬进另一个工具，而应像在原页面增加一层临时理解。</p></div><div class="provider-row"><div class="provider-meta"><b>OpenAI · gpt-4o-mini</b><span>1.2s</span></div><p>理想的翻译流程应融入当前上下文，而不是迫使用户切换任务。</p></div></div></div>
+</template>
+
+<template id="panel-lookup">
+  <div class="control-row"><div class="segmented"><button>English</button><button>→</button><button>中文</button></div><button class="profile-button">查词</button><span class="context-label">来自 Safari 选区</span></div>
+  <div class="card source"><div class="card-head"><span class="eyebrow">可编辑词语</span><span class="card-time">7 个字符</span></div><textarea class="source-editor" data-role="source">context</textarea><div class="source-footer"><span>单词 · English</span><span class="grow"></span><button class="primary-button" data-action="translate">重新查询 <span>⌘↩</span></button></div></div>
+  <div class="card primary-result" data-role="result"><div class="lookup-word"><button class="sound" data-action="speak" aria-label="朗读"><svg class="icon"><use href="#i-sound"/></svg></button><div class="dictionary"><div class="card-head"><h2>context</h2><span class="tag recommended">主释义</span><span class="card-time">有道 · 246ms</span></div><div class="phonetic">UK /ˈkɒntekst/ &nbsp;&nbsp; US /ˈkɑːntekst/</div><div class="definition"><b>n.</b><span>上下文；语境；背景</span><p class="example">A translation becomes trustworthy when the context remains visible.<br>当上下文保持可见时，翻译才更值得信任。</p></div><div class="definition"><b>v.</b><span>提供背景信息；置于语境中理解</span></div></div></div><div class="result-actions"><button class="secondary-button" data-action="copy">复制释义</button><button class="secondary-button" data-action="save">加入词库</button><span class="push"></span><button class="primary-button" data-action="translate-sentence">按整句翻译</button></div></div>
+  <div class="disclosure"><button class="disclosure-trigger" data-action="toggle-compare"><span>更多例句与引擎解释</span><span class="count">2 项⌄</span></button><div class="disclosure-body hidden" data-role="compare"><div class="provider-row"><div class="provider-meta"><b>OpenAI</b><span>语境解释</span></div><p>在当前产品设计语境中，context 指用户原本所在的页面、任务和周边信息。</p></div></div></div>
+</template>
+
+<template id="panel-document">
+  <div class="control-row"><div class="segmented"><button>自动</button><button>→</button><button>中文</button></div><button class="profile-button">文档</button><span class="context-label">2 个段落 · 来自 Notes</span></div>
+  <div class="card source"><div class="card-head"><span class="eyebrow">可编辑源文</span><span class="card-time">268 个字符</span></div><textarea class="source-editor" data-role="source">Immersive translation works because the source text remains visible. Users compare, verify, and continue reading without rebuilding context.
+
+For Parrot, the advantage is system reach. One editable workspace can serve selections, OCR, manual input, and history.</textarea><div class="source-footer"><span>自动检测 · English</span><span class="grow"></span><button class="primary-button" data-action="translate">重新翻译 <span>⌘↩</span></button></div></div>
+  <div class="card primary-result" data-role="result"><div class="card-head"><strong>主结果 · 双语阅读</strong><span class="tag recommended">Parrot 推荐</span><span class="card-time">DeepL · 704ms</span></div><div class="bilingual"><div class="para"><div><small>原文 1</small><p>Immersive translation works because the source text remains visible. Users compare and verify.</p></div><div><small>译文 1</small><p>沉浸式翻译有效，是因为原文始终可见，用户可以对照和核验。</p></div></div><div class="para"><div><small>原文 2</small><p>One editable workspace can serve selections, OCR, manual input, and history.</p></div><div><small>译文 2</small><p>一个可编辑工作区可以统一承接划词、OCR、手动输入和历史复用。</p></div></div></div><div class="result-actions"><button class="secondary-button" data-action="copy">复制全部</button><span class="push"></span><button class="primary-button" data-action="copy-return">复制并返回 Notes</button></div></div>
+  <div class="disclosure"><button class="disclosure-trigger" data-action="toggle-compare"><span>对比其他引擎</span><span class="count">Google、OpenAI⌄</span></button><div class="disclosure-body hidden" data-role="compare"><div class="provider-row"><div class="provider-meta"><b>Google</b><span>221ms · 需复核</span></div><p>沉浸式翻译工作，因为源文本仍然可见。</p></div><div class="provider-row"><div class="provider-meta"><b>OpenAI</b><span>1.4s</span></div><p>沉浸式翻译通过保留源文，让读者在不中断任务的情况下进行验证。</p></div></div></div>
+</template>
+
+<template id="panel-ocr">
+  <div class="control-row"><div class="segmented"><button>自动</button><button>→</button><button>中文</button></div><button class="profile-button">理解</button><span class="context-label">来自截图 OCR</span></div>
+  <div class="card"><div class="ocr-best"><span class="tag recommended">最佳候选 94%</span><span>已自动选择正文；源文仍可编辑</span></div><div class="candidate-strip"><button class="candidate active" data-candidate="0"><b>正文 · 94%</b><span>AI products do not fail because translation is missing...</span></button><button class="candidate" data-candidate="1"><b>回复句 · 91%</b><span>A workspace should help people understand...</span></button><button class="candidate" data-candidate="2"><b>全文 · 88%</b><span>AI products... A workspace... 12:41...</span></button></div></div>
+  <div class="card source"><div class="card-head"><span class="eyebrow">可编辑 OCR 源文</span><span class="card-time">候选 1 / 3</span></div><textarea class="source-editor" data-role="source">AI products do not fail because translation is missing. They fail because users lose the next action.</textarea><div class="source-footer"><span>低置信噪声已排除</span><span class="grow"></span><button class="text-button" data-action="clean">清理噪声</button><button class="primary-button" data-action="translate">翻译候选</button></div></div>
+  <div class="card primary-result" data-role="result"><div class="card-head"><strong>主结果</strong><span class="tag recommended">理解</span><span class="card-time">OpenAI · 918ms</span></div><p class="result-text" data-role="primary-text">这句话的重点不是“翻译缺失”，而是 AI 产品失败常常发生在用户不知道下一步该做什么。</p><p class="result-note">语气：产品反思；核心行动：让下一步始终可见。</p><div class="result-actions"><button class="secondary-button" data-action="save">保存到研究摘录</button><span class="push"></span><button class="primary-button" data-action="copy-return">复制并返回截图来源</button></div></div>
+</template>
+
+<template id="panel-history">
+  <div class="notice">已恢复 2026 年 6 月 18 日记录：English → 中文 · 标准模式。修改后可在原上下文中重新翻译。</div>
+  <div class="control-row"><div class="segmented"><button>English</button><button>→</button><button>中文</button></div><button class="profile-button">标准 · 已恢复</button><span class="context-label">来自历史</span></div>
+  <div class="card source"><div class="card-head"><span class="eyebrow">可编辑历史源文</span><span class="card-time">39 个字符</span></div><textarea class="source-editor" data-role="source">Context is the product surface.</textarea><div class="source-footer"><span>历史语言方向已恢复</span><span class="grow"></span><button class="primary-button" data-action="translate">重新翻译</button></div></div>
+  <div class="card primary-result" data-role="result"><div class="card-head"><strong>历史主结果</strong><span class="tag success">2026-06-18</span><span class="card-time">DeepL · 482ms</span></div><p class="result-text" data-role="primary-text">上下文就是产品界面。</p><div class="result-actions"><button class="secondary-button" data-action="copy">复制</button><span class="push"></span><button class="primary-button" data-action="copy-return">复制并返回历史</button></div></div>
+</template>
+
+<template id="panel-error">
+  <div class="error-switch"><button class="active" data-error="key">缺少密钥</button><button data-error="offline">离线</button><button data-error="permission">权限</button></div>
+  <div class="control-row"><div class="segmented"><button>自动</button><button>→</button><button>中文</button></div><button class="profile-button">邮件</button><span class="context-label">源文已安全保留</span></div>
+  <div class="card source"><div class="card-head"><span class="eyebrow">可编辑源文</span><span class="card-time">90 个字符</span></div><textarea class="source-editor" data-role="source">Please translate this product update before the meeting and preserve the action items.</textarea><div class="source-footer"><span>English · 草稿已保留</span><span class="grow"></span><button class="primary-button" data-action="translate">重试全部</button></div></div>
+  <div id="errorCard"></div>
+</template>
+
+<script>
+const state = { scene:'selection', theme:'dark', dirty:false, translating:false, pinned:false, error:'key' };
+const workspace = document.getElementById('workspace');
+const content = document.getElementById('workspaceContent');
+const contextApp = document.getElementById('contextApp');
+const statusPill = document.getElementById('statusPill');
+const toast = document.getElementById('toast');
+const toastText = document.getElementById('toastText');
+const moreMenu = document.getElementById('moreMenu');
+const settingsSheet = document.getElementById('settingsSheet');
+const menuPopover = document.getElementById('menuPopover');
+const dirtyModal = document.getElementById('dirtyModal');
+const reopenChip = document.getElementById('reopenChip');
+const tabs = [...document.querySelectorAll('.prototype-nav [data-scene]')];
+const sceneClass = { selection:'compact', lookup:'lookup', document:'expanded', ocr:'expanded', history:'compact', error:'lookup' };
+
+function render(scene = state.scene) {
+  state.scene = scene; state.dirty = false; state.translating = false;
+  tabs.forEach(b => b.classList.toggle('active', b.dataset.scene === scene));
+  contextApp.innerHTML = document.getElementById(`context-${scene}`).innerHTML;
+  content.innerHTML = document.getElementById(`panel-${scene}`).innerHTML;
+  workspace.classList.remove('compact','lookup','expanded','returning');
+  workspace.classList.add(sceneClass[scene]);
+  workspace.style.display = '';
+  reopenChip.classList.add('hidden');
+  settingsSheet.classList.add('hidden');
+  moreMenu.classList.add('hidden');
+  menuPopover.classList.add('hidden');
+  setStatus('done','已完成');
+  bindContent();
+  if (scene === 'error') renderError('key');
+}
+
+function bindContent(root = content) {
+  root.querySelectorAll('[data-action]').forEach(el => el.addEventListener('click', () => handleAction(el.dataset.action)));
+  root.querySelectorAll('[data-role="source"]').forEach(el => el.addEventListener('input', () => { state.dirty = true; setStatus('dirty','已修改'); }));
+  root.querySelectorAll('[data-candidate]').forEach(el => el.addEventListener('click', () => selectCandidate(Number(el.dataset.candidate))));
+  root.querySelectorAll('[data-error]').forEach(el => el.addEventListener('click', () => renderError(el.dataset.error)));
+}
+
+function handleAction(action) {
+  if (action === 'translate') return simulateTranslate();
+  if (action === 'copy') return copyText(primaryText(), '已复制主结果');
+  if (action === 'copy-return') return copyAndReturn();
+  if (action === 'copy-source') return copyText(sourceText(), '已复制原文');
+  if (action === 'toggle-compare') return toggleCompare();
+  if (action === 'speak') return showToast('正在朗读 /ˈkɒntekst/');
+  if (action === 'save') return showToast(state.scene === 'ocr' ? '已保存到研究摘录' : '已加入个人词库');
+  if (action === 'translate-sentence') return render('selection');
+  if (action === 'clean') return showToast('已移除时间与界面噪声');
+  if (action === 'open-settings') { menuPopover.classList.add('hidden'); settingsSheet.classList.remove('hidden'); return; }
+  if (action === 'cancel-settings') return settingsSheet.classList.add('hidden');
+  if (action === 'save-retry') return saveAndRetry();
+  if (action === 'learning') return showToast('学习与词库作为一个二级入口打开');
+  if (action === 'clear-source') { const e = sourceEditor(); if (e) { e.value=''; state.dirty=true; setStatus('dirty','已修改'); } moreMenu.classList.add('hidden'); return; }
+  if (action === 'continue-editing') return dirtyModal.classList.add('hidden');
+  if (action === 'keep-close') { dirtyModal.classList.add('hidden'); return hideWorkspace('草稿已保留'); }
+}
+
+function sourceEditor() { return content.querySelector('[data-role="source"]'); }
+function sourceText() { return sourceEditor()?.value || ''; }
+function primaryText() { return content.querySelector('[data-role="primary-text"]')?.textContent || content.querySelector('.definition span')?.textContent || 'Parrot 主结果'; }
+function setStatus(kind, text) { statusPill.className = `status-pill ${kind}`; statusPill.textContent = text; }
+function showToast(text) { toastText.textContent=text; toast.classList.add('show'); clearTimeout(showToast.t); showToast.t=setTimeout(()=>toast.classList.remove('show'),1500); }
+function copyText(text, message) { navigator.clipboard?.writeText(text).catch(()=>{}); showToast(message); }
+
+function simulateTranslate() {
+  if (state.translating || !sourceText().trim()) return;
+  state.translating=true; state.dirty=false; setStatus('running','翻译中');
+  const result = content.querySelector('[data-role="result"]');
+  if (result) { result.dataset.old = result.innerHTML; result.innerHTML='<div class="card-head"><strong>正在生成主结果</strong><span class="card-time">已完成 1 / 3</span></div><div class="skeleton"></div><div class="skeleton"></div><div class="skeleton short"></div>'; }
+  setTimeout(()=>{
+    if (result?.dataset.old) { result.innerHTML=result.dataset.old; result.style.animation='pulse .5s ease'; setTimeout(()=>result.style.animation='',520); bindContent(result); }
+    state.translating=false; setStatus('done','已完成'); showToast('主结果已更新，窗口位置保持不变');
+  },850);
+}
+
+function toggleCompare() {
+  const body=content.querySelector('[data-role="compare"]'); if(!body) return;
+  body.classList.toggle('hidden');
+  const count=content.querySelector('.disclosure-trigger .count');
+  if(count) count.textContent=body.classList.contains('hidden') ? '2 个结果⌄' : '收起⌃';
+}
+
+function copyAndReturn() {
+  navigator.clipboard?.writeText(primaryText()).catch(()=>{});
+  showToast('已复制，并返回原 App');
+  workspace.classList.add('returning');
+  setTimeout(()=>{ workspace.style.display='none'; reopenChip.classList.remove('hidden'); },300);
+}
+function hideWorkspace(message='工作区已关闭') { workspace.classList.add('returning'); showToast(message); setTimeout(()=>{workspace.style.display='none';reopenChip.classList.remove('hidden');},300); }
+function requestClose() { if(state.dirty) dirtyModal.classList.remove('hidden'); else hideWorkspace(); }
+
+function selectCandidate(index) {
+  const texts=[
+    'AI products do not fail because translation is missing. They fail because users lose the next action.',
+    'A workspace should help people understand, rewrite, reply, and remember.',
+    'AI products do not fail because translation is missing. They fail because users lose the next action.\n\nA workspace should help people understand, rewrite, reply, and remember.\n\n12:41 · Product notes'
+  ];
+  const results=[
+    '这句话的重点不是“翻译缺失”，而是 AI 产品失败常常发生在用户不知道下一步该做什么。',
+    '工作区不应只给译文，还应帮助用户理解、改写、回复并沉淀记忆。',
+    '整段截图表达同一个产品原则：翻译只是入口，真正的价值是把理解、表达与记忆串成闭环。'
+  ];
+  content.querySelectorAll('.candidate').forEach((c,i)=>c.classList.toggle('active',i===index));
+  const editor=sourceEditor(); if(editor) editor.value=texts[index];
+  const output=content.querySelector('[data-role="primary-text"]'); if(output) output.textContent=results[index];
+  setStatus('running','翻译中'); setTimeout(()=>setStatus('done','已完成'),420); showToast('已切换候选并在原位重译');
+}
+
+function renderError(type) {
+  state.error=type;
+  content.querySelectorAll('[data-error]').forEach(b=>b.classList.toggle('active',b.dataset.error===type));
+  const host=document.getElementById('errorCard'); if(!host) return;
+  const data={
+    key:{cls:'error',title:'OpenAI 缺少 API Key',copy:'源文与其他引擎结果都已保留。配置后将只重试 OpenAI。',button:'配置并重试',action:'open-settings'},
+    offline:{cls:'error',title:'当前处于离线状态',copy:'Parrot 不会清空源文。网络恢复后可在这里直接重试。',button:'再次检查网络',action:'translate'},
+    permission:{cls:'permission',title:'需要辅助功能权限',copy:'Parrot 需要读取你主动选中的文字；不会持续读取其他内容。',button:'打开系统设置',action:'permission'}
+  }[type];
+  host.innerHTML=`<div class="card ${data.cls}"><div class="error-title"><div class="error-icon"><svg class="icon"><use href="#i-alert"/></svg></div><div class="error-copy"><h3>${data.title}</h3><p>${data.copy}</p></div></div><div class="result-actions"><button class="secondary-button" data-action="copy-source">复制原文</button><span class="push"></span><button class="primary-button" data-action="${data.action}">${data.button}</button></div></div>`;
+  host.querySelectorAll('[data-action]').forEach(el=>el.addEventListener('click',()=>el.dataset.action==='permission'?showToast('已打开 系统设置 → 隐私与安全性'):handleAction(el.dataset.action)));
+}
+
+function saveAndRetry() {
+  settingsSheet.classList.add('hidden'); setStatus('running','正在重试'); showToast('配置已保存，回到原任务');
+  setTimeout(()=>{
+    setStatus('done','已完成');
+    const host=document.getElementById('errorCard');
+    if(host) host.innerHTML='<div class="card primary-result" data-role="result"><div class="card-head"><strong>主结果</strong><span class="tag recommended">OpenAI 已恢复</span><span class="card-time">1.1s</span></div><p class="result-text" data-role="primary-text">请在会议前翻译这份产品更新，并保留所有行动项。</p><div class="result-actions"><button class="secondary-button" data-action="copy">复制</button><span class="push"></span><button class="primary-button" data-action="copy-return">复制并返回 Mail</button></div></div>';
+    bindContent(host); showToast('重试成功，源文与窗口位置均已保留');
+  },900);
+}
+
+tabs.forEach(btn=>btn.addEventListener('click',()=>render(btn.dataset.scene)));
+document.querySelectorAll('.menu-popover [data-scene]').forEach(btn=>btn.addEventListener('click',()=>render(btn.dataset.scene)));
+document.querySelectorAll('.menu-popover [data-action]').forEach(btn=>btn.addEventListener('click',()=>handleAction(btn.dataset.action)));
+document.getElementById('menuLogo').addEventListener('click',e=>{e.stopPropagation();menuPopover.classList.toggle('hidden');});
+document.getElementById('themeToggle').addEventListener('click',()=>{state.theme=state.theme==='dark'?'light':'dark';document.documentElement.dataset.theme=state.theme;document.getElementById('themeToggle').textContent=state.theme==='dark'?'浅色':'深色';});
+document.getElementById('pinButton').addEventListener('click',()=>{state.pinned=!state.pinned;workspace.classList.toggle('pinned',state.pinned);document.getElementById('pinButton').classList.toggle('active',state.pinned);showToast(state.pinned?'工作区已固定':'已取消固定');});
+document.getElementById('moreButton').addEventListener('click',e=>{e.stopPropagation();moreMenu.classList.toggle('hidden');});
+document.getElementById('closeButton').addEventListener('click',requestClose);
+document.getElementById('reopenChip').addEventListener('click',()=>render(state.scene));
+document.querySelectorAll('[data-action="cancel-settings"],[data-action="save-retry"],[data-action="continue-editing"],[data-action="keep-close"]').forEach(el=>el.addEventListener('click',()=>handleAction(el.dataset.action)));
+document.addEventListener('click',e=>{if(!moreMenu.contains(e.target)&&e.target!==document.getElementById('moreButton'))moreMenu.classList.add('hidden');if(!menuPopover.contains(e.target)&&e.target!==document.getElementById('menuLogo'))menuPopover.classList.add('hidden');});
+document.addEventListener('keydown',e=>{
+  if(e.metaKey&&e.key.toLowerCase()==='l'){e.preventDefault();sourceEditor()?.focus();showToast('已聚焦源文');}
+  if(e.metaKey&&e.key==='Enter'){e.preventDefault();simulateTranslate();}
+  if(e.metaKey&&e.key.toLowerCase()==='c'&&!window.getSelection()?.toString()){e.preventDefault();copyText(primaryText(),'已复制主结果');}
+  if(e.key==='Escape'){e.preventDefault();requestClose();}
+});
+
+let drag=null;
+document.getElementById('dragHandle').addEventListener('pointerdown',e=>{
+  if(e.target.closest('button')) return;
+  const rect=workspace.getBoundingClientRect(); drag={dx:e.clientX-rect.left,dy:e.clientY-rect.top}; workspace.style.right='auto'; workspace.setPointerCapture(e.pointerId);
+});
+document.getElementById('dragHandle').addEventListener('pointermove',e=>{
+  if(!drag)return; workspace.style.left=`${Math.max(8,Math.min(innerWidth-workspace.offsetWidth-8,e.clientX-drag.dx))}px`; workspace.style.top=`${Math.max(36,Math.min(innerHeight-workspace.offsetHeight-8,e.clientY-drag.dy))}px`;
+});
+document.getElementById('dragHandle').addEventListener('pointerup',()=>{drag=null;showToast('位置已记住，结果更新不会跳动');});
+
+render('selection');
+</script>
+</body>
+</html>

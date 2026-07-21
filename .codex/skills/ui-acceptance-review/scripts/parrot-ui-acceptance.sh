@@ -332,12 +332,22 @@ if let workspace = window(named: "Parrot Translation", in: app),
 
 openURL("parrot://translate?text=UI%20acceptance%20smoke%20test", appURL: appURL)
 usleep(1_200_000)
+guard let routedWorkspace = window(named: "Parrot Translation", in: app) else {
+    fail("URL translation did not open a translation workspace; windows=\(windowTitles(in: app))")
+}
+let routedText = "UI acceptance smoke test"
+let hasRoutedSource = walk(routedWorkspace) { element in
+    accessibleNames(element).contains { $0.contains(routedText) }
+} != nil
+guard hasRoutedSource else {
+    fail("URL translation workspace did not expose routed source text '\(routedText)'")
+}
 let hasResultPanel = appWindows().contains { window in
     guard let layer = window[kCGWindowLayer as String] as? Int,
           let bounds = window[kCGWindowBounds as String] as? [String: Any],
           let width = bounds["Width"] as? Double,
           let height = bounds["Height"] as? Double else { return false }
-    return layer == 3 && width >= 300 && height >= 120
+    return (layer == 3 || layer == 0) && width >= 300 && height >= 120
 }
 guard hasResultPanel else {
     fail("result panel window did not appear; app windows=\(appWindows())")

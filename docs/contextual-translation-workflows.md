@@ -5,9 +5,7 @@ The context captures the entry origin, user-facing profile, paragraph hints, pri
 
 ## User-facing surfaces
 
-- Short selected text and lookup actions open Quick Peek by default.
-- Long text, OCR, manual input, and polish actions open the full workspace.
-- Quick Peek can expand into the workspace while preserving draft text, results, profile, and recoverable errors.
+- Selected text, lookup, OCR, manual input, and polish actions open the full workspace.
 - The workspace header includes a compact context profile selector.
 - Long or multi-paragraph text shows a bilingual paragraph reading block before provider comparison cards.
 - OCR results preserve candidate text blocks with confidence and bounding boxes; switching a candidate updates the source draft and reruns translation.

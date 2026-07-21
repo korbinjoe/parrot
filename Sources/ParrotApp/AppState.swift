@@ -48,9 +48,55 @@ struct WorkspaceNotice: Equatable {
     let secondaryAction: ButtonSpec?
 }
 
-enum WorkspaceSurface: Equatable {
-    case quickPeek
-    case workspace
+enum PolishTone: String, CaseIterable, Identifiable, Equatable {
+    case direct
+    case softer
+    case concise
+
+    var id: String { rawValue }
+
+    var title: String {
+        switch self {
+        case .direct: return L("清晰直接")
+        case .softer: return L("更柔和")
+        case .concise: return L("更短")
+        }
+    }
+
+    var badge: String {
+        switch self {
+        case .direct: return L("推荐")
+        case .softer: return "Email"
+        case .concise: return "Short"
+        }
+    }
+
+    var promptInstruction: String {
+        switch self {
+        case .direct:
+            return "Use a clear, direct, product-feedback tone. Keep the output natural and specific."
+        case .softer:
+            return "Use a softer, collaborative tone suitable for email or workplace comments. Avoid sounding accusatory."
+        case .concise:
+            return "Make the rewrite concise and punchy. Preserve the key criticism while removing extra words."
+        }
+    }
+
+    var next: PolishTone {
+        switch self {
+        case .direct: return .softer
+        case .softer: return .concise
+        case .concise: return .direct
+        }
+    }
+}
+
+struct PolishVariantViewState: Identifiable, Equatable {
+    let tone: PolishTone
+    let text: String
+    let isRecommended: Bool
+
+    var id: String { tone.rawValue }
 }
 
 struct OCRCandidateViewState: Identifiable, Equatable {
@@ -91,12 +137,13 @@ final class AppState: ObservableObject {
     @Published var composerFocusRequest: Int = 0
     @Published var isRecognizingOCR: Bool = false
     @Published var workspaceNotice: WorkspaceNotice?
-    @Published var workspaceSurface: WorkspaceSurface = .workspace
     @Published var contextProfile: TranslationContextProfile = .quickTranslate
     @Published var currentOrigin: TranslationOrigin = .unknown
     @Published private(set) var currentContextSourceApp: String?
     @Published private(set) var currentContextWindowTitle: String?
     @Published private(set) var currentContextSourceURL: String?
+    @Published var selectedPolishTone: PolishTone = .direct
+    @Published private(set) var didCaptureFocusedInputDraft: Bool = false
     @Published var ocrCandidates: [OCRCandidateViewState] = []
     @Published var selectedOCRCandidateID: UUID?
     @Published var sourceLanguage: Language = .auto
@@ -144,12 +191,53 @@ final class AppState: ObservableObject {
         currentMode == .polish
     }
 
-    var isQuickPeekSurface: Bool {
-        workspaceSurface == .quickPeek
+    var isLookupMode: Bool {
+        currentMode == .lookup
+    }
+
+    var prefersCompactWorkspace: Bool {
+        guard contextProfile != .document,
+              sourceDraftTrimmed.count <= 180,
+              !sourceDraftTrimmed.contains("\n") else { return false }
+        return currentOrigin == .selection
+            || currentOrigin == .lookup
+            || currentOrigin == .history
+            || currentOrigin == .clipboard
+            || currentOrigin == .shortcut
+            || currentOrigin == .popClip
+            || currentOrigin == .url
+    }
+
+    var polishVariants: [PolishVariantViewState] {
+        guard isPolishMode,
+              let translated = primarySuccessfulOutcome?.result?.translated.trimmingCharacters(in: .whitespacesAndNewlines),
+              !translated.isEmpty else { return [] }
+        return PolishTone.allCases.map { tone in
+            PolishVariantViewState(
+                tone: tone,
+                text: polishVariantText(base: translated, tone: tone),
+                isRecommended: tone == selectedPolishTone
+            )
+        }
+    }
+
+    var primaryActionTranslatedText: String {
+        if isPolishMode,
+           let selected = polishVariants.first(where: { $0.tone == selectedPolishTone }) {
+            return selected.text.trimmingCharacters(in: .whitespacesAndNewlines)
+        }
+        return primarySuccessfulOutcome?.result?.translated.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
     }
 
     var primarySuccessfulOutcome: AggregatedOutcome? {
-        outcomes.first { $0.result?.qualitySummary?.isRecommended == true }
+        if isLookupMode,
+           let detailed = outcomes.first(where: { outcome in
+               guard let result = outcome.result else { return false }
+               return result.phonetics?.isEmpty == false || result.definitions?.isEmpty == false
+           }) {
+            return detailed
+        }
+        return outcomes.first { $0.result?.qualitySummary?.isRecommended == true }
             ?? outcomes.first { $0.result != nil }
     }
 
@@ -162,8 +250,7 @@ final class AppState: ObservableObject {
     }
 
     var canShowParagraphBilingualView: Bool {
-        workspaceSurface == .workspace
-            && paragraphHints.count > 1
+        paragraphHints.count > 1
             && primarySuccessfulOutcome?.result != nil
     }
 
@@ -326,7 +413,6 @@ final class AppState: ObservableObject {
         autoRun: Bool,
         focusComposer: Bool,
         origin: TranslationOrigin = .unknown,
-        surface: WorkspaceSurface? = nil,
         profile: TranslationContextProfile? = nil,
         sourceApp: String? = nil,
         windowTitle: String? = nil,
@@ -338,7 +424,6 @@ final class AppState: ObservableObject {
         currentContextWindowTitle = Self.cleanedMetadata(windowTitle)
         currentContextSourceURL = Self.cleanedMetadata(sourceURL)
         contextProfile = profile ?? defaultProfile(mode: mode, origin: origin, text: text)
-        workspaceSurface = surface ?? defaultSurface(mode: mode, origin: origin, text: text)
         currentRequest = nil
         if origin != .ocr && origin != .screenshot && origin != .latestScreenshot {
             clearOCRCandidates()
@@ -356,6 +441,23 @@ final class AppState: ObservableObject {
         }
     }
 
+    func openHistoryWorkspace(
+        _ record: TranslationRecord,
+        autoRun: Bool = true,
+        sourceApp: String? = nil
+    ) {
+        settings.sourceLanguageCode = record.sourceLang
+        settings.targetLanguageCode = record.targetLang
+        applySettings()
+        openWorkspace(
+            text: record.sourceText,
+            autoRun: autoRun,
+            focusComposer: false,
+            origin: .history,
+            sourceApp: sourceApp
+        )
+    }
+
     func beginOCRRecognition(providerName: String) {
         currentMode = .translate
         currentOrigin = .ocr
@@ -363,7 +465,6 @@ final class AppState: ObservableObject {
         currentContextWindowTitle = nil
         currentContextSourceURL = nil
         contextProfile = .understand
-        workspaceSurface = .workspace
         isRecognizingOCR = true
         sourceDraft = ""
         clearOCRCandidates()
@@ -387,7 +488,6 @@ final class AppState: ObservableObject {
         currentContextWindowTitle = nil
         currentContextSourceURL = nil
         contextProfile = .understand
-        workspaceSurface = .workspace
         let text = result.fullText.trimmingCharacters(in: .whitespacesAndNewlines)
         let candidates = Self.makeOCRCandidates(from: result)
         let selectedCandidate = candidates.first
@@ -474,8 +574,8 @@ final class AppState: ObservableObject {
         currentContextSourceApp = Self.cleanedMetadata(sourceApp)
         currentContextWindowTitle = Self.cleanedMetadata(windowTitle)
         currentContextSourceURL = nil
+        didCaptureFocusedInputDraft = false
         contextProfile = manualInputProfile()
-        workspaceSurface = .workspace
         isRecognizingOCR = false
         clearOCRCandidates()
         workspaceNotice = nil
@@ -487,23 +587,45 @@ final class AppState: ObservableObject {
         requestComposerFocus()
     }
 
-    func openManualPolishWorkspace(sourceApp: String? = nil, windowTitle: String? = nil) {
+    func openManualPolishWorkspace(
+        sourceApp: String? = nil,
+        windowTitle: String? = nil,
+        initialDraft: String? = nil
+    ) {
         currentMode = .polish
         currentOrigin = .manualInput
         currentContextSourceApp = Self.cleanedMetadata(sourceApp)
         currentContextWindowTitle = Self.cleanedMetadata(windowTitle)
         currentContextSourceURL = nil
+        didCaptureFocusedInputDraft = Self.cleanedMetadata(initialDraft) != nil
         contextProfile = .nativePolish
-        workspaceSurface = .workspace
         isRecognizingOCR = false
         clearOCRCandidates()
         workspaceNotice = nil
         resetManualLearningSelection()
-        if !isSourceDirty {
+        if let initialDraft = Self.cleanedMetadata(initialDraft) {
+            sourceDraft = initialDraft
+            resetTranslationSession(keepDraft: true)
+        } else if !isSourceDirty {
             sourceDraft = ""
             resetTranslationSession(keepDraft: true)
         }
         requestComposerFocus()
+    }
+
+    func cyclePolishTone() {
+        selectedPolishTone = selectedPolishTone.next
+        if isPolishMode, canTranslateDraft {
+            translateDraft(mode: .polish)
+        }
+    }
+
+    func selectPolishTone(_ tone: PolishTone, autoRun: Bool = true) {
+        guard selectedPolishTone != tone else { return }
+        selectedPolishTone = tone
+        if autoRun, isPolishMode, canTranslateDraft {
+            translateDraft(mode: .polish)
+        }
     }
 
     func translateDraft(mode: TranslateMode? = nil) {
@@ -606,14 +728,9 @@ final class AppState: ObservableObject {
         guard contextProfile != profile else { return }
         contextProfile = profile
         settings.rememberContextProfile(profile)
-        workspaceSurface = .workspace
         if canTranslateDraft {
             translateDraft(mode: currentMode)
         }
-    }
-
-    func expandQuickPeek() {
-        workspaceSurface = .workspace
     }
 
     func selectOCRCandidate(id: UUID, autoRun: Bool = true) {
@@ -919,6 +1036,7 @@ final class AppState: ObservableObject {
             sourceApp: currentContextSourceApp,
             windowTitle: currentContextWindowTitle,
             sourceURL: currentContextSourceURL,
+            rewriteTone: mode == .polish ? selectedPolishTone.promptInstruction : nil,
             selectedOCRBlockID: selectedOCRCandidateID,
             paragraphHints: ParagraphSegmenter.segment(text),
             privacyPolicy: privacyPolicy(for: profile),
@@ -999,21 +1117,6 @@ final class AppState: ObservableObject {
         default:
             return profile
         }
-    }
-
-    private func defaultSurface(
-        mode: TranslateMode,
-        origin: TranslationOrigin,
-        text: String
-    ) -> WorkspaceSurface {
-        if mode == .polish { return .workspace }
-        if mode == .lookup { return .quickPeek }
-        guard origin == .selection || origin == .shortcut || origin == .popClip || origin == .lookup else {
-            return .workspace
-        }
-        let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
-        if trimmed.contains("\n") { return .workspace }
-        return trimmed.count <= 180 ? .quickPeek : .workspace
     }
 
     private func privacyPolicy(for profile: TranslationContextProfile) -> PrivacyPolicy {
@@ -1274,6 +1377,53 @@ final class AppState: ObservableObject {
             return true
         }
         return false
+    }
+
+    private func polishVariantText(base: String, tone: PolishTone) -> String {
+        let trimmed = base.trimmingCharacters(in: .whitespacesAndNewlines)
+        switch tone {
+        case .direct:
+            return trimmed
+        case .softer:
+            return softerPolishText(trimmed)
+        case .concise:
+            return concisePolishText(trimmed)
+        }
+    }
+
+    private func softerPolishText(_ text: String) -> String {
+        let lower = text.lowercased()
+        if lower.hasPrefix("i think ") || lower.hasPrefix("i feel ") || lower.hasPrefix("it seems ") {
+            return text
+        }
+        if lower.hasPrefix("the flow feels") {
+            return "I think " + text.replacingOccurrences(of: "The flow feels", with: "the flow may feel")
+        }
+        if lower.hasPrefix("the setup asks") {
+            return "I think " + text.replacingOccurrences(of: "The setup asks", with: "the setup may ask")
+        }
+        if lower.hasPrefix("users are asked") {
+            return "I think " + text.replacingOccurrences(of: "users are asked", with: "users may be asked")
+        }
+        return "I think " + text.prefix(1).lowercased() + text.dropFirst()
+    }
+
+    private func concisePolishText(_ text: String) -> String {
+        let sentenceEndings = CharacterSet(charactersIn: ".!?。！？")
+        if let firstEnd = text.rangeOfCharacter(from: sentenceEndings) {
+            let firstSentence = String(text[..<firstEnd.upperBound]).trimmingCharacters(in: .whitespacesAndNewlines)
+            if !firstSentence.isEmpty, firstSentence.count < text.count {
+                return firstSentence
+            }
+        }
+        if let colon = text.firstIndex(of: ":") {
+            let beforeColon = String(text[..<colon]).trimmingCharacters(in: .whitespacesAndNewlines)
+            if !beforeColon.isEmpty {
+                return beforeColon.hasSuffix(".") ? beforeColon : beforeColon + "."
+            }
+        }
+        guard text.count > 150 else { return text }
+        return String(text.prefix(150)).trimmingCharacters(in: .whitespacesAndNewlines) + "..."
     }
 
     func retryCurrentTranslation() {

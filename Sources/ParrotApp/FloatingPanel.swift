@@ -33,9 +33,8 @@ private final class WorkspacePanel: NSPanel {
 @MainActor
 final class FloatingPanel {
     private enum Metrics {
-        static let quickContentSize = NSSize(width: 420, height: 300)
-        static let quickMinContentSize = NSSize(width: 420, height: 220)
-        static let defaultContentSize = NSSize(width: 520, height: 640)
+        static let defaultContentSize = NSSize(width: 560, height: 640)
+        static let compactContentSize = NSSize(width: 560, height: 460)
         static let minContentSize = NSSize(width: 520, height: 320)
     }
 
@@ -46,13 +45,13 @@ final class FloatingPanel {
     private let onVocabulary: () -> Void
     private let onContextMemory: () -> Void
     private let onReplaceInSourceApp: (String) -> Bool
+    private let onReturnToSourceApp: () -> Void
     private let onWorkspaceNoticeAction: (WorkspaceNotice.Action) -> Void
     private let presentation = FloatingPanelPresentation()
     private var anchorPoint: NSPoint?
     private var resizeObserver: NSObjectProtocol?
     private var screenObserver: NSObjectProtocol?
     private var resignObserver: NSObjectProtocol?
-    private var surfaceObserver: AnyCancellable?
     private var globalMouseDownMonitor: Any?
     private var localMouseDownMonitor: Any?
     private var moveObserver: NSObjectProtocol?
@@ -68,6 +67,7 @@ final class FloatingPanel {
         onVocabulary: @escaping () -> Void = {},
         onContextMemory: @escaping () -> Void = {},
         onReplaceInSourceApp: @escaping (String) -> Bool = { _ in false },
+        onReturnToSourceApp: @escaping () -> Void = {},
         onWorkspaceNoticeAction: @escaping (WorkspaceNotice.Action) -> Void = { _ in }
     ) {
         self.state = state
@@ -75,12 +75,8 @@ final class FloatingPanel {
         self.onVocabulary = onVocabulary
         self.onContextMemory = onContextMemory
         self.onReplaceInSourceApp = onReplaceInSourceApp
+        self.onReturnToSourceApp = onReturnToSourceApp
         self.onWorkspaceNoticeAction = onWorkspaceNoticeAction
-        surfaceObserver = state.$workspaceSurface.sink { [weak self] surface in
-            Task { @MainActor in
-                self?.applySurfaceMetrics(surface: surface, resetSize: false)
-            }
-        }
     }
 
     func show(focusComposer: Bool = false) {
@@ -91,7 +87,7 @@ final class FloatingPanel {
             suppressFocusLossHideUntil = Date().addingTimeInterval(0.8)
         }
         let wasVisible = panel?.isVisible == true
-        applySurfaceMetrics(resetSize: !wasVisible)
+        applyWorkspaceMetrics(resetSize: !wasVisible)
         if !wasVisible {
             anchorPoint = NSEvent.mouseLocation
             userPositionedPanel = false
@@ -130,7 +126,7 @@ final class FloatingPanel {
 
     func hide(force: Bool = false) {
         guard force || !state.shouldKeepWorkspaceVisible else { return }
-        panel?.contentMinSize = metrics(for: state.workspaceSurface).min
+        panel?.contentMinSize = Metrics.minContentSize
         panel?.orderOut(nil)
         panel?.alphaValue = 1
         isHiding = false
@@ -169,8 +165,9 @@ final class FloatingPanel {
             onVocabulary: onVocabulary,
             onContextMemory: onContextMemory,
             onReplaceInSourceApp: onReplaceInSourceApp,
+            onReturnToSourceApp: onReturnToSourceApp,
             onWorkspaceNoticeAction: onWorkspaceNoticeAction,
-            onClose: { [weak self] in self?.hide(force: true) }
+            onClose: { [weak self] in self?.requestClose() }
         ))
         hosting.sizingOptions = []
         self.hosting = hosting
@@ -181,9 +178,8 @@ final class FloatingPanel {
         p.setAccessibilityTitle(title)
         p.titleVisibility = .hidden
         p.titlebarAppearsTransparent = true
-        let initialMetrics = metrics(for: state.workspaceSurface)
-        p.contentMinSize = initialMetrics.min
-        p.setContentSize(initialMetrics.defaultSize)
+        p.contentMinSize = Metrics.minContentSize
+        p.setContentSize(Metrics.defaultContentSize)
         p.isReleasedWhenClosed = false
         p.isFloatingPanel = true
         p.level = .floating
@@ -194,7 +190,7 @@ final class FloatingPanel {
         p.isOpaque = false
         p.hasShadow = true
 
-        p.onCloseRequest = { [weak self] in self?.hide(force: true) }
+        p.onCloseRequest = { [weak self] in self?.requestClose() }
         p.standardWindowButton(.closeButton)?.isHidden = true
         p.standardWindowButton(.miniaturizeButton)?.isHidden = true
         p.standardWindowButton(.zoomButton)?.isHidden = true
@@ -238,32 +234,35 @@ final class FloatingPanel {
         installOutsideClickMonitors()
     }
 
-    private func metrics(for surface: WorkspaceSurface) -> (min: NSSize, defaultSize: NSSize) {
-        switch surface {
-        case .quickPeek:
-            return (Metrics.quickMinContentSize, Metrics.quickContentSize)
-        case .workspace:
-            return (Metrics.minContentSize, Metrics.defaultContentSize)
+    private func applyWorkspaceMetrics(resetSize: Bool) {
+        guard let panel else { return }
+        panel.contentMinSize = Metrics.minContentSize
+        let currentSize = panel.contentView?.frame.size ?? panel.frame.size
+        let shouldResize = resetSize
+            || currentSize.width < Metrics.minContentSize.width
+            || currentSize.height < Metrics.minContentSize.height
+        guard shouldResize else { return }
+        panel.setContentSize(state.prefersCompactWorkspace ? Metrics.compactContentSize : Metrics.defaultContentSize)
+        if panel.isVisible {
+            keepCurrentPlacement()
         }
     }
 
-    private func applySurfaceMetrics(
-        surface: WorkspaceSurface? = nil,
-        resetSize: Bool
-    ) {
-        guard let panel else { return }
-        let target = metrics(for: surface ?? state.workspaceSurface)
-        panel.contentMinSize = target.min
-        let currentSize = panel.contentView?.frame.size ?? panel.frame.size
-        let shouldResize = resetSize
-            || !userPositionedPanel
-            || currentSize.width < target.min.width
-            || currentSize.height < target.min.height
-            || (surface ?? state.workspaceSurface) == .workspace
-        guard shouldResize else { return }
-        panel.setContentSize(target.defaultSize)
-        if panel.isVisible {
-            keepCurrentPlacement()
+    private func requestClose() {
+        guard state.isSourceDirty, let panel else {
+            hide(force: true)
+            return
+        }
+        let alert = NSAlert()
+        alert.messageText = L("源文还有未翻译的修改")
+        alert.informativeText = L("关闭后会保留当前草稿，下次打开工作区可继续编辑。")
+        alert.addButton(withTitle: L("保留草稿并关闭"))
+        alert.addButton(withTitle: L("继续编辑"))
+        alert.buttons.last?.keyEquivalent = "\u{1b}"
+        alert.beginSheetModal(for: panel) { [weak self] response in
+            if response == .alertFirstButtonReturn {
+                self?.hide(force: true)
+            }
         }
     }
 

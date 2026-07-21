@@ -8,18 +8,18 @@ import ParrotCore
 @MainActor
 final class HistoryWindow {
     private let state: AppState
-    private let onRetranslate: (String) -> Void
+    private let onRetranslate: (TranslationRecord) -> Void
     private var window: NSWindow?
 
-    init(state: AppState, onRetranslate: @escaping (String) -> Void) {
+    init(state: AppState, onRetranslate: @escaping (TranslationRecord) -> Void) {
         self.state = state
         self.onRetranslate = onRetranslate
     }
 
     func show() {
         if window == nil {
-            let root = HistoryView(state: state, onRetranslate: { [weak self] text in
-                self?.onRetranslate(text)
+            let root = HistoryView(state: state, onRetranslate: { [weak self] record in
+                self?.onRetranslate(record)
             })
             let hosting = NSHostingController(rootView: root)
             let win = NSWindow(contentViewController: hosting)
@@ -135,11 +135,11 @@ private final class HistoryModel: ObservableObject {
 
 private struct HistoryView: View {
     @ObservedObject var state: AppState
-    let onRetranslate: (String) -> Void
+    let onRetranslate: (TranslationRecord) -> Void
 
     @StateObject private var model: HistoryModel
 
-    init(state: AppState, onRetranslate: @escaping (String) -> Void) {
+    init(state: AppState, onRetranslate: @escaping (TranslationRecord) -> Void) {
         self.state = state
         self.onRetranslate = onRetranslate
         _model = StateObject(wrappedValue: HistoryModel(store: state.history))
@@ -239,7 +239,7 @@ private struct HistoryView: View {
     private var detailColumn: some View {
         if let rec = model.filteredRecords.first(where: { $0.id == model.selectedId }) {
             HistoryDetail(record: rec,
-                          onRetranslate: { onRetranslate(rec.sourceText) },
+                          onRetranslate: { onRetranslate(rec) },
                           onCopy: { copy($0) },
                           onSpeak: { state.speakTranslation($0) },
                           onFavorite: { model.toggleFavorite(rec) },

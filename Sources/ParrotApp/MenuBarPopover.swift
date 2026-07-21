@@ -16,7 +16,7 @@ struct MenuBarPopoverView: View {
     let onLearningReview: () -> Void
     let onVocabulary: () -> Void
     let onContextMemory: () -> Void
-    let onRetranslate: (String) -> Void
+    let onRetranslate: (TranslationRecord) -> Void
     let onQuit: () -> Void
 
     @State private var recents: [TranslationRecord] = []
@@ -144,7 +144,7 @@ struct MenuBarPopoverView: View {
     }
 
     private func recentRow(_ rec: TranslationRecord) -> some View {
-        HoverRow(action: { onRetranslate(rec.sourceText) }) {
+        HoverRow(action: { onRetranslate(rec) }) {
             HStack(spacing: Theme.Spacing.s8) {
                 VStack(alignment: .leading, spacing: 1) {
                     Text(rec.sourceText)

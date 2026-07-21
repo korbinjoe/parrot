@@ -79,9 +79,19 @@
 - [x] [Test] Cover URL surface routing, strict private-local behavior, memory rules, and save-action persistence.
 - [x] [Verify] Re-run `swift test`, `openspec validate`, and UI acceptance.
 
+## Phase 10 - Native Polish Completion
+
+- [x] [Implement] Capture the focused input-field draft when opening Native Polish.
+- [x] [Implement] Add explicit polish tones and generate Direct, Softer, and Short variants.
+- [x] [Implement] Add a prominent replace-to-original-app button for polish variants.
+- [x] [Implement] Use tone intent in LLM polish prompts and replacement fallback behavior.
+- [x] [Test] Cover captured draft prefill, tone switching, variant generation, and polish prompt instructions.
+- [x] [Verify] Re-run `swift test`, OpenSpec validation, UI acceptance, and rebuild/install the app.
+
 ## Verification Notes
 
 - `swift test` passed with 120 tests on 2026-07-02 after OCR candidate default-selection updates.
 - UI acceptance passed on 2026-07-02, covering release build, launch, menu fallbacks, input workspace, OCR fixture, URL routing, result panel display, and workspace resize stability.
 - AppState route tests cover short selection Quick Peek, long selection full workspace, manual polish workspace, OCR candidate switching, and unreliable OCR geometry fallback.
 - Phase 9 parity closure passed on 2026-07-02 with 125 Swift tests, OpenSpec validation, and UI acceptance after URL surface/profile routing, strict private-local routing, original-app replacement, save-expression actions, and rules memory were added.
+- Phase 10 native polish completion passed on 2026-07-02 with 128 Swift tests, OpenSpec validation, and UI acceptance after focused input draft capture, tone variants, tone-aware prompts, and replace-to-original-app fallback were added.
