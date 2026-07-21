@@ -248,7 +248,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private func makeStatusItemImage() -> NSImage? {
         if let url = Bundle.main.url(forResource: "MenuBarIconTemplate", withExtension: "png"),
            let image = NSImage(contentsOf: url) {
-            image.isTemplate = false
+            image.isTemplate = true
             image.size = NSSize(width: 21, height: 21)
             return image
         }

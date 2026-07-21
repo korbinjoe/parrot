@@ -1,28 +1,14 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="Parrot menu bar icon">
-  <path
-    d="M6 24.2C6 14.1 14.1 6 24.2 6h19.6C53.9 6 62 14.1 62 24.2v14.2c0 10.1-8.1 18.2-18.2 18.2H31.6L15.4 63c-1.9.8-3.8-1-3.1-3l3-8.5C9.8 48.4 6 42.5 6 35.8V24.2Z"
-    fill="#6d85c9"/>
-  <path
-    d="M12.2 22.4c.9-6.2 6.2-11 12.7-11h18.4c7.1 0 12.9 5.8 12.9 12.9v4.2c-13.2-2.5-28.2-.8-44 4.9v-11Z"
-    fill="#8fa2dd" opacity="0.55"/>
-  <path
-    d="M50.8 24.1l10.2 4.2c2.3.9 2.3 4.2 0 5.2l-10.2 4.2c-2 .8-4.2-.7-4.2-2.9v-7.8c0-2.2 2.2-3.7 4.2-2.9Z"
-    fill="#f2a65a"/>
-  <path
-    d="M50.8 32.6l10.4 2.5c1.9.5 2.1 3.1.3 3.8l-10.7 4.3c-2 .8-4.2-.7-4.2-2.9v-4.9c0-2 2-3.3 4.2-2.8Z"
-    fill="#d96d55" opacity="0.9"/>
-  <path
-    d="M18.5 32.2c7.8-3.9 18.1-2.2 24.9 4.8c-4.9 8.2-14.8 12.5-25 9.7c4.9-3.6 5.9-8.7.1-14.5Z"
-    fill="#f7f9ff"/>
-  <path
-    d="M22 36c4.7.7 9.3 2.5 13.7 6"
-    fill="none" stroke="#6d85c9" stroke-opacity="0.42" stroke-linecap="round" stroke-width="3.3"/>
-  <circle cx="44" cy="22.7" r="3.2" fill="#10172f"/>
-  <circle cx="45" cy="21.8" r="1" fill="#ffffff" opacity="0.9"/>
-  <path
-    d="M20.2 19.5h13.6"
-    fill="none" stroke="#ffffff" stroke-linecap="round" stroke-width="3.9" stroke-opacity="0.9"/>
-  <path
-    d="M20.2 25.8h8.7"
-    fill="none" stroke="#dfe7f8" stroke-linecap="round" stroke-width="3.5" stroke-opacity="0.9"/>
+  <defs>
+    <mask id="cutouts">
+      <rect width="64" height="64" fill="#ffffff"/>
+      <path d="M17 31.2c7.6-3.8 17.5-2.1 23.9 4.8-4.9 8.3-14.5 12.8-24.2 10.2 4.8-3.6 5.8-8.9.3-15Z" fill="#000000"/>
+      <circle cx="42" cy="20.5" r="3" fill="#000000"/>
+      <path d="M18 20h13" fill="none" stroke="#000000" stroke-linecap="round" stroke-width="4"/>
+    </mask>
+  </defs>
+  <g mask="url(#cutouts)" fill="#000000">
+    <path d="M5 22C5 12.6 12.6 5 22 5h21c9.4 0 17 7.6 17 17v15c0 9.4-7.6 17-17 17H30.5L15 63c-1.8 1-3.9-.7-3.3-2.7l2.8-9C8.8 48.4 5 42.5 5 36V22Z"/>
+    <path d="M47 23.5l13 5.1c2.6 1 2.6 4.8 0 5.8l-13 5.1c-2.1.8-4.3-.7-4.3-3v-10c0-2.3 2.2-3.8 4.3-3Z"/>
+  </g>
 </svg>

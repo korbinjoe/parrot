@@ -1,53 +1,30 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" role="img" aria-label="Parrot app icon">
-  <rect width="1024" height="1024" fill="none"/>
-  <rect x="78" y="96" width="868" height="850" rx="202" fill="#1b2441" opacity="0.16"/>
-  <rect x="64" y="64" width="896" height="896" rx="214" fill="#eef3fb"/>
-  <path d="M278 64h468c118 0 214 96 214 214v68C725 311 459 349 64 300v-22C64 160 160 64 278 64Z" fill="#fbfcff" opacity="0.88"/>
-  <rect x="84" y="84" width="856" height="856" rx="196" fill="none" stroke="#ffffff" stroke-opacity="0.72" stroke-width="8"/>
-  <rect x="96" y="96" width="832" height="832" rx="184" fill="none" stroke="#253055" stroke-opacity="0.08" stroke-width="4"/>
+  <defs>
+    <linearGradient id="background" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#8799d8"/>
+      <stop offset="1" stop-color="#596fbd"/>
+    </linearGradient>
+    <linearGradient id="beakTop" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#ffc06e"/>
+      <stop offset="1" stop-color="#f29a45"/>
+    </linearGradient>
+  </defs>
 
-  <g fill="none" stroke="#6d85c9" stroke-linecap="round" stroke-width="16" opacity="0.18">
-    <path d="M202 300v-82h82"/>
-    <path d="M822 218h82v82"/>
-    <path d="M284 806h-82v-82"/>
-    <path d="M904 724v82h-82"/>
-  </g>
+  <rect x="48" y="48" width="928" height="928" rx="220" fill="#26345f" opacity="0.18" transform="translate(0 18)"/>
+  <rect x="48" y="48" width="928" height="928" rx="220" fill="url(#background)"/>
+  <path d="M48 268C48 147 147 48 268 48h488c121 0 220 99 220 220v50C724 271 395 306 48 405V268Z" fill="#ffffff" opacity="0.1"/>
+  <rect x="68" y="68" width="888" height="888" rx="202" fill="none" stroke="#ffffff" stroke-width="8" opacity="0.22"/>
 
-  <g transform="translate(-236 -184) scale(1.38)" opacity="0.16">
-    <path
-      d="M296 356c0-70 57-127 127-127h222c70 0 127 57 127 127v176c0 70-57 127-127 127H500L369 746c-19 13-45-5-38-27l19-68c-33-23-54-61-54-105V356Z"
-      fill="#23325f"/>
-    <path
-      d="M714 406l121 44c24 9 24 43 0 52l-121 44c-17 6-35-6-35-24v-92c0-18 18-30 35-24Z"
-      fill="#23325f"/>
-  </g>
+  <path d="M218 312c0-83 67-150 150-150h274c83 0 150 67 150 150v224c0 83-67 150-150 150H474L294 808c-25 17-58-7-49-36l30-101c-35-29-57-73-57-122V312Z" fill="#26345f" opacity="0.18" transform="translate(0 22)"/>
+  <path d="M218 290c0-83 67-150 150-150h274c83 0 150 67 150 150v224c0 83-67 150-150 150H474L294 786c-25 17-58-7-49-36l30-101c-35-29-57-73-57-122V290Z" fill="#f8faff"/>
 
-  <g transform="translate(-236 -184) scale(1.38)">
-    <path
-      d="M296 332c0-70 57-127 127-127h222c70 0 127 57 127 127v176c0 70-57 127-127 127H500L369 722c-19 13-45-5-38-27l19-68c-33-23-54-61-54-105V332Z"
-      fill="#6d85c9"/>
-    <path
-      d="M334 313c8-43 46-76 91-76h219c51 0 93 42 93 93v41c-118-19-253-5-403 36v-94Z"
-      fill="#8fa2dd" opacity="0.54"/>
-    <path
-      d="M714 382l121 44c24 9 24 43 0 52l-121 44c-17 6-35-6-35-24v-92c0-18 18-30 35-24Z"
-      fill="#f2a65a"/>
-    <path
-      d="M714 453l126 26c18 4 20 28 2 35l-128 49c-18 7-37-6-37-26v-49c0-23 15-40 37-35Z"
-      fill="#d96d55" opacity="0.82"/>
-    <path
-      d="M395 405c68-32 156-18 214 43-40 69-121 108-207 91 44-34 53-80-7-134Z"
-      fill="#f7f9ff"/>
-    <path
-      d="M417 438c39 4 82 20 119 54"
-      fill="none" stroke="#6d85c9" stroke-opacity="0.38" stroke-linecap="round" stroke-width="20"/>
-    <circle cx="642" cy="342" r="17" fill="#10172f"/>
-    <circle cx="647" cy="337" r="5" fill="#ffffff" opacity="0.86"/>
-    <path
-      d="M403 294h160"
-      fill="none" stroke="#ffffff" stroke-linecap="round" stroke-width="24" stroke-opacity="0.88"/>
-    <path
-      d="M402 345h104"
-      fill="none" stroke="#dfe7f8" stroke-linecap="round" stroke-width="20" stroke-opacity="0.86"/>
-  </g>
+  <path d="M352 400c86-42 196-22 268 54-54 92-163 140-272 111 53-39 64-100 4-165Z" fill="#7186cc"/>
+  <path d="M399 448c51 7 101 27 146 63" fill="none" stroke="#aebbe4" stroke-linecap="round" stroke-width="19"/>
+
+  <path d="M688 356l151 58c30 12 30 55 0 67l-151 58c-24 10-50-8-50-34V390c0-26 26-44 50-34Z" fill="url(#beakTop)"/>
+  <path d="M688 448l155 37c24 6 26 38 3 47l-158 63c-24 10-50-8-50-34v-73c0-27 24-46 50-40Z" fill="#df7055" opacity="0.94"/>
+
+  <circle cx="654" cy="288" r="23" fill="#16203d"/>
+  <circle cx="662" cy="280" r="7" fill="#ffffff"/>
+  <path d="M354 252h162" fill="none" stroke="#8b9bd2" stroke-linecap="round" stroke-width="25" opacity="0.82"/>
 </svg>
