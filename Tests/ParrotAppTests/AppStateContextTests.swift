@@ -22,6 +22,55 @@ import ParrotCore
 }
 
 @MainActor
+@Test func shortBrowserSelectionUsesUnderstandProfile() {
+    let state = AppState()
+    state.settings.contextRuleDocumentEnabled = true
+
+    state.openWorkspace(
+        text: "That's a bold choice.",
+        autoRun: false,
+        focusComposer: false,
+        origin: .selection,
+        sourceApp: "Safari",
+        windowTitle: "A conversation"
+    )
+
+    #expect(state.contextProfile == .understand)
+}
+
+@MainActor
+@Test func structuredMeaningResultKeepsProviderCardForMultiParagraphText() {
+    let state = AppState()
+    state.sourceDraft = "First paragraph.\n\nSecond paragraph."
+    let interpretation = InterpretationResult(
+        intendedMeaning: "说话者在表达两层意思。",
+        localizedTranslation: "第一段。\n\n第二段。",
+        confidence: 0.9
+    )
+    state.outcomes = [
+        AggregatedOutcome(
+            providerId: "llm",
+            displayName: "LLM",
+            result: TranslateResult(
+                providerId: "llm",
+                translated: interpretation.localizedTranslation,
+                interpretation: interpretation
+            ),
+            error: nil,
+            latencyMs: 10
+        )
+    ]
+
+    #expect(state.paragraphHints.count == 2)
+    #expect(!state.canShowParagraphBilingualView)
+}
+
+@Test func literalReferenceHidesPunctuationAndWhitespaceOnlyVariants() {
+    #expect(!shouldShowLiteralTranslation("Hello, world!", comparedTo: " hello world "))
+    #expect(shouldShowLiteralTranslation("A bold decision.", comparedTo: "A risky decision."))
+}
+
+@MainActor
 @Test func shortSelectionUsesCompactWorkspaceButManualInputDoesNot() {
     let state = AppState()
 
@@ -94,6 +143,96 @@ import ParrotCore
     ]
 
     #expect(state.primarySuccessfulOutcome?.providerId == "dictionary")
+}
+
+@MainActor
+@Test func translationResultPresentationPrioritizesLLMSuccessesAndMovesFailuresLast() {
+    let slots: [TranslationSlot] = [
+        .outcome(AggregatedOutcome(
+            providerId: "google",
+            displayName: "Google",
+            result: TranslateResult(providerId: "google", translated: "谷歌结果"),
+            error: nil,
+            latencyMs: 10
+        )),
+        .outcome(AggregatedOutcome(
+            providerId: "baidu",
+            displayName: "Baidu",
+            result: nil,
+            error: .network,
+            latencyMs: 12
+        )),
+        .pending(PendingProviderViewState(
+            id: "microsoft",
+            displayName: "Microsoft",
+            modelName: nil,
+            isSlow: false
+        )),
+        .pending(PendingProviderViewState(
+            id: "ollama",
+            displayName: "Ollama",
+            modelName: "glm-5:cloud",
+            isSlow: true
+        )),
+        .pending(PendingProviderViewState(
+            id: "doubao#pending",
+            displayName: "豆包",
+            modelName: "doubao-pro",
+            isSlow: true
+        )),
+        .outcome(AggregatedOutcome(
+            providerId: "deepseek#alternate",
+            displayName: "DeepSeek",
+            result: TranslateResult(providerId: "deepseek#alternate", translated: "DeepSeek 结果"),
+            error: nil,
+            latencyMs: 20
+        )),
+        .outcome(AggregatedOutcome(
+            providerId: "doubao",
+            displayName: "豆包",
+            result: TranslateResult(providerId: "doubao", translated: "豆包结果"),
+            error: nil,
+            latencyMs: 18
+        )),
+        .outcome(AggregatedOutcome(
+            providerId: "qwen",
+            displayName: "通义千问",
+            result: nil,
+            error: .timeout,
+            latencyMs: 15_000
+        )),
+        .outcome(AggregatedOutcome(
+            providerId: "doubao#failed",
+            displayName: "豆包",
+            modelName: "doubao-lite-32k",
+            result: nil,
+            error: .rateLimited,
+            latencyMs: 300
+        )),
+        .outcome(AggregatedOutcome(
+            providerId: "custom-model-provider",
+            displayName: "Custom Model Provider",
+            modelName: "custom-translate-1",
+            result: TranslateResult(providerId: "custom-model-provider", translated: "自定义模型结果"),
+            error: nil,
+            latencyMs: 25
+        ))
+    ]
+
+    let providerIDs = sortedTranslationSlotsForPresentation(slots).map(\.id)
+
+    #expect(providerIDs == [
+        "doubao",
+        "deepseek#alternate",
+        "custom-model-provider",
+        "google",
+        "doubao#pending",
+        "ollama",
+        "microsoft",
+        "doubao#failed",
+        "qwen",
+        "baidu"
+    ])
 }
 
 @MainActor

@@ -24,16 +24,21 @@ public enum TranslationContextProfile: String, Codable, Sendable, Equatable, Cas
         case .polish:
             return .nativePolish
         case .translate:
-            if hasTerminology { return .strictTerminology }
+            let inferredProfile: TranslationContextProfile
             switch origin {
             case .ocr, .latestScreenshot, .screenshot, .shareExtension:
-                return .understand
+                inferredProfile = .understand
             case .url:
-                return .document
-            case .lookup, .manualInput, .history, .selection, .clipboard, .shortcut, .popClip, .unknown:
+                inferredProfile = .document
+            case .selection, .clipboard, .shortcut, .popClip:
                 let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
-                return trimmed.count >= 280 || trimmed.contains("\n\n") ? .document : .quickTranslate
+                inferredProfile = trimmed.count >= 280 || trimmed.contains("\n\n") ? .document : .understand
+            case .lookup, .manualInput, .history, .unknown:
+                let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
+                inferredProfile = trimmed.count >= 280 || trimmed.contains("\n\n") ? .document : .quickTranslate
             }
+            if inferredProfile == .understand { return .understand }
+            return hasTerminology ? .strictTerminology : inferredProfile
         }
     }
 }
@@ -115,6 +120,7 @@ public struct TranslationContext: Codable, Equatable, Sendable {
     public var sourceApp: String?
     public var windowTitle: String?
     public var sourceURL: String?
+    public var surroundingText: String?
     public var rewriteTone: String?
     public var selectedOCRBlockID: UUID?
     public var paragraphHints: [ParagraphHint]
@@ -127,6 +133,7 @@ public struct TranslationContext: Codable, Equatable, Sendable {
         sourceApp: String? = nil,
         windowTitle: String? = nil,
         sourceURL: String? = nil,
+        surroundingText: String? = nil,
         rewriteTone: String? = nil,
         selectedOCRBlockID: UUID? = nil,
         paragraphHints: [ParagraphHint] = [],
@@ -138,6 +145,7 @@ public struct TranslationContext: Codable, Equatable, Sendable {
         self.sourceApp = sourceApp
         self.windowTitle = windowTitle
         self.sourceURL = sourceURL
+        self.surroundingText = surroundingText
         self.rewriteTone = rewriteTone
         self.selectedOCRBlockID = selectedOCRBlockID
         self.paragraphHints = paragraphHints
@@ -177,6 +185,10 @@ public struct TranslationContext: Codable, Equatable, Sendable {
 }
 
 public extension TranslationContextProfile {
+    var usesStructuredInterpretation: Bool {
+        self == .understand || self == .social
+    }
+
     var prefersLLM: Bool {
         switch self {
         case .understand, .nativePolish, .reply, .github, .social, .email:

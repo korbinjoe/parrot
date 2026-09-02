@@ -131,11 +131,31 @@ public actor TranslationCoordinator {
 
     private func routedProviders(for req: TranslateRequest) -> [TranslationProvider] {
         let providers = registry.activeProviders()
-        guard let allowed = req.context?.routingHints.allowedProviderIDs else {
-            return providers
+        let allowedProviders: [TranslationProvider]
+        if let allowed = req.context?.routingHints.allowedProviderIDs {
+            let allowedSet = Set(allowed)
+            allowedProviders = providers.filter { allowedSet.contains($0.id) }
+        } else {
+            allowedProviders = providers
         }
-        let allowedSet = Set(allowed)
-        return providers.filter { allowedSet.contains($0.id) }
+        guard let hints = req.context?.routingHints else { return allowedProviders }
+        var preferredRanks: [String: Int] = [:]
+        for (index, providerID) in hints.preferredProviderIDs.enumerated()
+            where preferredRanks[providerID] == nil {
+            preferredRanks[providerID] = index
+        }
+        return allowedProviders.enumerated()
+            .sorted { lhs, rhs in
+                let lhsRank = preferredRanks[lhs.element.id] ?? Int.max
+                let rhsRank = preferredRanks[rhs.element.id] ?? Int.max
+                if lhsRank != rhsRank { return lhsRank < rhsRank }
+                if hints.preferLLM,
+                   lhs.element.capabilities.supportsInterpretation != rhs.element.capabilities.supportsInterpretation {
+                    return lhs.element.capabilities.supportsInterpretation
+                }
+                return lhs.offset < rhs.offset
+            }
+            .map(\.element)
     }
 
     public static func runProvider(
@@ -289,7 +309,14 @@ public actor TranslationCoordinator {
             matches: application.matches,
             restorationSucceeded: restored.succeeded
         )
-        return result.withTranslated(restored.text, terminologyApplication: finalApplication)
+        let interpretation = result.interpretation?.mappingTextFields {
+            TerminologyProcessor.restore($0, using: protected).text
+        }
+        return result.withTranslated(
+            restored.text,
+            terminologyApplication: finalApplication,
+            interpretation: interpretation
+        )
     }
 
     private static func applyPrivacyMasking(
@@ -298,7 +325,14 @@ public actor TranslationCoordinator {
     ) -> TranslateResult {
         guard let masked else { return result }
         let restored = PrivacyMasker.unmask(result.translated, using: masked)
-        return result.withTranslated(restored, privacyMaskingReport: masked.report)
+        let interpretation = result.interpretation?.mappingTextFields {
+            PrivacyMasker.unmask($0, using: masked)
+        }
+        return result.withTranslated(
+            restored,
+            privacyMaskingReport: masked.report,
+            interpretation: interpretation
+        )
     }
 
     /// Provider-specific timeout budget for slower LLM services.

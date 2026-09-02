@@ -400,12 +400,33 @@ private struct HistoryDetail: View {
                 IconButton("doc.on.doc", help: "复制此结果", size: 11) { onCopy(outcome.translated) }
                 IconButton("speaker.wave.2", help: "朗读此结果", size: 11) { onSpeak(outcome.translated) }
             }
-            Text(outcome.translated)
-                .font(Theme.Font.result)
-                .foregroundStyle(Theme.Palette.label)
-                .textSelection(.enabled)
+            if let interpretation = outcome.interpretation {
+                VStack(alignment: .leading, spacing: Theme.Spacing.s8) {
+                    Text(L("真正含义"))
+                        .font(Theme.Font.caption.weight(.semibold))
+                        .foregroundStyle(Theme.Palette.label3)
+                    Text(interpretation.intendedMeaning)
+                        .font(Theme.Font.result)
+                        .foregroundStyle(Theme.Palette.label)
+                        .textSelection(.enabled)
+                    Text(L("自然译法"))
+                        .font(Theme.Font.caption.weight(.semibold))
+                        .foregroundStyle(Theme.Palette.label3)
+                    Text(outcome.translated)
+                        .font(Theme.Font.body)
+                        .foregroundStyle(Theme.Palette.label)
+                        .textSelection(.enabled)
+                }
                 .fixedSize(horizontal: false, vertical: true)
                 .frame(maxWidth: .infinity, alignment: .leading)
+            } else {
+                Text(outcome.translated)
+                    .font(Theme.Font.result)
+                    .foregroundStyle(Theme.Palette.label)
+                    .textSelection(.enabled)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+            }
         }
         .padding(.bottom, Theme.Spacing.s8)
         .overlay(alignment: .bottom) {

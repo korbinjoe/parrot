@@ -92,38 +92,8 @@ public enum RefinementAction: String, Codable, Sendable, CaseIterable, Identifia
     }
 }
 
-public struct PhraseExplanation: Codable, Sendable, Equatable, Identifiable {
-    public var id: String { phrase }
-    public var phrase: String
-    public var explanation: String
-
-    public init(phrase: String, explanation: String) {
-        self.phrase = phrase
-        self.explanation = explanation
-    }
-}
-
-public struct UnderstandResult: Codable, Sendable, Equatable {
-    public var meaningSummary: String
-    public var toneTags: [String]
-    public var phraseExplanations: [PhraseExplanation]
-    public var fullTranslation: String?
-    public var confidenceNote: String?
-
-    public init(
-        meaningSummary: String,
-        toneTags: [String] = [],
-        phraseExplanations: [PhraseExplanation] = [],
-        fullTranslation: String? = nil,
-        confidenceNote: String? = nil
-    ) {
-        self.meaningSummary = meaningSummary
-        self.toneTags = toneTags
-        self.phraseExplanations = phraseExplanations
-        self.fullTranslation = fullTranslation
-        self.confidenceNote = confidenceNote
-    }
-}
+public typealias PhraseExplanation = CulturalNote
+public typealias UnderstandResult = InterpretationResult
 
 public struct ReplyCandidate: Identifiable, Codable, Sendable, Equatable {
     public var id: UUID

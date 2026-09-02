@@ -14,6 +14,7 @@ public final class GeminiEngine: TranslationProvider, @unchecked Sendable {
         supportsLookup: true,
         supportsStream: false,
         supportsPolish: true,
+        supportsInterpretation: true,
         terminology: .prompt
     )
 
@@ -32,14 +33,9 @@ public final class GeminiEngine: TranslationProvider, @unchecked Sendable {
 
     public func translate(_ req: TranslateRequest) async throws -> TranslateResult {
         guard let apiKey, !apiKey.isEmpty else { throw ProviderError.notConfigured }
-        let prompt = OpenAICompatEngine.systemPrompt(for: req)
         let url = URL(string: "https://generativelanguage.googleapis.com/v1beta/models/\(model):generateContent?key=\(apiKey)")!
 
-        let body: [String: Any] = [
-            "contents": [
-                ["parts": [["text": "\(prompt)\n\n\(req.text)"]]]
-            ]
-        ]
+        let body = Self.requestBody(for: req)
 
         var request = URLRequest(url: url)
         request.httpMethod = "POST"
@@ -58,10 +54,35 @@ public final class GeminiEngine: TranslationProvider, @unchecked Sendable {
             default: throw ProviderError.network
             }
         }
-        return try Self.parse(data, providerId: id, detectedFrom: req.from == .auto ? nil : req.from)
+        return try Self.parse(
+            data,
+            providerId: id,
+            detectedFrom: req.from == .auto ? nil : req.from,
+            request: req
+        )
     }
 
-    static func parse(_ data: Data, providerId: String, detectedFrom: Language? = nil) throws -> TranslateResult {
+    static func requestBody(for req: TranslateRequest) -> [String: Any] {
+        let prompt = OpenAICompatEngine.systemPrompt(for: req)
+        return [
+            "system_instruction": [
+                "parts": [["text": prompt]]
+            ],
+            "contents": [
+                [
+                    "role": "user",
+                    "parts": [["text": OpenAICompatEngine.userPrompt(for: req)]]
+                ]
+            ]
+        ]
+    }
+
+    static func parse(
+        _ data: Data,
+        providerId: String,
+        detectedFrom: Language? = nil,
+        request: TranslateRequest? = nil
+    ) throws -> TranslateResult {
         guard
             let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
             let candidates = json["candidates"] as? [[String: Any]],
@@ -71,10 +92,15 @@ public final class GeminiEngine: TranslationProvider, @unchecked Sendable {
         else {
             throw ProviderError.network
         }
+        let raw = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        let interpretation = request?.context?.profile.usesStructuredInterpretation == true
+            ? try? InterpretationParser.parse(raw)
+            : nil
         return TranslateResult(
             providerId: providerId,
-            translated: text.trimmingCharacters(in: .whitespacesAndNewlines),
-            detectedFrom: detectedFrom
+            translated: interpretation?.localizedTranslation ?? raw,
+            detectedFrom: detectedFrom,
+            interpretation: interpretation
         )
     }
 }

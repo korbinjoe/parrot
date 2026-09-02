@@ -2,8 +2,8 @@ import SwiftUI
 import AppKit
 import ParrotCore
 
-/// Floating result content: a language-direction header, source context, then provider
-/// slots displayed in the order configured in Settings.
+/// Floating result content: a language-direction header, source context, then all provider
+/// slots grouped by completion state with LLM results prioritized for comparison.
 struct ResultView: View {
     private enum Layout {
         static let minWidth: CGFloat = 520
@@ -16,6 +16,7 @@ struct ResultView: View {
         static let fixedToolbarHeight = toolbarControlHeight + Theme.Spacing.s12 + Theme.Spacing.s8
     }
 
+    @Environment(\.accessibilityReduceMotion) private var accessibilityReduceMotion
     @ObservedObject var state: AppState
     @ObservedObject var panelPresentation: FloatingPanelPresentation
     let onTogglePinned: () -> Void
@@ -31,7 +32,6 @@ struct ResultView: View {
     @State private var feedbackText: String = ""
     @State private var sourceComposerFocused: Bool = false
     @State private var sourceLearningSelection: String = ""
-    @State private var showAlternativeResults = false
 
     init(
         state: AppState,
@@ -66,9 +66,6 @@ struct ResultView: View {
         }
         .onChange(of: state.manualLearningSelectionRevision) { _ in
             sourceLearningSelection = ""
-        }
-        .onChange(of: state.sourceText) { _ in
-            showAlternativeResults = false
         }
         .onExitCommand {
             onClose()
@@ -203,42 +200,56 @@ struct ResultView: View {
                 emptyState
             }
         } else {
-            if showsAlignedBilingualResult,
-               let outcome = state.primarySuccessfulOutcome,
-               let result = outcome.result {
-                BilingualParagraphView(
-                    sourceHints: state.paragraphHints,
-                    translatedText: result.translated,
-                    providerName: outcome.displayName,
-                    onCopyParagraph: { copy($0) },
-                    onCopyAll: { copy(result.translated) },
-                    onCopyAndReturn: canReturnToSourceApp ? { copyAndReturn(result.translated) } : nil
-                )
+            VStack(alignment: .leading, spacing: Theme.Spacing.s8) {
+                if !state.isPolishMode {
+                    resultsOverview
+                }
+                if showsAlignedBilingualResult,
+                   let outcome = state.primarySuccessfulOutcome,
+                   let result = outcome.result {
+                    BilingualParagraphView(
+                        sourceHints: state.paragraphHints,
+                        translatedText: result.translated,
+                        providerName: outcome.displayName,
+                        onCopyParagraph: { copy($0) },
+                        onCopyAll: { copy(result.translated) },
+                        onCopyAndReturn: canReturnToSourceApp ? { copyAndReturn(result.translated) } : nil
+                    )
+                }
+                if state.isPolishMode, !state.polishVariants.isEmpty {
+                    PolishVariantsView(
+                        variants: state.polishVariants,
+                        selectedTone: state.selectedPolishTone,
+                        onSelect: { state.selectPolishTone($0, autoRun: false) },
+                        onCopy: { copy($0) },
+                        onReplace: { replaceInSourceApp($0) },
+                        onSave: { saveCurrentExpression($0) }
+                    )
+                    ForEach(visibleOrderedSlots) { slot in
+                        providerSlotView(slot)
+                    }
+                } else {
+                    ForEach(visibleOrderedSlots) { slot in
+                        if !showsAlignedBilingualResult || slot.id != state.primarySuccessfulOutcome?.providerId {
+                            providerSlotView(
+                                slot,
+                                isPrimary: slot.id == state.primarySuccessfulOutcome?.providerId
+                            )
+                            .transition(
+                                accessibilityReduceMotion
+                                    ? .opacity
+                                    : .opacity.combined(with: .move(edge: .top))
+                            )
+                        }
+                    }
+                }
             }
-            if state.isPolishMode, !state.polishVariants.isEmpty {
-                PolishVariantsView(
-                    variants: state.polishVariants,
-                    selectedTone: state.selectedPolishTone,
-                    onSelect: { state.selectPolishTone($0, autoRun: false) },
-                    onCopy: { copy($0) },
-                    onReplace: { replaceInSourceApp($0) },
-                    onSave: { saveCurrentExpression($0) }
-                )
-                ForEach(visibleOrderedSlots) { slot in
-                    providerSlotView(slot)
-                }
-            } else {
-                if !showsAlignedBilingualResult,
-                   let primaryOutcome = state.primarySuccessfulOutcome {
-                    providerSlotView(.outcome(primaryOutcome), isPrimary: true)
-                }
-                ForEach(recoverySlots) { slot in
-                    providerSlotView(slot)
-                }
-                if !successfulAlternativeSlots.isEmpty {
-                    alternativeResults
-                }
-            }
+            .animation(
+                accessibilityReduceMotion
+                    ? nil
+                    : .timingCurve(0.16, 1, 0.3, 1, duration: 0.28),
+                value: resultPresentationKey
+            )
         }
     }
 
@@ -255,6 +266,7 @@ struct ResultView: View {
                                    microPracticeEnabled: state.settings.learningMicroPracticeEnabled,
                                    occurrenceCounts: state.learningOccurrenceCounts,
                                    sourceSelection: sourceLearningSelection,
+                                   onSpeakSource: { state.speakSource($0) },
                                    onSpeak: { state.speakTranslation($0) },
                                    onCopy: { copy($0) },
                                    onLookupSelection: { selection, contextText, usesTranslation in
@@ -413,6 +425,14 @@ struct ResultView: View {
                     Text(L("已修改，可重新润色或翻译"))
                 } else {
                     Text(L("%d 个字符", state.sourceDraft.count))
+                }
+                IconButton(
+                    "speaker.wave.2",
+                    help: "朗读原文",
+                    size: 12,
+                    isEnabled: state.canTranslateDraft
+                ) {
+                    state.speakSource(state.sourceDraft)
                 }
                 Menu {
                     Button(L("删除空行")) { state.removeBlankDraftLines() }
@@ -594,6 +614,50 @@ struct ResultView: View {
         state.currentContextSourceApp != nil
     }
 
+    private var resultsOverview: some View {
+        let successfulCount = orderedSlots.filter(\.isSuccess).count
+        let pendingCount = orderedSlots.filter(\.isPending).count
+        let failedCount = orderedSlots.filter(\.isFailure).count
+
+        return HStack(spacing: Theme.Spacing.s8) {
+            Label(L("全部引擎结果"), systemImage: "square.stack.3d.up.fill")
+                .font(Theme.Font.callout.weight(.semibold))
+                .foregroundStyle(Theme.Palette.label)
+            Spacer(minLength: 0)
+            if successfulCount > 0 {
+                resultCountLabel(
+                    L("%d 成功", successfulCount),
+                    systemImage: "checkmark.circle.fill",
+                    color: Theme.Palette.success
+                )
+            }
+            if pendingCount > 0 {
+                HStack(spacing: Theme.Spacing.s4) {
+                    ProgressView().controlSize(.mini)
+                    Text(L("%d 进行中", pendingCount))
+                }
+                .font(Theme.Font.caption.monospacedDigit())
+                .foregroundStyle(Theme.Palette.label2)
+            }
+            if failedCount > 0 {
+                resultCountLabel(
+                    L("%d 失败", failedCount),
+                    systemImage: "exclamationmark.circle.fill",
+                    color: Theme.Palette.danger
+                )
+            }
+        }
+        .padding(.horizontal, Theme.Spacing.s4)
+        .padding(.top, Theme.Spacing.s4)
+        .accessibilityElement(children: .combine)
+    }
+
+    private func resultCountLabel(_ text: String, systemImage: String, color: Color) -> some View {
+        Label(text, systemImage: systemImage)
+            .font(Theme.Font.caption.monospacedDigit())
+            .foregroundStyle(color)
+    }
+
     private var showsAlignedBilingualResult: Bool {
         guard state.canShowParagraphBilingualView,
               let translated = state.primarySuccessfulOutcome?.result?.translated else { return false }
@@ -601,55 +665,6 @@ struct ResultView: View {
             sourceHints: state.paragraphHints,
             translatedText: translated
         )
-    }
-
-    private var recoverySlots: [TranslationSlot] {
-        visibleOrderedSlots.filter { slot in
-            switch slot {
-            case .outcome(let outcome): return outcome.result == nil
-            case .pending: return true
-            }
-        }
-    }
-
-    private var successfulAlternativeSlots: [TranslationSlot] {
-        let primaryID = state.primarySuccessfulOutcome?.providerId
-        return visibleOrderedSlots.filter { slot in
-            guard case .outcome(let outcome) = slot else { return false }
-            return outcome.result != nil && outcome.providerId != primaryID
-        }
-    }
-
-    private var alternativeResults: some View {
-        VStack(alignment: .leading, spacing: Theme.Spacing.s8) {
-            Button {
-                withAnimation(.easeInOut(duration: 0.16)) {
-                    showAlternativeResults.toggle()
-                }
-            } label: {
-                HStack(spacing: Theme.Spacing.s8) {
-                    Image(systemName: "square.stack.3d.up")
-                    Text(L("对比其他引擎 (%d)", successfulAlternativeSlots.count))
-                    Spacer(minLength: 0)
-                    Image(systemName: "chevron.right")
-                        .rotationEffect(.degrees(showAlternativeResults ? 90 : 0))
-                }
-                .font(Theme.Font.callout)
-                .foregroundStyle(Theme.Palette.label2)
-                .padding(.horizontal, Theme.Spacing.s12)
-                .frame(height: 38)
-                .background(Theme.Palette.bgControl.opacity(0.7))
-                .clipShape(RoundedRectangle(cornerRadius: Theme.Radius.control))
-            }
-            .buttonStyle(.plain)
-            .accessibilityValue(showAlternativeResults ? L("已展开") : L("已折叠"))
-
-            if showAlternativeResults {
-                ForEach(successfulAlternativeSlots) { slot in
-                    providerSlotView(slot)
-                }
-            }
-        }
     }
 
     private var orderedSlots: [TranslationSlot] {
@@ -675,8 +690,9 @@ struct ResultView: View {
     }
 
     private var visibleOrderedSlots: [TranslationSlot] {
-        guard state.isPolishMode, !state.polishVariants.isEmpty else { return orderedSlots }
-        return orderedSlots.filter { slot in
+        let prioritized = sortedTranslationSlotsForPresentation(orderedSlots)
+        guard state.isPolishMode, !state.polishVariants.isEmpty else { return prioritized }
+        return prioritized.filter { slot in
             switch slot {
             case .outcome(let outcome):
                 return outcome.result == nil
@@ -685,9 +701,15 @@ struct ResultView: View {
             }
         }
     }
+
+    private var resultPresentationKey: String {
+        visibleOrderedSlots
+            .map { "\($0.id):\($0.presentationPhase.rawValue)" }
+            .joined(separator: "|")
+    }
 }
 
-private enum TranslationSlot: Identifiable {
+enum TranslationSlot: Identifiable {
     case outcome(AggregatedOutcome)
     case pending(PendingProviderViewState)
 
@@ -697,6 +719,53 @@ private enum TranslationSlot: Identifiable {
         case .pending(let provider): return provider.id
         }
     }
+
+    var presentationPhase: TranslationSlotPresentationPhase {
+        switch self {
+        case .outcome(let outcome): return outcome.result == nil ? .failure : .success
+        case .pending: return .pending
+        }
+    }
+
+    var modelName: String? {
+        switch self {
+        case .outcome(let outcome): return outcome.modelName
+        case .pending(let provider): return provider.modelName
+        }
+    }
+
+    var isSuccess: Bool { presentationPhase == .success }
+    var isPending: Bool { presentationPhase == .pending }
+    var isFailure: Bool { presentationPhase == .failure }
+}
+
+enum TranslationSlotPresentationPhase: Int {
+    case success
+    case pending
+    case failure
+}
+
+@MainActor
+func sortedTranslationSlotsForPresentation(_ slots: [TranslationSlot]) -> [TranslationSlot] {
+    slots.enumerated()
+        .sorted { lhs, rhs in
+            let lhsPhase = lhs.element.presentationPhase.rawValue
+            let rhsPhase = rhs.element.presentationPhase.rawValue
+            if lhsPhase != rhsPhase { return lhsPhase < rhsPhase }
+
+            let lhsEngine = EngineCatalog.resultPresentationPriority(
+                for: lhs.element.id,
+                modelName: lhs.element.modelName
+            )
+            let rhsEngine = EngineCatalog.resultPresentationPriority(
+                for: rhs.element.id,
+                modelName: rhs.element.modelName
+            )
+            if lhsEngine != rhsEngine { return lhsEngine < rhsEngine }
+
+            return lhs.offset < rhs.offset
+        }
+        .map(\.element)
 }
 
 private struct WorkspaceNoticeView: View {
@@ -1105,6 +1174,7 @@ private struct TranslationOutcomeCard: View {
     let microPracticeEnabled: Bool
     let occurrenceCounts: [String: Int]
     let sourceSelection: String
+    let onSpeakSource: (String) -> Void
     let onSpeak: (String) -> Void
     let onCopy: (String) -> Void
     let onLookupSelection: (String, String, Bool) async -> TranslateResult?
@@ -1232,8 +1302,14 @@ private struct TranslationOutcomeCard: View {
     @ViewBuilder
     private func learningBody(for result: TranslateResult) -> some View {
         VStack(alignment: .leading, spacing: Theme.Spacing.s8) {
-            TranslationBody(result: result, lineLimit: nil) { selection in
-                translatedSelection = selection
+            if let interpretation = result.interpretation {
+                InterpretationBody(interpretation: interpretation) { selection in
+                    translatedSelection = selection
+                }
+            } else {
+                TranslationBody(result: result, lineLimit: nil) { selection in
+                    translatedSelection = selection
+                }
             }
             translationDetails(for: result)
 
@@ -1271,6 +1347,7 @@ private struct TranslationOutcomeCard: View {
                 saved: savedLearningIDs.contains(selected.id),
                 mastered: masteredLearningIDs.contains(selected.id),
                 actionsEnabled: !isPending,
+                onSpeak: manualSelectionUsesTranslation ? onSpeak : onSpeakSource,
                 onKnown: { settings.markLearningMastered(selected) },
                 onSave: { settings.markLearningSaved(selected) }
             )
@@ -1512,13 +1589,149 @@ private struct PendingOutcomeCard: View {
 
     private var message: String {
         if provider.softTimedOut {
-            return L("仍在生成；其他已返回结果会按设置顺序保持在原位。")
+            return L("仍在生成；完成后会自动归入结果列表。")
         }
         if provider.isSlow {
-            return L("正在生成；不会改变结果列表顺序。")
+            return L("正在生成；完成后会自动归入结果列表。")
         }
         return L("正在请求翻译结果。")
     }
+}
+
+private struct InterpretationBody: View {
+    let interpretation: InterpretationResult
+    var onSelectionChange: ((String) -> Void)? = nil
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: Theme.Spacing.s12) {
+            interpretationSection(title: L("真正含义"), systemImage: "brain.head.profile") {
+                Text(interpretation.intendedMeaning)
+                    .font(Theme.Font.result)
+                    .foregroundStyle(Theme.Palette.label)
+                    .textSelection(.enabled)
+            }
+
+            interpretationSection(title: L("自然译法"), systemImage: "character.book.closed") {
+                if let onSelectionChange {
+                    SelectableResultTextView(
+                        text: interpretation.localizedTranslation,
+                        lineLimit: nil,
+                        onSelectionChange: onSelectionChange
+                    )
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .fixedSize(horizontal: false, vertical: true)
+                } else {
+                    Text(interpretation.localizedTranslation)
+                        .font(Theme.Font.body)
+                        .foregroundStyle(Theme.Palette.label)
+                        .textSelection(.enabled)
+                }
+            }
+
+            if !interpretation.toneTags.isEmpty {
+                HStack(spacing: Theme.Spacing.s4) {
+                    Text(L("语气"))
+                        .font(Theme.Font.caption)
+                        .foregroundStyle(Theme.Palette.label3)
+                    ForEach(Array(interpretation.toneTags.prefix(4)), id: \.self) { tag in
+                        Text(tag)
+                            .font(Theme.Font.tag)
+                            .foregroundStyle(Theme.Palette.label2)
+                            .padding(.horizontal, 6)
+                            .padding(.vertical, 2)
+                            .background(Theme.Palette.bgControl)
+                            .clipShape(Capsule())
+                    }
+                }
+            }
+
+            if !interpretation.culturalNotes.isEmpty {
+                interpretationSection(title: L("文化与表达"), systemImage: "quote.bubble") {
+                    VStack(alignment: .leading, spacing: Theme.Spacing.s4) {
+                        ForEach(Array(interpretation.culturalNotes.prefix(4).enumerated()), id: \.offset) { _, note in
+                            Text("\(note.phrase)：\(note.explanation)")
+                                .font(Theme.Font.callout)
+                                .foregroundStyle(Theme.Palette.label2)
+                                .textSelection(.enabled)
+                        }
+                    }
+                }
+            }
+
+            if !interpretation.ambiguities.isEmpty || interpretation.confidenceNote != nil {
+                interpretationSection(title: L("可能存在歧义"), systemImage: "questionmark.bubble") {
+                    VStack(alignment: .leading, spacing: Theme.Spacing.s4) {
+                        ForEach(Array(interpretation.ambiguities.prefix(3).enumerated()), id: \.offset) { _, alternative in
+                            Text("• \(alternative.interpretation) — \(alternative.when)")
+                                .font(Theme.Font.callout)
+                                .foregroundStyle(Theme.Palette.label2)
+                        }
+                        if let note = interpretation.confidenceNote,
+                           !note.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                            Text(note)
+                                .font(Theme.Font.caption)
+                                .foregroundStyle(Theme.Palette.label3)
+                        }
+                        Text(L("理解置信度 %d%%", Int((interpretation.confidence * 100).rounded())))
+                            .font(Theme.Font.caption.monospacedDigit())
+                            .foregroundStyle(Theme.Palette.label3)
+                    }
+                }
+            } else {
+                interpretationSection(title: L("理解置信度"), systemImage: "gauge.with.dots.needle.67percent") {
+                    Text("\(Int((interpretation.confidence * 100).rounded()))%")
+                        .font(Theme.Font.caption.monospacedDigit())
+                        .foregroundStyle(Theme.Palette.label3)
+                }
+            }
+
+            if let literal = usefulLiteralTranslation {
+                interpretationSection(title: L("字面参考"), systemImage: "text.quote") {
+                    Text(literal)
+                        .font(Theme.Font.callout)
+                        .foregroundStyle(Theme.Palette.label2)
+                        .textSelection(.enabled)
+                }
+            }
+        }
+    }
+
+    @ViewBuilder
+    private func interpretationSection<Content: View>(
+        title: String,
+        systemImage: String,
+        @ViewBuilder content: () -> Content
+    ) -> some View {
+        VStack(alignment: .leading, spacing: Theme.Spacing.s4) {
+            Label(title, systemImage: systemImage)
+                .font(Theme.Font.caption.weight(.semibold))
+                .foregroundStyle(Theme.Palette.label3)
+            content()
+                .fixedSize(horizontal: false, vertical: true)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    private var usefulLiteralTranslation: String? {
+        guard let literal = interpretation.literalTranslation?.trimmingCharacters(in: .whitespacesAndNewlines),
+              !literal.isEmpty,
+              shouldShowLiteralTranslation(
+                literal,
+                comparedTo: interpretation.localizedTranslation
+              ) else {
+            return nil
+        }
+        return literal
+    }
+}
+
+func shouldShowLiteralTranslation(_ literal: String, comparedTo localized: String) -> Bool {
+    func normalized(_ value: String) -> String {
+        let removable = CharacterSet.whitespacesAndNewlines.union(.punctuationCharacters)
+        return String(value.lowercased().unicodeScalars.filter { !removable.contains($0) })
+    }
+    let normalizedLiteral = normalized(literal)
+    return !normalizedLiteral.isEmpty && normalizedLiteral != normalized(localized)
 }
 
 private struct TranslationBody: View {

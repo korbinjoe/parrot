@@ -9,6 +9,7 @@ public enum ResultQualityIssue: String, Codable, Sendable, Equatable, Hashable, 
     case terminologyMiss
     case softTimeout
     case malformedResponse
+    case missingInterpretation
 }
 
 public struct ResultQualitySummary: Codable, Equatable, Sendable {
@@ -26,7 +27,9 @@ public struct ResultQualitySummary: Codable, Equatable, Sendable {
         self.isRecommended = isRecommended
     }
 
-    public var needsReview: Bool { !issues.isEmpty }
+    public var needsReview: Bool {
+        issues.contains { $0 != .missingInterpretation }
+    }
 }
 
 public enum ResultQualityEvaluator {
@@ -49,7 +52,8 @@ public enum ResultQualityEvaluator {
         if !source.isEmpty && source.caseInsensitiveCompare(translated) == .orderedSame && request.mode == .translate {
             issues.append(.unchangedSource)
         }
-        if hasPlaceholderLeak(translated) {
+        if hasPlaceholderLeak(translated)
+            || result.interpretation?.textFields.contains(where: hasPlaceholderLeak) == true {
             issues.append(.placeholderLeak)
         }
         if hasExtremeLengthRatio(source: source, translated: translated, mode: request.mode) {
@@ -62,6 +66,10 @@ public enum ResultQualityEvaluator {
            terminology.strategy != .unsupported,
            !terminology.restorationSucceeded {
             issues.append(.terminologyMiss)
+        }
+        if request.context?.profile.usesStructuredInterpretation == true,
+           result.interpretation == nil {
+            issues.append(.missingInterpretation)
         }
 
         let score = max(0, 1 - (Double(Set(issues).count) * 0.18))
@@ -84,7 +92,15 @@ public enum ResultQualityEvaluator {
 
         for (index, outcome) in updated.enumerated() {
             guard let quality = outcome.result?.qualitySummary else { continue }
-            let candidateScore = quality.issues.isEmpty ? quality.score + 0.1 : quality.score
+            var candidateScore = quality.issues.isEmpty ? quality.score + 0.1 : quality.score
+            if quality.issues.contains(where: isBlockingInterpretationIssue) {
+                candidateScore -= 1
+            }
+            if let interpretation = outcome.result?.interpretation,
+               request.context?.profile.usesStructuredInterpretation == true,
+               !quality.issues.contains(where: isBlockingInterpretationIssue) {
+                candidateScore += 0.2 + (0.15 * interpretation.confidence)
+            }
             if candidateScore > bestScore {
                 bestScore = candidateScore
                 bestIndex = index
@@ -99,6 +115,16 @@ public enum ResultQualityEvaluator {
             updated[index] = updated[index].withResult(result.withQualitySummary(quality))
         }
         return updated
+    }
+
+    private static func isBlockingInterpretationIssue(_ issue: ResultQualityIssue) -> Bool {
+        switch issue {
+        case .emptyOutput, .wrongLanguage, .extremeLengthRatio, .unchangedSource,
+             .placeholderLeak, .terminologyMiss, .softTimeout, .malformedResponse:
+            return true
+        case .missingInterpretation:
+            return false
+        }
     }
 
     private static func hasPlaceholderLeak(_ translated: String) -> Bool {

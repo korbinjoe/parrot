@@ -19,16 +19,34 @@ import Testing
     #expect(longDocument.profile == .document)
     #expect(!longDocument.paragraphHints.isEmpty)
 
+    let shortSelection = TranslationContext.default(
+        mode: .translate,
+        origin: .selection,
+        text: "That's a bold choice.",
+        terminology: nil
+    )
+    #expect(shortSelection.profile == .understand)
+    #expect(shortSelection.routingHints.preferLLM)
+
     let terminology = TerminologySnapshot(entries: [
         TerminologyEntry(source: "AI Agent", target: "AI Agent", from: .en, to: .zh)
     ])
     let strict = TranslationContext.default(
         mode: .translate,
-        origin: .selection,
+        origin: .manualInput,
         text: "AI Agent works.",
         terminology: terminology
     )
     #expect(strict.profile == .strictTerminology)
+
+    let contextualTerminology = TranslationContext.default(
+        mode: .translate,
+        origin: .selection,
+        text: "AI Agent is really moving the needle.",
+        terminology: terminology
+    )
+    #expect(contextualTerminology.profile == .understand)
+    #expect(contextualTerminology.routingHints.preferLLM)
 }
 
 @Test func privacyMaskerMasksAndRestoresSensitiveEntities() {
@@ -143,4 +161,3 @@ private struct FixedResultEngine: TranslationProvider {
         TranslateResult(providerId: id, translated: translated)
     }
 }
-

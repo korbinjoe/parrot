@@ -64,3 +64,11 @@
 "已配置" = "Configurado";
 "需处理" = "Requiere acción";
 "环境变量" = "Entorno";
+"真正含义" = "Significado real";
+"自然译法" = "Traducción natural";
+"语气" = "Tono";
+"文化与表达" = "Cultura y uso";
+"可能存在歧义" = "Posible ambigüedad";
+"理解置信度 %d%%" = "Confianza de interpretación %d%%";
+"理解置信度" = "Confianza de interpretación";
+"字面参考" = "Referencia literal";

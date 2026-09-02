@@ -73,6 +73,19 @@ enum EngineCatalog {
         return all.first { $0.id == engineID }
     }
 
+    /// Result-page priority within the same completion state. Doubao leads the
+    /// LLM group, other model-backed engines follow, and classic MT engines keep
+    /// their configured relative order after that.
+    static func resultPresentationPriority(for providerID: String, modelName: String? = nil) -> Int {
+        let engineID = EngineModelConfig.baseEngineID(forProviderID: providerID)
+        if engineID == "doubao" { return 0 }
+        let hasRuntimeModel = modelName?
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .isEmpty == false
+        if hasRuntimeModel || descriptor(for: engineID)?.defaultModel != nil { return 1 }
+        return 2
+    }
+
     static func orderedDescriptors(settings: AppSettings) -> [EngineDescriptor] {
         let byID = Dictionary(uniqueKeysWithValues: all.map { ($0.id, $0) })
         return EngineBootstrap.resolvedOrder(settings.engineOrder).compactMap { byID[$0] }

@@ -33,10 +33,12 @@ public enum TerminologyMatcher {
         let entries = applicableEntries(in: snapshot, from: from, to: to, mode: mode)
         guard !entries.isEmpty, !text.isEmpty else { return [] }
 
+        let reservedRanges = privacyPlaceholderRanges(in: text)
         var ranges: [Range<String.Index>] = []
         var matches: [TerminologyMatch] = []
         for entry in entries {
             for range in findRanges(of: entry.trimmedSource, in: text, caseSensitive: entry.caseSensitive) {
+                guard !reservedRanges.contains(where: { overlaps($0, range) }) else { continue }
                 guard !ranges.contains(where: { overlaps($0, range) }) else { continue }
                 ranges.append(range)
                 matches.append(TerminologyMatch(entry: entry, range: range))
@@ -72,6 +74,17 @@ public enum TerminologyMatcher {
             searchStart = range.upperBound
         }
         return result
+    }
+
+    private static func privacyPlaceholderRanges(in text: String) -> [Range<String.Index>] {
+        guard let regex = try? NSRegularExpression(
+            pattern: #"PARROTMASK_[A-Z]+_[0-9]{4}"#,
+            options: [.caseInsensitive]
+        ) else { return [] }
+        let fullRange = NSRange(text.startIndex..<text.endIndex, in: text)
+        return regex.matches(in: text, range: fullRange).compactMap { match in
+            Range(match.range, in: text)
+        }
     }
 
     private static func overlaps(_ lhs: Range<String.Index>, _ rhs: Range<String.Index>) -> Bool {

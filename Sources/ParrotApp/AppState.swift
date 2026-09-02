@@ -251,7 +251,7 @@ final class AppState: ObservableObject {
 
     var canShowParagraphBilingualView: Bool {
         paragraphHints.count > 1
-            && primarySuccessfulOutcome?.result != nil
+            && primarySuccessfulOutcome?.result?.interpretation == nil
     }
 
     var selectedOCRCandidate: OCRCandidateViewState? {
@@ -1036,6 +1036,7 @@ final class AppState: ObservableObject {
             sourceApp: currentContextSourceApp,
             windowTitle: currentContextWindowTitle,
             sourceURL: currentContextSourceURL,
+            surroundingText: surroundingContext(excluding: text),
             rewriteTone: mode == .polish ? selectedPolishTone.promptInstruction : nil,
             selectedOCRBlockID: selectedOCRCandidateID,
             paragraphHints: ParagraphSegmenter.segment(text),
@@ -1046,6 +1047,22 @@ final class AppState: ObservableObject {
                 preferLocal: profile == .privateLocal
             )
         )
+    }
+
+    private func surroundingContext(excluding sourceText: String) -> String? {
+        guard contextProfile.usesStructuredInterpretation,
+              currentOrigin == .ocr || currentOrigin == .screenshot || currentOrigin == .latestScreenshot else {
+            return nil
+        }
+        let normalizedSource = sourceText.trimmingCharacters(in: .whitespacesAndNewlines)
+        let surrounding = ocrCandidates
+            .map(\.text)
+            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+            .filter { !$0.isEmpty && $0 != normalizedSource }
+            .prefix(12)
+            .joined(separator: "\n")
+        guard !surrounding.isEmpty else { return nil }
+        return String(surrounding.prefix(2_000))
     }
 
     private func defaultProfile(
@@ -1090,8 +1107,6 @@ final class AppState: ObservableObject {
             || combined.contains("docs.google")
             || combined.contains("confluence")
             || combined.contains("medium.com")
-            || combined.contains("safari")
-            || combined.contains("chrome")
             || text.trimmingCharacters(in: .whitespacesAndNewlines).count >= 280
 
         if settings.contextRulePrivateEnabled, isPrivateSurface {
@@ -1298,10 +1313,12 @@ final class AppState: ObservableObject {
                 modelName: outcome.modelName,
                 translated: result.translated,
                 latencyMs: outcome.latencyMs,
-                terminologyApplication: result.terminologyApplication
+                terminologyApplication: result.terminologyApplication,
+                interpretation: result.interpretation
             )
         }
-        guard let primary = successes.first else { return }
+        let recommendedProviderID = primarySuccessfulOutcome?.providerId
+        guard let primary = successes.first(where: { $0.providerId == recommendedProviderID }) ?? successes.first else { return }
         didSaveCurrentTranslation = true
         let record = TranslationRecord(
             sourceText: sourceText,
@@ -1485,7 +1502,11 @@ final class AppState: ObservableObject {
     }
 
     func speakSource() {
-        Speaker.shared.speak(actionSourceText, language: sourceLanguage == .auto ? detectedSource : sourceLanguage)
+        speakSource(actionSourceText)
+    }
+
+    func speakSource(_ text: String) {
+        Speaker.shared.speak(text, language: sourceLanguage == .auto ? detectedSource : sourceLanguage)
     }
 
     func speakTranslation(_ text: String) {

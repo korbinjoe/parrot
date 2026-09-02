@@ -34,6 +34,39 @@ private func record(_ src: String, _ dst: String, fav: Bool = false) -> Translat
     #expect(empty == [])
 }
 
+@Test func historyPersistsStructuredInterpretation() async {
+    let fileURL = FileManager.default.temporaryDirectory
+        .appendingPathComponent("parrot-interpretation-\(UUID().uuidString).json")
+    let store = HistoryStore(fileURL: fileURL)
+    let interpretation = InterpretationResult(
+        intendedMeaning: "说话者在祝对方好运。",
+        localizedTranslation: "祝你好运！",
+        literalTranslation: "摔断一条腿。",
+        confidence: 0.96
+    )
+    let item = TranslationRecord(
+        sourceText: "Break a leg.",
+        translated: interpretation.localizedTranslation,
+        providerId: "llm",
+        outcomes: [
+            TranslationRecordOutcome(
+                providerId: "llm",
+                displayName: "LLM",
+                translated: interpretation.localizedTranslation,
+                interpretation: interpretation
+            )
+        ],
+        sourceLang: "en",
+        targetLang: "zh"
+    )
+
+    await store.add(item)
+    let reloaded = HistoryStore(fileURL: fileURL)
+    let stored = await reloaded.all().first
+
+    #expect(stored?.displayOutcomes.first?.interpretation == interpretation)
+}
+
 @Test func searchMatchesSourceAndTranslation() async {
     let store = tempStore()
     await store.add(record("hello", "你好"))

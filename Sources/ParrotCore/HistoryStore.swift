@@ -9,6 +9,7 @@ public struct TranslationRecordOutcome: Codable, Sendable, Identifiable, Equatab
     public var translated: String
     public var latencyMs: Int?
     public var terminologyApplication: TerminologyApplication?
+    public var interpretation: InterpretationResult?
 
     public init(
         providerId: String,
@@ -16,7 +17,8 @@ public struct TranslationRecordOutcome: Codable, Sendable, Identifiable, Equatab
         modelName: String? = nil,
         translated: String,
         latencyMs: Int? = nil,
-        terminologyApplication: TerminologyApplication? = nil
+        terminologyApplication: TerminologyApplication? = nil,
+        interpretation: InterpretationResult? = nil
     ) {
         self.providerId = providerId
         self.displayName = displayName
@@ -24,6 +26,7 @@ public struct TranslationRecordOutcome: Codable, Sendable, Identifiable, Equatab
         self.translated = translated
         self.latencyMs = latencyMs
         self.terminologyApplication = terminologyApplication
+        self.interpretation = interpretation
     }
 }
 

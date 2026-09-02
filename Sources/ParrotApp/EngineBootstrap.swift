@@ -197,7 +197,10 @@ private final class ModelVariantProvider: TranslationProvider, @unchecked Sendab
             detectedFrom: result.detectedFrom,
             phonetics: result.phonetics,
             definitions: result.definitions,
-            terminologyApplication: result.terminologyApplication
+            terminologyApplication: result.terminologyApplication,
+            privacyMaskingReport: result.privacyMaskingReport,
+            qualitySummary: result.qualitySummary,
+            interpretation: result.interpretation
         )
     }
 }

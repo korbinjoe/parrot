@@ -1108,6 +1108,7 @@ struct LearningContextCard: View {
     let saved: Bool
     let mastered: Bool
     var actionsEnabled: Bool = true
+    let onSpeak: (String) -> Void
     let onKnown: () -> Void
     let onSave: () -> Void
 
@@ -1128,6 +1129,9 @@ struct LearningContextCard: View {
                     }
                 }
                 Spacer(minLength: 0)
+                IconButton("speaker.wave.2", help: "朗读选词", size: 11) {
+                    onSpeak(expression.term)
+                }
                 LearningTag(expression.kind)
             }
             meaningBlock
@@ -1186,11 +1190,22 @@ struct LearningContextCard: View {
     }
 
     private var contextLine: some View {
-        Text(L("原句：%@", expression.chunk))
-            .font(Theme.Font.callout)
-            .foregroundStyle(Theme.Palette.label2)
-            .lineLimit(2)
-            .fixedSize(horizontal: false, vertical: true)
+        HStack(alignment: .top, spacing: Theme.Spacing.s8) {
+            Text(L("原句：%@", expression.chunk))
+                .font(Theme.Font.callout)
+                .foregroundStyle(Theme.Palette.label2)
+                .lineLimit(2)
+                .fixedSize(horizontal: false, vertical: true)
+            Spacer(minLength: 0)
+            IconButton("speaker.wave.2", help: "朗读句子", size: 11) {
+                onSpeak(spokenSentence)
+            }
+        }
+    }
+
+    private var spokenSentence: String {
+        let sentence = expression.sourceSentence.trimmingCharacters(in: .whitespacesAndNewlines)
+        return sentence.isEmpty ? expression.chunk : sentence
     }
 }
 
