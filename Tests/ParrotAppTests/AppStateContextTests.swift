@@ -1,6 +1,7 @@
 import Testing
 import Foundation
 import CoreGraphics
+import AppKit
 import ParrotCore
 @testable import ParrotApp
 
@@ -68,6 +69,17 @@ import ParrotCore
 @Test func literalReferenceHidesPunctuationAndWhitespaceOnlyVariants() {
     #expect(!shouldShowLiteralTranslation("Hello, world!", comparedTo: " hello world "))
     #expect(shouldShowLiteralTranslation("A bold decision.", comparedTo: "A risky decision."))
+}
+
+@Test func sourceComposerSubmitsOnlyForUnmodifiedReturn() {
+    for characters in ["\r", "\u{3}"] {
+        #expect(shouldSubmitSourceComposer(charactersIgnoringModifiers: characters, modifierFlags: []))
+        #expect(!shouldSubmitSourceComposer(charactersIgnoringModifiers: characters, modifierFlags: .command))
+        #expect(!shouldSubmitSourceComposer(charactersIgnoringModifiers: characters, modifierFlags: .shift))
+        #expect(!shouldSubmitSourceComposer(charactersIgnoringModifiers: characters, modifierFlags: .option))
+        #expect(!shouldSubmitSourceComposer(charactersIgnoringModifiers: characters, modifierFlags: .control))
+    }
+    #expect(!shouldSubmitSourceComposer(charactersIgnoringModifiers: "x", modifierFlags: []))
 }
 
 @MainActor

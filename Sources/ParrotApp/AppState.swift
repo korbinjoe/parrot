@@ -512,7 +512,7 @@ final class AppState: ObservableObject {
             tone: .info,
             systemImage: "doc.text.magnifyingglass",
             title: L("OCR · %d 行 · %d%%", lineCount, confidence),
-            detail: L("%@ 已自动翻译；可继续校对源文后按 ⌘↩ 重译。", L(providerName)),
+            detail: L("%@ 已自动翻译；可继续校对源文后按 ↩ 重译。", L(providerName)),
             prominence: .compact,
             primaryAction: nil,
             secondaryAction: nil

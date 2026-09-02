@@ -51,7 +51,7 @@ After the script passes, do a short review of the changed screens:
 - Does each failure state tell the user exactly what to do next?
 - Are settings dense but scannable, with advanced controls visually secondary?
 - Do windows open on the current mouse or active screen and stay within visible bounds?
-- If the user drags or resizes the workspace, does it stay there after pressing `Command+Enter`, provider cards arriving, OCR completion, and retry actions?
+- If the user drags or resizes the workspace, does it stay there after pressing `Enter`, provider cards arriving, OCR completion, and retry actions?
 - Do menu, keyboard, and URL Scheme entry points converge on the same behavior?
 - Are accessibility labels present for icon-only or non-obvious controls?
 

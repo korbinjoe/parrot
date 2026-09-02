@@ -41,7 +41,7 @@
 
 "无网络连接，翻译可能失败" = "No network connection. Translation may fail.";
 "输入、划词或截图后，源文会出现在这里。" = "Source text will appear here after input, selection, or screenshot.";
-"校对源文后按 ⌘↩ 翻译，或点击源文区右下角的“翻译”。" = "Review the source text, then press Cmd-Return or click Translate.";
+"校对源文后按 ↩ 翻译，或点击源文区右下角的“翻译”。" = "Review the source text, then press Return or click Translate.";
 "正在识别截图文字…" = "Recognizing screenshot text...";
 "翻译当前编辑内容" = "Translate current edits";
 "重新翻译" = "Retranslate";
@@ -60,7 +60,7 @@
 "关闭面板" = "Close panel";
 "输入或粘贴要翻译的文本…" = "Type or paste text to translate...";
 "源文编辑器" = "Source editor";
-"已修改，⌘↩ 重新翻译" = "Edited. Cmd-Return to retranslate";
+"已修改，按 ↩ 重新翻译" = "Edited. Press Return to retranslate";
 "%d 个字符" = "%d characters";
 "删除空行" = "Remove blank lines";
 "合并为一段" = "Merge into one paragraph";
@@ -110,7 +110,7 @@
 "正在识别截图" = "Recognizing Screenshot";
 "%@ 正在读取框选区域；识别完成后会进入可编辑源文区。" = "%@ is reading the selected area. When recognition finishes, the source text will be editable.";
 "OCR · %d 行 · %d%%" = "OCR · %d lines · %d%%";
-"%@ 已自动翻译；可继续校对源文后按 ⌘↩ 重译。" = "%@ translated automatically. You can review the source text and press Cmd-Return to retranslate.";
+"%@ 已自动翻译；可继续校对源文后按 ↩ 重译。" = "%@ translated automatically. You can review the source text and press Return to retranslate.";
 "未识别到文字" = "No Text Recognized";
 "%@ 没有读到可翻译文本。请重新框选包含清晰文字的区域，或切换 OCR 引擎。" = "%@ did not find translatable text. Select a clearer text area or switch OCR engines.";
 "截图识别失败" = "Screenshot OCR Failed";

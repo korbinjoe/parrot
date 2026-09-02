@@ -304,7 +304,7 @@ button:focus-visible, textarea:focus-visible, input:focus-visible { outline: 2px
   <header class="menu-bar">
     <button class="menu-logo" id="menuLogo" aria-label="打开 Parrot 菜单"><img src="../../screenshots/app-icon.png" alt=""></button>
     <strong>Parrot</strong><span>编辑</span><span>窗口</span>
-    <div class="menu-right"><span>⌥D 划词</span><span>⌘↩ 翻译</span><button class="text-button" id="themeToggle">浅色</button><span>19:42</span></div>
+    <div class="menu-right"><span>⌥D 划词</span><span>↩ 翻译</span><button class="text-button" id="themeToggle">浅色</button><span>19:42</span></div>
   </header>
   <div class="menu-popover hidden" id="menuPopover">
     <button class="menu-row" data-scene="selection">划词翻译 <span class="shortcut">⌥D</span></button>
@@ -353,7 +353,7 @@ button:focus-visible, textarea:focus-visible, input:focus-visible { outline: 2px
     </aside>
   </section>
   <button class="reopen-chip hidden" id="reopenChip">⌥D 再次打开 Parrot</button>
-  <div class="shortcut-hint">可拖动、缩放工作区 · ⌘L 聚焦源文 · ⌘↩ 重新翻译 · Esc 关闭</div>
+  <div class="shortcut-hint">可拖动、缩放工作区 · ⌘L 聚焦源文 · ↩ 重新翻译 · Esc 关闭</div>
 </div>
 
 <div class="modal-backdrop hidden" id="dirtyModal">
@@ -388,14 +388,14 @@ button:focus-visible, textarea:focus-visible, input:focus-visible { outline: 2px
 
 <template id="panel-selection">
   <div class="control-row"><div class="segmented"><button>自动</button><button>→</button><button>中文</button></div><button class="profile-button">标准 · 直译</button><span class="context-label">来自 Safari 选区</span></div>
-  <div class="card source"><div class="card-head"><span class="eyebrow">可编辑源文</span><span class="card-time">142 个字符</span></div><textarea class="source-editor" data-role="source">The best translation flow feels less like copying text into a tool and more like adding a temporary layer of understanding to the page.</textarea><div class="source-footer"><span>自动检测 · English</span><span class="grow"></span><button class="text-button" data-action="copy-source">复制原文</button><button class="primary-button" data-action="translate">翻译 <span>⌘↩</span></button></div></div>
+  <div class="card source"><div class="card-head"><span class="eyebrow">可编辑源文</span><span class="card-time">142 个字符</span></div><textarea class="source-editor" data-role="source">The best translation flow feels less like copying text into a tool and more like adding a temporary layer of understanding to the page.</textarea><div class="source-footer"><span>自动检测 · English</span><span class="grow"></span><button class="text-button" data-action="copy-source">复制原文</button><button class="primary-button" data-action="translate">翻译 <span>↩</span></button></div></div>
   <div class="card primary-result" data-role="result"><div class="card-head"><strong>主结果</strong><span class="tag recommended">Parrot 推荐</span><span class="card-time">Google · 284ms</span></div><p class="result-text" data-role="primary-text">最好的翻译流程，不像把文本复制进一个工具；更像是在当前页面临时叠加一层理解。</p><div class="result-actions"><button class="secondary-button" data-action="copy"><svg class="icon"><use href="#i-copy"/></svg>复制</button><span class="push"></span><button class="primary-button" data-action="copy-return"><svg class="icon"><use href="#i-return"/></svg>复制并返回 Safari</button></div></div>
   <div class="disclosure"><button class="disclosure-trigger" data-action="toggle-compare"><span>对比其他引擎</span><span class="count">2 个结果⌄</span></button><div class="disclosure-body hidden" data-role="compare"><div class="provider-row"><div class="provider-meta"><b>DeepL</b><span>471ms</span></div><p>最佳翻译体验不应像把文本搬进另一个工具，而应像在原页面增加一层临时理解。</p></div><div class="provider-row"><div class="provider-meta"><b>OpenAI · gpt-4o-mini</b><span>1.2s</span></div><p>理想的翻译流程应融入当前上下文，而不是迫使用户切换任务。</p></div></div></div>
 </template>
 
 <template id="panel-lookup">
   <div class="control-row"><div class="segmented"><button>English</button><button>→</button><button>中文</button></div><button class="profile-button">查词</button><span class="context-label">来自 Safari 选区</span></div>
-  <div class="card source"><div class="card-head"><span class="eyebrow">可编辑词语</span><span class="card-time">7 个字符</span></div><textarea class="source-editor" data-role="source">context</textarea><div class="source-footer"><span>单词 · English</span><span class="grow"></span><button class="primary-button" data-action="translate">重新查询 <span>⌘↩</span></button></div></div>
+  <div class="card source"><div class="card-head"><span class="eyebrow">可编辑词语</span><span class="card-time">7 个字符</span></div><textarea class="source-editor" data-role="source">context</textarea><div class="source-footer"><span>单词 · English</span><span class="grow"></span><button class="primary-button" data-action="translate">重新查询 <span>↩</span></button></div></div>
   <div class="card primary-result" data-role="result"><div class="lookup-word"><button class="sound" data-action="speak" aria-label="朗读"><svg class="icon"><use href="#i-sound"/></svg></button><div class="dictionary"><div class="card-head"><h2>context</h2><span class="tag recommended">主释义</span><span class="card-time">有道 · 246ms</span></div><div class="phonetic">UK /ˈkɒntekst/ &nbsp;&nbsp; US /ˈkɑːntekst/</div><div class="definition"><b>n.</b><span>上下文；语境；背景</span><p class="example">A translation becomes trustworthy when the context remains visible.<br>当上下文保持可见时，翻译才更值得信任。</p></div><div class="definition"><b>v.</b><span>提供背景信息；置于语境中理解</span></div></div></div><div class="result-actions"><button class="secondary-button" data-action="copy">复制释义</button><button class="secondary-button" data-action="save">加入词库</button><span class="push"></span><button class="primary-button" data-action="translate-sentence">按整句翻译</button></div></div>
   <div class="disclosure"><button class="disclosure-trigger" data-action="toggle-compare"><span>更多例句与引擎解释</span><span class="count">2 项⌄</span></button><div class="disclosure-body hidden" data-role="compare"><div class="provider-row"><div class="provider-meta"><b>OpenAI</b><span>语境解释</span></div><p>在当前产品设计语境中，context 指用户原本所在的页面、任务和周边信息。</p></div></div></div>
 </template>
@@ -404,7 +404,7 @@ button:focus-visible, textarea:focus-visible, input:focus-visible { outline: 2px
   <div class="control-row"><div class="segmented"><button>自动</button><button>→</button><button>中文</button></div><button class="profile-button">文档</button><span class="context-label">2 个段落 · 来自 Notes</span></div>
   <div class="card source"><div class="card-head"><span class="eyebrow">可编辑源文</span><span class="card-time">268 个字符</span></div><textarea class="source-editor" data-role="source">Immersive translation works because the source text remains visible. Users compare, verify, and continue reading without rebuilding context.
 
-For Parrot, the advantage is system reach. One editable workspace can serve selections, OCR, manual input, and history.</textarea><div class="source-footer"><span>自动检测 · English</span><span class="grow"></span><button class="primary-button" data-action="translate">重新翻译 <span>⌘↩</span></button></div></div>
+For Parrot, the advantage is system reach. One editable workspace can serve selections, OCR, manual input, and history.</textarea><div class="source-footer"><span>自动检测 · English</span><span class="grow"></span><button class="primary-button" data-action="translate">重新翻译 <span>↩</span></button></div></div>
   <div class="card primary-result" data-role="result"><div class="card-head"><strong>主结果 · 双语阅读</strong><span class="tag recommended">Parrot 推荐</span><span class="card-time">DeepL · 704ms</span></div><div class="bilingual"><div class="para"><div><small>原文 1</small><p>Immersive translation works because the source text remains visible. Users compare and verify.</p></div><div><small>译文 1</small><p>沉浸式翻译有效，是因为原文始终可见，用户可以对照和核验。</p></div></div><div class="para"><div><small>原文 2</small><p>One editable workspace can serve selections, OCR, manual input, and history.</p></div><div><small>译文 2</small><p>一个可编辑工作区可以统一承接划词、OCR、手动输入和历史复用。</p></div></div></div><div class="result-actions"><button class="secondary-button" data-action="copy">复制全部</button><span class="push"></span><button class="primary-button" data-action="copy-return">复制并返回 Notes</button></div></div>
   <div class="disclosure"><button class="disclosure-trigger" data-action="toggle-compare"><span>对比其他引擎</span><span class="count">Google、OpenAI⌄</span></button><div class="disclosure-body hidden" data-role="compare"><div class="provider-row"><div class="provider-meta"><b>Google</b><span>221ms · 需复核</span></div><p>沉浸式翻译工作，因为源文本仍然可见。</p></div><div class="provider-row"><div class="provider-meta"><b>OpenAI</b><span>1.4s</span></div><p>沉浸式翻译通过保留源文，让读者在不中断任务的情况下进行验证。</p></div></div></div>
 </template>

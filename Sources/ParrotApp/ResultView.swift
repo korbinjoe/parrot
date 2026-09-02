@@ -403,7 +403,7 @@ struct ResultView: View {
                 SourceComposerTextView(
                     text: sourceDraftBinding,
                     focusRequest: state.composerFocusRequest,
-                    onCommandReturn: { state.translateDraft() },
+                    onReturn: { state.translateDraft() },
                     onFocusChange: { focused in
                         sourceComposerFocused = focused
                         state.setComposerFocused(focused)
@@ -466,7 +466,7 @@ struct ResultView: View {
                         Label(L("生成改写"), systemImage: "sparkles")
                     }
                     .buttonStyle(PrimaryActionButtonStyle())
-                    .keyboardShortcut(.return, modifiers: .command)
+                    .keyboardShortcut(.return, modifiers: [])
                     .disabled(!state.canTranslateDraft)
                 } else {
                     Button {
@@ -484,7 +484,7 @@ struct ResultView: View {
                         Label(L("翻译"), systemImage: "arrow.right.circle.fill")
                     }
                     .buttonStyle(PrimaryActionButtonStyle())
-                    .keyboardShortcut(.return, modifiers: .command)
+                    .keyboardShortcut(.return, modifiers: [])
                     .disabled(!state.canTranslateDraft)
                 }
             }
@@ -956,7 +956,7 @@ private struct ContentHeightKey: PreferenceKey {
 private struct SourceComposerTextView: NSViewRepresentable {
     @Binding var text: String
     let focusRequest: Int
-    let onCommandReturn: () -> Void
+    let onReturn: () -> Void
     let onFocusChange: (Bool) -> Void
     let onSelectionChange: (String) -> Void
 
@@ -974,7 +974,7 @@ private struct SourceComposerTextView: NSViewRepresentable {
 
         let textView = CommandAwareTextView()
         textView.delegate = context.coordinator
-        textView.onCommandReturn = onCommandReturn
+        textView.onReturn = onReturn
         textView.string = text
         textView.isEditable = true
         textView.isSelectable = true
@@ -1002,7 +1002,7 @@ private struct SourceComposerTextView: NSViewRepresentable {
     func updateNSView(_ scrollView: NSScrollView, context: Context) {
         context.coordinator.parent = self
         guard let textView = scrollView.documentView as? CommandAwareTextView else { return }
-        textView.onCommandReturn = onCommandReturn
+        textView.onReturn = onReturn
         textView.font = NSFont.systemFont(ofSize: 13)
         textView.textColor = .labelColor
         if textView.string != text {
@@ -1057,19 +1057,29 @@ private struct SourceComposerTextView: NSViewRepresentable {
     }
 
     final class CommandAwareTextView: NSTextView {
-        var onCommandReturn: (() -> Void)?
+        var onReturn: (() -> Void)?
 
         override func keyDown(with event: NSEvent) {
-            let flags = event.modifierFlags.intersection(.deviceIndependentFlagsMask)
-            let commandReturn = flags.contains(.command)
-                && (event.charactersIgnoringModifiers == "\r" || event.charactersIgnoringModifiers == "\u{3}")
-            if commandReturn {
-                onCommandReturn?()
+            if shouldSubmitSourceComposer(
+                charactersIgnoringModifiers: event.charactersIgnoringModifiers,
+                modifierFlags: event.modifierFlags
+            ) {
+                onReturn?()
                 return
             }
             super.keyDown(with: event)
         }
     }
+}
+
+func shouldSubmitSourceComposer(
+    charactersIgnoringModifiers: String?,
+    modifierFlags: NSEvent.ModifierFlags
+) -> Bool {
+    let isReturn = charactersIgnoringModifiers == "\r" || charactersIgnoringModifiers == "\u{3}"
+    let editingModifiers: NSEvent.ModifierFlags = [.command, .control, .option, .shift]
+    let flags = modifierFlags.intersection(.deviceIndependentFlagsMask)
+    return isReturn && flags.intersection(editingModifiers).isEmpty
 }
 
 private struct PolishVariantsView: View {

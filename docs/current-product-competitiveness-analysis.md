@@ -23,7 +23,7 @@ Parrot 当前最有胜率的定位不是“翻译软件”，而是：
 
 README 定义 Parrot 为开源 macOS / iOS 翻译 + OCR 工具，覆盖划词翻译、截图 OCR 翻译、输入翻译、查词、多引擎聚合、插件、历史、收藏和 TTS。
 
-当前实现已经越过旧版 UX 文档中的关键 P0：源文不再是只读结果块。`AppState` 已有 `sourceDraft`、`isSourceDirty`、`translateDraft()`、`openWorkspace(...)` 等工作台状态；`ResultView` 内有 `SourceComposerTextView`，支持编辑源文、`Command+Enter` 重新翻译、清理源文、合并行、清空源文。
+当前实现已经越过旧版 UX 文档中的关键 P0：源文不再是只读结果块。`AppState` 已有 `sourceDraft`、`isSourceDirty`、`translateDraft()`、`openWorkspace(...)` 等工作台状态；`ResultView` 内有 `SourceComposerTextView`，支持编辑源文、`Enter` 重新翻译、清理源文、合并行、清空源文。
 
 因此 macOS 现在应被视为：
 
@@ -205,4 +205,3 @@ iOS 社交方向把任务从“这句话怎么翻”提升到“这里实际是�
 - 百度翻译: https://fanyi.baidu.com/
 - 有道翻译: https://fanyi.youdao.com/download/
 - 腾讯翻译君: https://fanyi.qq.com/
-

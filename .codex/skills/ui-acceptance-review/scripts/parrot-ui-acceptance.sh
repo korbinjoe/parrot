@@ -203,13 +203,11 @@ func openURL(_ raw: String, appURL: URL) {
     }
 }
 
-func sendCommandReturn() {
+func sendReturn() {
     let returnKey: CGKeyCode = 36
     let down = CGEvent(keyboardEventSource: nil, virtualKey: returnKey, keyDown: true)!
-    down.flags = .maskCommand
     down.post(tap: .cghidEventTap)
     let up = CGEvent(keyboardEventSource: nil, virtualKey: returnKey, keyDown: false)!
-    up.flags = .maskCommand
     up.post(tap: .cghidEventTap)
 }
 
@@ -315,7 +313,7 @@ if let workspace = window(named: "Parrot Translation", in: app),
         fail("could not read moved workspace position")
     }
     AXUIElementSetAttributeValue(composer, kAXFocusedAttribute as CFString, kCFBooleanTrue)
-    sendCommandReturn()
+    sendReturn()
     usleep(1_500_000)
     guard let translatedWorkspace = window(named: "Parrot Translation", in: app),
           let positionAfterTranslate = pointValue(translatedWorkspace, kAXPositionAttribute as String) else {

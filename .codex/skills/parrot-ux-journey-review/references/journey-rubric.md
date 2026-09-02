@@ -32,8 +32,8 @@ Avoid a split model where input happens in one window and results appear in anot
 
 - `Option+D`: capture selection into workspace and translate automatically, but keep source editable.
 - `Option+A`: open workspace with source composer focused.
-- `Command+Enter`: translate current source.
-- `Enter`: insert newline while editing multiline text.
+- `Enter`: translate current source.
+- `Shift+Enter`: insert newline while editing multiline text.
 - `Command+L`: focus source composer.
 - `Escape`: close only when not dirty, or ask/keep draft when source was edited.
 - `Command+C`: copy selected text if selection exists; otherwise copy primary result.

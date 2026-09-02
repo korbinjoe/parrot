@@ -46,8 +46,8 @@ Translation should run from `sourceDraft`, then set `committedSource`. Results s
 
 - `Option+D`: capture selected text into the workspace, auto-translate, keep source editable.
 - `Option+A`: open the same workspace with composer focused and empty or last draft restored.
-- `Command+Enter`: translate current draft.
-- `Enter`: insert newline in the composer.
+- `Enter`: translate current draft.
+- `Shift+Enter`: insert newline in the composer.
 - `Command+L`: focus the source composer.
 - `Escape`: close only if not dirty; if dirty, keep draft or require explicit clear.
 - `Command+C`: if text is selected, copy selection; otherwise copy primary result.
@@ -67,7 +67,7 @@ Translation should run from `sourceDraft`, then set `committedSource`. Results s
 
 3. Convert `ResultView.sourceBlock` into an editable `SourceComposer`.
    - Use a multiline editor.
-   - Show dirty state: "已修改，Command+Enter 重新翻译".
+   - Show dirty state: "已修改，Enter 重新翻译".
    - Keep source actions: copy, clear, focus, translate.
 
 4. Change `runTranslation(_:)` routing.
@@ -112,7 +112,7 @@ Translation should run from `sourceDraft`, then set `committedSource`. Results s
    - copy primary result.
 
 3. Improve discoverability:
-   - visible `Command+Enter` translate hint near composer,
+   - visible `Enter` translate hint near composer,
    - tooltip for pinning behavior,
    - first-run explanation only when permissions block actions.
 
@@ -132,7 +132,7 @@ Translation should run from `sourceDraft`, then set `committedSource`. Results s
 ## Acceptance Criteria
 
 - `Option+D` selected text appears in an editable source composer and auto-translates.
-- Editing the captured source and pressing `Command+Enter` updates results in the same panel.
+- Editing the captured source and pressing `Enter` updates results in the same panel.
 - `Option+A` opens the same composer-first workspace; submitting does not switch surfaces.
 - Pressing Enter in the composer does not unexpectedly close or replace the editor.
 - OCR selected text lands in the editable composer before or with translation.
