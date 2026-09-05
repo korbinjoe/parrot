@@ -3,27 +3,34 @@ import Foundation
 @testable import ParrotCore
 @testable import ParrotEngines
 
-@Test func googleParsesTranslationAndDetectedLang() throws {
-    // Shape: [[["你好","hello",null,null,10]],null,"en",...]
+@Test func googleTranslationLLMParsesTranslationAndDetectedLang() throws {
     let json = """
-    [[["你好","hello",null,null,10]],null,"en",null,null,null,1.0,null,[["en"]]]
+    {"data":{"translations":[{"translatedText":"你好 &amp; 欢迎","detectedSourceLanguage":"en","model":"projects/demo/locations/global/models/general/translation-llm"}]}}
     """
-    let result = try GoogleEngine.parse(Data(json.utf8), providerId: "google")
-    #expect(result.translated == "你好")
+    let result = try GoogleTranslationLLMEngine.parse(Data(json.utf8), providerId: "google")
+    #expect(result.translated == "你好 & 欢迎")
     #expect(result.detectedFrom == .en)
 }
 
-@Test func googleConcatenatesMultipleSegments() throws {
-    let json = """
-    [[["你好","Hello",null,null],["世界","World",null,null]],null,"en"]
-    """
-    let result = try GoogleEngine.parse(Data(json.utf8), providerId: "google")
-    #expect(result.translated == "你好世界")
+@Test func googleTranslationLLMBuildsOfficialModelResource() {
+    let body = GoogleTranslationLLMEngine.requestBody(
+        for: TranslateRequest(text: "hello", from: .auto, to: .zh),
+        projectID: "parrot-demo"
+    )
+    #expect(body["model"] as? String == "projects/parrot-demo/locations/global/models/general/translation-llm")
+    #expect(body["source"] == nil)
 }
 
 @Test func googleThrowsOnGarbage() {
     #expect(throws: ProviderError.self) {
-        _ = try GoogleEngine.parse(Data("not json".utf8), providerId: "google")
+        _ = try GoogleTranslationLLMEngine.parse(Data("not json".utf8), providerId: "google")
+    }
+}
+
+@Test func googleTranslationLLMRequiresCredentials() async {
+    let engine = GoogleTranslationLLMEngine()
+    await #expect(throws: ProviderError.notConfigured) {
+        _ = try await engine.translate(TranslateRequest(text: "hi", to: .zh))
     }
 }
 

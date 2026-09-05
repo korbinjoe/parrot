@@ -11,10 +11,10 @@ import Translation
 @available(macOS 15.0, *)
 @MainActor
 enum AppleTranslationBridge {
-    static func translate(text: String, from: Language?, to: Language) async throws -> String {
+    static func translate(text: String, from: Language?, to: Language, requiresPreparation: Bool) async throws -> String {
         let source = from.map(appleLocaleLanguage)
         let target = appleLocaleLanguage(to)
-        let runner = AppleTranslationRunner(source: source, target: target, text: text)
+        let runner = AppleTranslationRunner(source: source, target: target, text: text, requiresPreparation: requiresPreparation)
         return try await runner.run()
     }
 }
@@ -41,16 +41,20 @@ private final class AppleTranslationRunner: @unchecked Sendable {
     private let source: Locale.Language?
     private let target: Locale.Language
     private let text: String
+    private let requiresPreparation: Bool
     private var panel: NSPanel?
     private var continuation: CheckedContinuation<String, Error>?
     private var watchdogTask: Task<Void, Never>?
     private var completed = false
-    private static let watchdogNanoseconds: UInt64 = 12_000_000_000
+    private var watchdogNanoseconds: UInt64 {
+        requiresPreparation ? 300_000_000_000 : 12_000_000_000
+    }
 
-    init(source: Locale.Language?, target: Locale.Language, text: String) {
+    init(source: Locale.Language?, target: Locale.Language, text: String, requiresPreparation: Bool) {
         self.source = source
         self.target = target
         self.text = text
+        self.requiresPreparation = requiresPreparation
     }
 
     func run() async throws -> String {
@@ -68,35 +72,44 @@ private final class AppleTranslationRunner: @unchecked Sendable {
 
     private func start() {
         DebugLog.log("apple-translation: start chars=\(text.count)")
-        let view = OneShotTranslationView(source: source, target: target, text: text) { [weak self] result in
+        let view = OneShotTranslationView(source: source, target: target, text: text, requiresPreparation: requiresPreparation) { [weak self] result in
             self?.finish(result)
         }
         let hosting = NSHostingController(rootView: view)
-        let panel = HiddenTranslationPanel(
-            contentRect: NSRect(x: 0, y: 0, width: 1, height: 1),
-            styleMask: [.borderless],
+        let panelSize = requiresPreparation ? NSSize(width: 380, height: 150) : NSSize(width: 1, height: 1)
+        let panel = TranslationTaskPanel(
+            contentRect: NSRect(origin: .zero, size: panelSize),
+            styleMask: requiresPreparation ? [.titled] : [.borderless],
             backing: .buffered,
-            defer: false
+            defer: false,
+            interactive: requiresPreparation
         )
         panel.contentViewController = hosting
-        panel.setContentSize(NSSize(width: 1, height: 1))
-        panel.level = .normal
-        panel.alphaValue = 0.01
-        panel.backgroundColor = .clear
-        panel.isOpaque = false
+        panel.setContentSize(panelSize)
+        panel.level = requiresPreparation ? .floating : .normal
+        panel.alphaValue = requiresPreparation ? 1 : 0.01
+        panel.title = requiresPreparation ? L("准备系统翻译") : ""
+        panel.backgroundColor = requiresPreparation ? .windowBackgroundColor : .clear
+        panel.isOpaque = requiresPreparation
         panel.hasShadow = false
-        panel.ignoresMouseEvents = true
+        panel.ignoresMouseEvents = !requiresPreparation
         panel.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary, .ignoresCycle]
         panel.isReleasedWhenClosed = false
         self.panel = panel
         watchdogTask = Task { [weak self] in
-            try? await Task.sleep(nanoseconds: Self.watchdogNanoseconds)
+            try? await Task.sleep(nanoseconds: self?.watchdogNanoseconds ?? 12_000_000_000)
             guard !Task.isCancelled else { return }
             await MainActor.run {
                 self?.finish(.failure(ProviderError.timeout))
             }
         }
-        panel.orderFrontRegardless()
+        if requiresPreparation {
+            NSApp.activate(ignoringOtherApps: true)
+            panel.center()
+            panel.makeKeyAndOrderFront(nil)
+        } else {
+            panel.orderFrontRegardless()
+        }
     }
 
     private func finish(_ result: Result<String, Error>) {
@@ -122,8 +135,15 @@ private final class AppleTranslationRunner: @unchecked Sendable {
 }
 
 @available(macOS 15.0, *)
-private final class HiddenTranslationPanel: NSPanel {
-    override var canBecomeKey: Bool { false }
+private final class TranslationTaskPanel: NSPanel {
+    private let interactive: Bool
+
+    init(contentRect: NSRect, styleMask style: NSWindow.StyleMask, backing bufferingType: NSWindow.BackingStoreType, defer flag: Bool, interactive: Bool) {
+        self.interactive = interactive
+        super.init(contentRect: contentRect, styleMask: style, backing: bufferingType, defer: flag)
+    }
+
+    override var canBecomeKey: Bool { interactive }
     override var canBecomeMain: Bool { false }
 }
 
@@ -132,21 +152,44 @@ private struct OneShotTranslationView: View {
     let source: Locale.Language?
     let target: Locale.Language
     let text: String
+    let requiresPreparation: Bool
     let onComplete: (Result<String, Error>) -> Void
     @State private var started = false
 
     var body: some View {
-        Color.clear
-            .frame(width: 1, height: 1)
+        Group {
+            if requiresPreparation {
+                VStack(spacing: 14) {
+                    ProgressView()
+                    Text(L("正在下载系统翻译所需的语言资源…")).font(.headline)
+                    Text(L("请在出现的系统提示中允许下载；完成后将自动继续翻译。"))
+                        .font(.callout)
+                        .foregroundStyle(.secondary)
+                        .multilineTextAlignment(.center)
+                }
+                .padding(24)
+                .frame(width: 380, height: 150)
+            } else {
+                Color.clear.frame(width: 1, height: 1)
+            }
+        }
             .translationTask(source: source, target: target) { session in
                 DebugLog.log("apple-translation: task fired")
                 guard !started else { return }
                 started = true
                 do {
+                    if requiresPreparation {
+                        DebugLog.log("apple-translation: preparing language resources")
+                        try await session.prepareTranslation()
+                        DebugLog.log("apple-translation: language resources ready")
+                    }
                     let response = try await session.translate(text)
                     onComplete(.success(response.targetText))
+                } catch is CancellationError {
+                    onComplete(.failure(CancellationError()))
                 } catch {
-                    onComplete(.failure(error))
+                    DebugLog.log("apple-translation: preparation/translation error \(error)")
+                    onComplete(.failure(ProviderError.service(L("系统翻译准备失败，请检查网络后重试"))))
                 }
             }
     }
@@ -163,8 +206,8 @@ final class AppAppleTranslationEngine: HTTPTranslationEngine, @unchecked Sendabl
 
     override func translate(_ req: TranslateRequest) async throws -> TranslateResult {
         let from: Language? = req.from == .auto ? nil : req.from
-        try await ensureInstalled(text: req.text, from: from, to: req.to)
-        let translated = try await AppleTranslationBridge.translate(text: req.text, from: from, to: req.to)
+        let requiresPreparation = try await preparationRequired(text: req.text, from: from, to: req.to)
+        let translated = try await AppleTranslationBridge.translate(text: req.text, from: from, to: req.to, requiresPreparation: requiresPreparation)
         return TranslateResult(
             providerId: id,
             translated: translated,
@@ -172,7 +215,7 @@ final class AppAppleTranslationEngine: HTTPTranslationEngine, @unchecked Sendabl
         )
     }
 
-    private func ensureInstalled(text: String, from: Language?, to: Language) async throws {
+    private func preparationRequired(text: String, from: Language?, to: Language) async throws -> Bool {
         let availability = LanguageAvailability()
         let target = appleLocaleLanguage(to)
         let status: LanguageAvailability.Status
@@ -188,9 +231,9 @@ final class AppAppleTranslationEngine: HTTPTranslationEngine, @unchecked Sendabl
 
         switch status {
         case .installed:
-            return
+            return false
         case .supported:
-            throw ProviderError.service("系统翻译语言包未安装")
+            return true
         case .unsupported:
             throw ProviderError.unsupportedLanguage
         @unknown default:
@@ -205,7 +248,7 @@ final class AppAppleTranslationEngine: HTTPTranslationEngine, @unchecked Sendabl
 @available(macOS 15.0, *)
 @MainActor
 enum AppleTranslationBridge {
-    static func translate(text: String, from: Language?, to: Language) async throws -> String {
+    static func translate(text: String, from: Language?, to: Language, requiresPreparation: Bool) async throws -> String {
         throw ProviderError.unsupportedLanguage
     }
 }

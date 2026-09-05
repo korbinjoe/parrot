@@ -12,6 +12,7 @@ final class AppSettings: ObservableObject {
     // MARK: - Secret account IDs
 
     static let deepLAccount = "engine.deepl.apiKey"
+    static let googleTranslationLLMAccount = "engine.google.translation-llm.credentials"
     static let openAIAccount = "engine.openai.apiKey"
     static let tencentAccount = "engine.tencent.credentials"
     static let baiduAccount = "engine.baidu.credentials"
@@ -595,6 +596,7 @@ final class AppSettings: ObservableObject {
     // MARK: - Keys
 
     func deepLKey() -> String? { key(Self.deepLAccount, env: "DEEPL_API_KEY") }
+    func googleTranslationLLMCredentials() -> String? { key(Self.googleTranslationLLMAccount, env: "GOOGLE_TRANSLATION_LLM_CREDENTIALS") }
     func openAIKey() -> String? { key(Self.openAIAccount, env: "OPENAI_API_KEY") }
     func tencentCredentials() -> String? { key(Self.tencentAccount, env: "TENCENT_CREDENTIALS") }
     func baiduCredentials() -> String? { key(Self.baiduAccount, env: "BAIDU_CREDENTIALS") }
@@ -613,6 +615,7 @@ final class AppSettings: ObservableObject {
     func openCodeKey() -> String? { key(Self.openCodeAccount, env: "OPENCODE_API_KEY") }
 
     func setDeepLKey(_ v: String) { setKey(v, account: Self.deepLAccount) }
+    func setGoogleTranslationLLMCredentials(_ v: String) { setKey(v, account: Self.googleTranslationLLMAccount) }
     func setOpenAIKey(_ v: String) { setKey(v, account: Self.openAIAccount) }
     func setTencentCredentials(_ v: String) { setKey(v, account: Self.tencentAccount) }
     func setBaiduCredentials(_ v: String) { setKey(v, account: Self.baiduAccount) }

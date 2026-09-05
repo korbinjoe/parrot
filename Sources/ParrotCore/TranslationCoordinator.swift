@@ -344,6 +344,12 @@ public actor TranslationCoordinator {
         if baseProviderID == "zhipu" {
             return max(base, 90)
         }
+        // The first Apple Translation request may need to download language assets
+        // after explicit user confirmation. Keep the provider task alive until that
+        // system-managed preparation finishes; installed-language calls return quickly.
+        if baseProviderID == "apple" {
+            return max(base, 300)
+        }
         if provider.capabilities.supportsStream {
             return max(base, 45)
         }

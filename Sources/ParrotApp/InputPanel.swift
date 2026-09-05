@@ -13,6 +13,7 @@ final class InputPanel {
     private var resignObserver: NSObjectProtocol?
     private var globalMouseDownMonitor: Any?
     private var localMouseDownMonitor: Any?
+    private var localKeyDownMonitor: Any?
     private var isHiding = false
 
     init(state: AppState, onSubmit: @escaping (String) -> Void) {
@@ -92,6 +93,7 @@ final class InputPanel {
         w.standardWindowButton(.zoomButton)?.isHidden = true
         w.setContentSize(baseSize)
         self.window = w
+        installKeyDownMonitor(for: w)
 
         resignObserver = NotificationCenter.default.addObserver(
             forName: NSWindow.didResignKeyNotification, object: w, queue: .main
@@ -133,6 +135,25 @@ final class InputPanel {
         }
     }
 
+    /// A vertical SwiftUI TextField normally treats Return as submit. Keep that
+    /// fast path, while making Command-Return insert a real newline at the
+    /// current insertion point in AppKit's field editor.
+    private func installKeyDownMonitor(for window: NSWindow) {
+        guard localKeyDownMonitor == nil else { return }
+        localKeyDownMonitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { event in
+            let isReturn = event.keyCode == 36 || event.keyCode == 76
+            guard event.window === window,
+                  isReturn,
+                  event.modifierFlags.intersection(.deviceIndependentFlagsMask).contains(.command),
+                  let editor = window.firstResponder as? NSTextView,
+                  editor.isFieldEditor else {
+                return event
+            }
+            editor.insertNewlineIgnoringFieldEditor(nil)
+            return nil
+        }
+    }
+
     private static func screenPoint(for event: NSEvent) -> NSPoint {
         if let window = event.window {
             return window.convertPoint(toScreen: event.locationInWindow)
@@ -150,6 +171,7 @@ final class InputPanel {
         if let resignObserver { NotificationCenter.default.removeObserver(resignObserver) }
         if let globalMouseDownMonitor { NSEvent.removeMonitor(globalMouseDownMonitor) }
         if let localMouseDownMonitor { NSEvent.removeMonitor(localMouseDownMonitor) }
+        if let localKeyDownMonitor { NSEvent.removeMonitor(localKeyDownMonitor) }
     }
 }
 
@@ -193,6 +215,7 @@ private struct InputView: View {
                 Divider()
                 HStack(spacing: Theme.Spacing.s8) {
                     hint("↩"); Text(L("翻译")).foregroundStyle(Theme.Palette.label3)
+                    hint("⌘↩"); Text(L("换行")).foregroundStyle(Theme.Palette.label3)
                     hint("⎋"); Text(L("关闭")).foregroundStyle(Theme.Palette.label3)
                     Spacer()
                     Button(L("翻译")) { submit() }

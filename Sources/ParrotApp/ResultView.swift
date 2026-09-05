@@ -1614,13 +1614,6 @@ private struct InterpretationBody: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: Theme.Spacing.s12) {
-            interpretationSection(title: L("真正含义"), systemImage: "brain.head.profile") {
-                Text(interpretation.intendedMeaning)
-                    .font(Theme.Font.result)
-                    .foregroundStyle(Theme.Palette.label)
-                    .textSelection(.enabled)
-            }
-
             interpretationSection(title: L("自然译法"), systemImage: "character.book.closed") {
                 if let onSelectionChange {
                     SelectableResultTextView(
@@ -1634,6 +1627,15 @@ private struct InterpretationBody: View {
                     Text(interpretation.localizedTranslation)
                         .font(Theme.Font.body)
                         .foregroundStyle(Theme.Palette.label)
+                        .textSelection(.enabled)
+                }
+            }
+
+            if shouldShowIntendedMeaning(interpretation) {
+                interpretationSection(title: L("这段在说什么"), systemImage: "brain.head.profile") {
+                    Text(interpretation.intendedMeaning)
+                        .font(Theme.Font.callout)
+                        .foregroundStyle(Theme.Palette.label2)
                         .textSelection(.enabled)
                 }
             }
@@ -1733,6 +1735,23 @@ private struct InterpretationBody: View {
         }
         return literal
     }
+}
+
+func shouldShowIntendedMeaning(_ interpretation: InterpretationResult) -> Bool {
+    let meaning = normalizedInterpretationText(interpretation.intendedMeaning)
+    let translation = normalizedInterpretationText(interpretation.localizedTranslation)
+    guard !meaning.isEmpty, meaning != translation else { return false }
+    if let meaningAddsValue = interpretation.meaningAddsValue {
+        return meaningAddsValue
+    }
+    // Legacy results did not carry the explicit signal. Only retain the explanation
+    // when the model also reported ambiguity; otherwise prefer the copy-ready result.
+    return !interpretation.ambiguities.isEmpty
+}
+
+private func normalizedInterpretationText(_ value: String) -> String {
+    let removable = CharacterSet.whitespacesAndNewlines.union(.punctuationCharacters)
+    return String(value.lowercased().unicodeScalars.filter { !removable.contains($0) })
 }
 
 func shouldShowLiteralTranslation(_ literal: String, comparedTo localized: String) -> Bool {

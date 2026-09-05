@@ -71,6 +71,37 @@ import ParrotCore
     #expect(shouldShowLiteralTranslation("A bold decision.", comparedTo: "A risky decision."))
 }
 
+@Test func intendedMeaningUsesExplicitMaterialDifferenceSignal() {
+    let straightforward = InterpretationResult(
+        intendedMeaning: "这段介绍了 BM25 的用途。",
+        meaningAddsValue: false,
+        localizedTranslation: "这段文字介绍了 BM25 在精确匹配中的用途。"
+    )
+    #expect(!shouldShowIntendedMeaning(straightforward))
+
+    let implied = InterpretationResult(
+        intendedMeaning: "说话者并非赞赏，而是在委婉质疑这个决定。",
+        meaningAddsValue: true,
+        localizedTranslation: "你这个决定还真够大胆的。"
+    )
+    #expect(shouldShowIntendedMeaning(implied))
+}
+
+@Test func legacyIntendedMeaningOnlyShowsWhenAmbiguityWasReported() {
+    let duplicateLegacy = InterpretationResult(
+        intendedMeaning: "这是个大胆的选择。",
+        localizedTranslation: "这是一个大胆的选择。"
+    )
+    #expect(!shouldShowIntendedMeaning(duplicateLegacy))
+
+    let ambiguousLegacy = InterpretationResult(
+        intendedMeaning: "说话者可能是在讽刺。",
+        localizedTranslation: "你这个决定还真够大胆的。",
+        ambiguities: [InterpretationAlternative(interpretation: "真诚赞赏", when: "前文明示支持")]
+    )
+    #expect(shouldShowIntendedMeaning(ambiguousLegacy))
+}
+
 @Test func sourceComposerSubmitsOnlyForUnmodifiedReturn() {
     for characters in ["\r", "\u{3}"] {
         #expect(shouldSubmitSourceComposer(charactersIgnoringModifiers: characters, modifierFlags: []))

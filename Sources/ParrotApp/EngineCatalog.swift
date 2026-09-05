@@ -32,7 +32,16 @@ struct EngineDescriptor: Identifiable, Equatable {
 enum EngineCatalog {
     static var all: [EngineDescriptor] {
         var descriptors: [EngineDescriptor] = [
-            descriptor("google", "Google 翻译", .base, noCredentialNote: "免费 · 无需 Key", supportsValidation: false),
+            descriptor(
+                "google",
+                "Google 翻译 LLM",
+                .llm,
+                account: AppSettings.googleTranslationLLMAccount,
+                env: "GOOGLE_TRANSLATION_LLM_CREDENTIALS",
+                placeholder: "Project ID:API Key",
+                missingText: "未配置 Google Cloud 项目与 API Key",
+                noCredentialNote: "需在 Google Cloud 启用 Cloud Translation API；格式：Project ID:API Key"
+            ),
             descriptor("deepl", "DeepL", .base, account: AppSettings.deepLAccount, env: "DEEPL_API_KEY", placeholder: "免费版以 :fx 结尾"),
             descriptor("openai", "OpenAI", .base, account: AppSettings.openAIAccount, env: "OPENAI_API_KEY", placeholder: "sk-...", defaultModel: "gpt-4o-mini", defaultEndpoint: ""),
             descriptor("tencent", "腾讯翻译君", .machine, account: AppSettings.tencentAccount, env: "TENCENT_CREDENTIALS", placeholder: "SecretId:SecretKey", missingText: "未配置凭证"),

@@ -154,6 +154,18 @@ import Testing
     #expect(TranslationCoordinator.timeout(for: OpenCodeGoEngine(), base: 15) == 180)
     #expect(TranslationCoordinator.timeout(for: ZhipuEngine(), base: 15) == 90)
     #expect(TranslationCoordinator.timeout(for: OpenAIEngine(), base: 15) == 45)
+    #expect(TranslationCoordinator.timeout(for: AppleTimeoutFixtureEngine(), base: 15) == 300)
+}
+
+private struct AppleTimeoutFixtureEngine: TranslationProvider {
+    let id = "apple"
+    let displayName = "System Translation"
+    let supportedLanguages: [Language] = [.auto, .zh, .en]
+    let capabilities = ProviderCapabilities()
+
+    func translate(_ req: TranslateRequest) async throws -> TranslateResult {
+        TranslateResult(providerId: id, translated: req.text)
+    }
 }
 
 /// Test double that always fails, to verify error isolation in the coordinator.

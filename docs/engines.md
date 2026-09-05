@@ -8,7 +8,7 @@ Parrot 内置 27+ 文本翻译引擎，以及 OCR / TTS 提供者。在「设置
 
 | 引擎 | Parrot ID | 状态 | 密钥申请 |
 |------|-----------|------|----------|
-| Google 翻译 | `google` | ✅ | 无需 Key（见 README 合规说明） |
+| Google Translation LLM | `google` | ✅ | [Google Cloud Translation](https://cloud.google.com/translate/docs/translation-llm)，配置格式：`Project ID:API Key` |
 | DeepL | `deepl` | ✅ | [DeepL API](https://www.deepl.com/pro-api) |
 | OpenAI | `openai` | ✅ | [OpenAI Platform](https://platform.openai.com/api-keys) |
 | 腾讯翻译君 | `tencent` | ✅ | [腾讯云 TMT](https://cloud.tencent.com/document/product/551/35017) |

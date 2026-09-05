@@ -61,6 +61,9 @@ public struct InterpretationAlternative: Codable, Sendable, Equatable, Identifia
 /// readable while the product converges on one result contract.
 public struct InterpretationResult: Codable, Sendable, Equatable {
     public var intendedMeaning: String
+    /// Whether `intendedMeaning` adds a material inference beyond the natural translation.
+    /// `nil` keeps older persisted/provider payloads backward compatible.
+    public var meaningAddsValue: Bool?
     public var localizedTranslation: String
     public var literalTranslation: String?
     public var toneTags: [String]
@@ -89,6 +92,7 @@ public struct InterpretationResult: Codable, Sendable, Equatable {
 
     public init(
         intendedMeaning: String,
+        meaningAddsValue: Bool? = nil,
         localizedTranslation: String,
         literalTranslation: String? = nil,
         toneTags: [String] = [],
@@ -98,6 +102,7 @@ public struct InterpretationResult: Codable, Sendable, Equatable {
         confidenceNote: String? = nil
     ) {
         self.intendedMeaning = intendedMeaning
+        self.meaningAddsValue = meaningAddsValue
         self.localizedTranslation = localizedTranslation
         self.literalTranslation = literalTranslation
         self.toneTags = toneTags
@@ -127,6 +132,7 @@ public struct InterpretationResult: Codable, Sendable, Equatable {
 
     private enum CodingKeys: String, CodingKey {
         case intendedMeaning
+        case meaningAddsValue
         case localizedTranslation
         case literalTranslation
         case toneTags
@@ -145,6 +151,7 @@ public struct InterpretationResult: Codable, Sendable, Equatable {
         intendedMeaning = try container.decodeIfPresent(String.self, forKey: .intendedMeaning)
             ?? container.decodeIfPresent(String.self, forKey: .meaningSummary)
             ?? ""
+        meaningAddsValue = try container.decodeIfPresent(Bool.self, forKey: .meaningAddsValue)
         localizedTranslation = try container.decodeIfPresent(String.self, forKey: .localizedTranslation)
             ?? container.decodeIfPresent(String.self, forKey: .fullTranslation)
             ?? ""
@@ -164,6 +171,7 @@ public struct InterpretationResult: Codable, Sendable, Equatable {
     public func encode(to encoder: Encoder) throws {
         var container = encoder.container(keyedBy: CodingKeys.self)
         try container.encode(intendedMeaning, forKey: .intendedMeaning)
+        try container.encodeIfPresent(meaningAddsValue, forKey: .meaningAddsValue)
         try container.encode(localizedTranslation, forKey: .localizedTranslation)
         try container.encodeIfPresent(literalTranslation, forKey: .literalTranslation)
         try container.encode(toneTags, forKey: .toneTags)
@@ -176,6 +184,7 @@ public struct InterpretationResult: Codable, Sendable, Equatable {
     func mappingTextFields(_ transform: (String) -> String) -> InterpretationResult {
         InterpretationResult(
             intendedMeaning: transform(intendedMeaning),
+            meaningAddsValue: meaningAddsValue,
             localizedTranslation: transform(localizedTranslation),
             literalTranslation: literalTranslation.map(transform),
             toneTags: toneTags.map(transform),

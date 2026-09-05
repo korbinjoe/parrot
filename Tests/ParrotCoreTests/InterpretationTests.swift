@@ -119,6 +119,8 @@ import Testing
 
     #expect(systemPrompt.contains("meaning-first cross-cultural interpreter"))
     #expect(systemPrompt.contains("intendedMeaning"))
+    #expect(systemPrompt.contains("meaningAddsValue"))
+    #expect(systemPrompt.contains("mere paraphrase"))
     #expect(!systemPrompt.contains("Safari"))
     #expect(!systemPrompt.contains("strongly disagreed"))
     #expect(userPrompt.contains("Safari"))

@@ -36,7 +36,7 @@
 
 ## 引擎与密钥
 
-- **Google**：默认使用非官方 Web 端点，无需 Key（见下方合规说明）。
+- **Google Translation LLM**：使用官方 Cloud Translation Basic API，需配置 Google Cloud Project ID 与 API Key。
 - **DeepL / OpenAI / 腾讯 / 百度 / 有道 / 彩云 / Microsoft**：Swift 内置，需 API Key。
 - **LLM 全家桶**：DeepSeek、Gemini、Groq、Ollama、通义、豆包、Kimi、智谱、硅基流动 — Swift 内置。
 - **系统翻译**：macOS 15+（开发中）。
@@ -52,7 +52,7 @@ Parrot 集成多家翻译 / OCR / TTS 服务，使用时须遵守各服务商条
 
 | 服务 | 说明 |
 |------|------|
-| **Google 翻译（默认引擎）** | 通过 `translate.googleapis.com` 非官方 Web 端点调用，**不属于** [Google Cloud Translation API](https://cloud.google.com/translate) 正式服务。该端点可能随时变更、限流或不可用；高频或商业用途请改用官方 Cloud API 并自备 Key。 |
+| **Google Translation LLM** | 通过正式的 [Google Cloud Translation API](https://cloud.google.com/translate) 调用 `general/translation-llm`；需自行启用 API、配置 `Project ID:API Key`，用量与费用由 Google Cloud 计费。 |
 | **其他云引擎** | DeepL、OpenAI、腾讯、百度等需用户自行申请 API Key，用量与费用由各平台计费规则决定。 |
 | **插件** | 第三方 JS 插件的网络请求受 manifest 白名单约束，插件作者对其行为负责。 |
 

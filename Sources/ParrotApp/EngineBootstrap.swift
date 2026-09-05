@@ -38,7 +38,12 @@ enum EngineBootstrap {
             (enabled || configureDisabledProviders) ? loadKey() : nil
         }
 
-        registry.register(GoogleEngine(), enabled: settings.googleEnabled)
+        registerKeyed(
+            registry,
+            GoogleTranslationLLMEngine(),
+            key: keyIfNeeded(settings.googleEnabled, settings.googleTranslationLLMCredentials),
+            enabled: settings.googleEnabled
+        )
         registerKeyed(registry, DeepLEngine(), key: keyIfNeeded(settings.deepLEnabled, settings.deepLKey), enabled: settings.deepLEnabled)
         registerKeyed(registry, TencentEngine(), key: keyIfNeeded(settings.tencentEnabled, settings.tencentCredentials), enabled: settings.tencentEnabled)
         registerKeyed(registry, BaiduEngine(), key: keyIfNeeded(settings.baiduEnabled, settings.baiduCredentials), enabled: settings.baiduEnabled)

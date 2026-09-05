@@ -260,6 +260,10 @@
 "小牛翻译" = "Niutrans";
 "Amazon 翻译" = "Amazon Translate";
 "系统翻译语言包未安装" = "System Translation language pack is not installed";
+"准备系统翻译" = "Prepare System Translation";
+"正在下载系统翻译所需的语言资源…" = "Downloading language resources for System Translation…";
+"请在出现的系统提示中允许下载；完成后将自动继续翻译。" = "Allow the download in the system prompt. Translation will continue automatically when it finishes.";
+"系统翻译准备失败，请检查网络后重试" = "System Translation setup failed. Check your connection and try again";
 
 "百度 OCR" = "Baidu OCR";
 "腾讯 OCR" = "Tencent OCR";
@@ -390,6 +394,7 @@
 "校对文本后选择“润色”或“翻译”。" = "Review the text, then choose “Polish” or “Translate”.";
 "已修改，可重新润色或翻译" = "Edited; polish or translate again";
 "真正含义" = "Intended meaning";
+"这段在说什么" = "What it means";
 "自然译法" = "Natural translation";
 "语气" = "Tone";
 "文化与表达" = "Culture and usage";
@@ -397,3 +402,4 @@
 "理解置信度 %d%%" = "Interpretation confidence %d%%";
 "理解置信度" = "Interpretation confidence";
 "字面参考" = "Literal reference";
+"换行" = "New line";

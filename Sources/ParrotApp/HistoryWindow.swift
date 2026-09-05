@@ -402,13 +402,6 @@ private struct HistoryDetail: View {
             }
             if let interpretation = outcome.interpretation {
                 VStack(alignment: .leading, spacing: Theme.Spacing.s8) {
-                    Text(L("真正含义"))
-                        .font(Theme.Font.caption.weight(.semibold))
-                        .foregroundStyle(Theme.Palette.label3)
-                    Text(interpretation.intendedMeaning)
-                        .font(Theme.Font.result)
-                        .foregroundStyle(Theme.Palette.label)
-                        .textSelection(.enabled)
                     Text(L("自然译法"))
                         .font(Theme.Font.caption.weight(.semibold))
                         .foregroundStyle(Theme.Palette.label3)
@@ -416,6 +409,15 @@ private struct HistoryDetail: View {
                         .font(Theme.Font.body)
                         .foregroundStyle(Theme.Palette.label)
                         .textSelection(.enabled)
+                    if shouldShowIntendedMeaning(interpretation) {
+                        Text(L("这段在说什么"))
+                            .font(Theme.Font.caption.weight(.semibold))
+                            .foregroundStyle(Theme.Palette.label3)
+                        Text(interpretation.intendedMeaning)
+                            .font(Theme.Font.callout)
+                            .foregroundStyle(Theme.Palette.label2)
+                            .textSelection(.enabled)
+                    }
                 }
                 .fixedSize(horizontal: false, vertical: true)
                 .frame(maxWidth: .infinity, alignment: .leading)

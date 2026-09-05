@@ -192,6 +192,7 @@ open class OpenAICompatEngine: TranslationProvider, @unchecked Sendable {
         Return JSON only with this exact shape:
         {
           "intendedMeaning": "concise practical meaning in \(target)",
+          "meaningAddsValue": false,
           "localizedTranslation": "natural, culturally appropriate translation in \(target)",
           "literalTranslation": null,
           "toneTags": ["short tone label in \(target)"],
@@ -202,6 +203,8 @@ open class OpenAICompatEngine: TranslationProvider, @unchecked Sendable {
 
         Rules:
         - Infer communicative intent before translating words.
+        - Set meaningAddsValue to true only when intendedMeaning reveals material intent, implication, stance, or disambiguation that is not already clear from localizedTranslation. Use false for straightforward informative prose or a mere paraphrase.
+        - When meaningAddsValue is false, keep intendedMeaning to one very short sentence; the client may hide it.
         - Handle idioms, slang, euphemism, irony, politeness, humor, hostility, and platform-specific shorthand when evidence supports it.
         - Preserve the speaker's stance, intensity, register, names, handles, hashtags, code, and factual claims.
         - Never present an uncertain cultural inference as fact. Use ambiguities and lower confidence when context is insufficient.

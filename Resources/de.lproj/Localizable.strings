@@ -65,6 +65,7 @@
 "需处理" = "Aktion erforderlich";
 "环境变量" = "Umgebung";
 "真正含义" = "Gemeinte Bedeutung";
+"这段在说什么" = "Was damit gemeint ist";
 "自然译法" = "Natürliche Übersetzung";
 "语气" = "Ton";
 "文化与表达" = "Kultur und Gebrauch";
@@ -72,3 +73,8 @@
 "理解置信度 %d%%" = "Interpretationssicherheit %d%%";
 "理解置信度" = "Interpretationssicherheit";
 "字面参考" = "Wörtliche Referenz";
+"换行" = "Neue Zeile";
+"准备系统翻译" = "Systemübersetzung vorbereiten";
+"正在下载系统翻译所需的语言资源…" = "Sprachressourcen für die Systemübersetzung werden geladen…";
+"请在出现的系统提示中允许下载；完成后将自动继续翻译。" = "Erlaube den Download im Systemdialog. Danach wird die Übersetzung automatisch fortgesetzt.";
+"系统翻译准备失败，请检查网络后重试" = "Systemübersetzung konnte nicht vorbereitet werden. Netzwerk prüfen und erneut versuchen";

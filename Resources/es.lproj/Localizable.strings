@@ -65,6 +65,7 @@
 "需处理" = "Requiere acción";
 "环境变量" = "Entorno";
 "真正含义" = "Significado real";
+"这段在说什么" = "Qué quiere decir";
 "自然译法" = "Traducción natural";
 "语气" = "Tono";
 "文化与表达" = "Cultura y uso";
@@ -72,3 +73,8 @@
 "理解置信度 %d%%" = "Confianza de interpretación %d%%";
 "理解置信度" = "Confianza de interpretación";
 "字面参考" = "Referencia literal";
+"换行" = "Nueva línea";
+"准备系统翻译" = "Preparar la traducción del sistema";
+"正在下载系统翻译所需的语言资源…" = "Descargando los recursos de idioma para la traducción del sistema…";
+"请在出现的系统提示中允许下载；完成后将自动继续翻译。" = "Permite la descarga en el aviso del sistema. La traducción continuará automáticamente al terminar.";
+"系统翻译准备失败，请检查网络后重试" = "No se pudo preparar la traducción del sistema. Comprueba la conexión y vuelve a intentarlo";
