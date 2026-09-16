@@ -1,5 +1,18 @@
 # Changelog
 
+## 2026-09-16
+
+### Fixed
+
+- Fixed severe Settings window lag on macOS 26/27 and Apple silicon Macs: `SettingsView` no longer observes the entire `AppState`, so unrelated high-frequency changes (typing in the floating panel, translation progress, network status) stop repainting the 2,500-line settings tree on every emission.
+- Removed the `AppSettings.objectWillChange → AppState.objectWillChange` fan-out in `AppState.init`, eliminating the double-refresh that hit `SettingsView` on every settings toggle.
+- Moved permission state into a dedicated `PermissionsHolder` observable so only permission-aware views (settings sheet, menu-bar popover) re-render on `refreshPermissions`.
+- Dropped the pane-switch `.id` + `.transition(.opacity)` + `.easeInOut` animation in the Settings window; switching tabs is now a single frame instead of an alpha-blended crossfade of two large SwiftUI subtrees.
+
+### Added
+
+- Added `SettingsViewReactivityTests` (4 tests) locking down the new observation graph: settings toggles must not bump `AppState.objectWillChange`, keystrokes in `sourceDraft` must not bump settings/permissions observers, and `refreshPermissions()` must only bump the permissions holder.
+
 ## 2026-06-27
 
 ### Added

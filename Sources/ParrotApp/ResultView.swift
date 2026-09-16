@@ -18,6 +18,7 @@ struct ResultView: View {
 
     @Environment(\.accessibilityReduceMotion) private var accessibilityReduceMotion
     @ObservedObject var state: AppState
+    @ObservedObject var settings: AppSettings
     @ObservedObject var panelPresentation: FloatingPanelPresentation
     let onTogglePinned: () -> Void
     let onConfigureProvider: (String?) -> Void
@@ -46,6 +47,7 @@ struct ResultView: View {
         onClose: @escaping () -> Void = {}
     ) {
         self.state = state
+        self.settings = state.settings
         self.panelPresentation = panelPresentation
         self.onTogglePinned = onTogglePinned
         self.onConfigureProvider = onConfigureProvider

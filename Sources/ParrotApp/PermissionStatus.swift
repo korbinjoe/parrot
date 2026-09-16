@@ -1,6 +1,7 @@
 import AppKit
 import ApplicationServices
 import CoreGraphics
+import Combine
 
 struct PermissionSnapshot: Equatable {
     let accessibilityGranted: Bool
@@ -17,6 +18,18 @@ struct PermissionSnapshot: Equatable {
         case (true, false): return L("屏幕录制未开启")
         case (false, false): return L("辅助功能和屏幕录制未开启")
         }
+    }
+}
+
+/// Isolates permission-state observation from `AppState` so views (Settings, MenuBar) that
+/// only care about permissions do not re-render every time an unrelated `AppState` field
+/// (source text, translation outcomes, etc.) changes.
+@MainActor
+final class PermissionsHolder: ObservableObject {
+    @Published var snapshot: PermissionSnapshot
+
+    init(_ snapshot: PermissionSnapshot = AppPermissions.snapshot()) {
+        self.snapshot = snapshot
     }
 }
 

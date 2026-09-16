@@ -2,7 +2,6 @@ import Foundation
 import ParrotCore
 import ParrotEngines
 import ParrotPlugins
-import Combine
 import CoreGraphics
 import Network
 
@@ -152,7 +151,10 @@ final class AppState: ObservableObject {
     @Published var savedRecordId: UUID?
     @Published var isFavorite: Bool = false
     @Published var isOffline: Bool = false
-    @Published var permissions: PermissionSnapshot = AppPermissions.snapshot()
+    let permissionsHolder = PermissionsHolder()
+    /// Read-only mirror of the holder so callers that don't need reactive updates keep working.
+    /// Views that must re-render on change should observe ``permissionsHolder`` directly.
+    var permissions: PermissionSnapshot { permissionsHolder.snapshot }
     @Published var learningHistoryRecords: [TranslationRecord] = []
     @Published var learningOccurrenceCounts: [String: Int] = [:]
     @Published private(set) var manualLearningSelectionRevision: Int = 0
@@ -168,7 +170,6 @@ final class AppState: ObservableObject {
     private var currentMode: TranslateMode = .translate
     private let directionResolver = TranslationDirectionResolver()
     private var learningHistoryRefreshGeneration = 0
-    private var settingsObserver: AnyCancellable?
     private static let slowProviderSoftTimeout: TimeInterval = 8
 
     var sourceDraftTrimmed: String {
@@ -281,9 +282,6 @@ final class AppState: ObservableObject {
 
     init() {
         coordinator = TranslationCoordinator(registry: registry)
-        settingsObserver = settings.objectWillChange.sink { [weak self] _ in
-            self?.objectWillChange.send()
-        }
         sourceLanguage = settings.sourceLanguage
         targetLanguage = settings.targetLanguage
         Speaker.shared.coordinator = ttsCoordinator
@@ -316,7 +314,7 @@ final class AppState: ObservableObject {
     }
 
     func refreshPermissions(promptAccessibility: Bool = false, promptScreenRecording: Bool = false) {
-        permissions = AppPermissions.snapshot(
+        permissionsHolder.snapshot = AppPermissions.snapshot(
             promptAccessibility: promptAccessibility,
             promptScreenRecording: promptScreenRecording
         )

@@ -5,6 +5,7 @@ import ParrotCore
 /// then settings/quit. Replaces the bare `NSMenu` so it can share the app's design tokens.
 struct MenuBarPopoverView: View {
     @ObservedObject var state: AppState
+    @ObservedObject var permissions: PermissionsHolder
 
     let onSelection: () -> Void
     let onLookup: () -> Void
@@ -28,22 +29,22 @@ struct MenuBarPopoverView: View {
             actionRow(
                 "character.cursor.ibeam",
                 "划词翻译",
-                state.permissions.accessibilityGranted ? "⌥D" : "需辅助功能",
-                disabled: !state.permissions.accessibilityGranted,
+                permissions.snapshot.accessibilityGranted ? "⌥D" : "需辅助功能",
+                disabled: !permissions.snapshot.accessibilityGranted,
                 action: onSelection
             )
             actionRow(
                 "text.magnifyingglass",
                 "查词",
-                state.permissions.accessibilityGranted ? "⌥E" : "需辅助功能",
-                disabled: !state.permissions.accessibilityGranted,
+                permissions.snapshot.accessibilityGranted ? "⌥E" : "需辅助功能",
+                disabled: !permissions.snapshot.accessibilityGranted,
                 action: onLookup
             )
             actionRow(
                 "camera.viewfinder",
                 "截图翻译",
-                state.permissions.screenRecordingGranted ? "⌥S" : "需屏幕录制",
-                disabled: !state.permissions.screenRecordingGranted,
+                permissions.snapshot.screenRecordingGranted ? "⌥S" : "需屏幕录制",
+                disabled: !permissions.snapshot.screenRecordingGranted,
                 action: onScreenshot
             )
             actionRow("keyboard", "输入翻译", "⌥A", action: onInput)
@@ -116,14 +117,14 @@ struct MenuBarPopoverView: View {
 
     @ViewBuilder
     private var permissionStrip: some View {
-        if state.permissions.hasBlockingIssue {
+        if permissions.snapshot.hasBlockingIssue {
             HStack(alignment: .top, spacing: Theme.Spacing.s8) {
                 Image(systemName: "exclamationmark.triangle.fill")
                     .font(.system(size: 11, weight: .semibold))
                     .foregroundStyle(Theme.Palette.warning)
                     .frame(width: 16, height: 16)
                 VStack(alignment: .leading, spacing: 2) {
-                    Text(L(state.permissions.summary))
+                    Text(L(permissions.snapshot.summary))
                         .font(.system(size: 12, weight: .semibold))
                         .foregroundStyle(Theme.Palette.label)
                     Text(L("部分快捷动作暂不可用"))

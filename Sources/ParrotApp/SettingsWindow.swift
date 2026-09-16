@@ -200,8 +200,12 @@ private struct NativeSearchField: NSViewRepresentable {
 /// Preferences laid out as a sidebar + content panel (see redesign-app-ui mockups/surf-settings).
 @MainActor
 struct SettingsView: View {
-    @ObservedObject var state: AppState
+    /// Deliberately non-observed: the settings pane must not repaint every time an
+    /// unrelated `AppState` field (source text, translation outcomes, network status…)
+    /// changes. Anything that needs to react is observed through a dedicated publisher.
+    let state: AppState
     @ObservedObject private var settings: AppSettings
+    @ObservedObject private var permissions: PermissionsHolder
     private let initialFocusedServiceID: String?
     private let retryProviderID: String?
     private let onRetryProvider: (String) -> Void
@@ -358,6 +362,7 @@ struct SettingsView: View {
     ) {
         self.state = state
         self.settings = state.settings
+        self.permissions = state.permissionsHolder
         self.initialFocusedServiceID = CredentialCatalog.normalizedServiceID(focusedServiceID)
         self.retryProviderID = retryProviderID
         self.onRetryProvider = onRetryProvider
@@ -375,11 +380,8 @@ struct SettingsView: View {
                         .padding(.horizontal, 22)
                         .padding(.vertical, 20)
                         .frame(maxWidth: .infinity, alignment: .leading)
-                        .id(selection)
-                        .transition(.opacity)
                 }
                 .background(Theme.Palette.bgCanvas)
-                .animation(.easeInOut(duration: 0.15), value: selection)
                 .onAppear {
                     revealFocusedCredential(with: proxy)
                 }
@@ -1642,14 +1644,14 @@ struct SettingsView: View {
         formGroup {
             permissionRow(
                 "辅助功能",
-                granted: state.permissions.accessibilityGranted,
+                granted: permissions.snapshot.accessibilityGranted,
                 detail: "划词翻译、查词和快捷键捕获需要此权限。",
                 actionTitle: "打开设置",
                 action: AppPermissions.openAccessibilitySettings
             )
             permissionRow(
                 "屏幕录制",
-                granted: state.permissions.screenRecordingGranted,
+                granted: permissions.snapshot.screenRecordingGranted,
                 detail: "截图翻译需要此权限。",
                 actionTitle: "打开设置",
                 action: AppPermissions.openScreenRecordingSettings
