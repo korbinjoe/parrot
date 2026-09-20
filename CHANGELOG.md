@@ -1,5 +1,15 @@
 # Changelog
 
+## 2026-09-20
+
+### Fixed
+
+- Fixed ⌥D selection hotkey on macOS 26/27: `SelectionCapture` now waits (up to 250 ms) for the hotkey's modifier keys (⌥/⌘/⇧/⌃) to be physically released before synthesizing ⌘C. On the newer OS versions, `CGEventSource(stateID: .privateState)` no longer fully isolates modifier state — a still-held ⌥ leaked into the synthesized event, the OS saw ⌥⌘C, and target apps ignored the copy. Result was that ⌥D opened the panel but reused the previous workspace (log line `translateSelection: no new selection; restoring previous workspace`) even though text was clearly selected.
+
+### Added
+
+- Added diagnostic logging in `SelectionCapture` for both capture paths: frontmost app bundleId/pid, focused element pid/role/subrole, AX error codes (`-25205 attributeUnsupported` / `-25212 noValue`), live `NSEvent.modifierFlags` before ⌘C, and the ⌘C `CGEvent.flags` posted. Makes future capture regressions diagnosable from `/tmp/parrot-debug.log` in one repro.
+
 ## 2026-09-16
 
 ### Fixed

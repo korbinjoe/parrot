@@ -20,22 +20,46 @@ enum SelectionCapture {
     /// Skips elements owned by our own process (e.g. the floating result panel), whose
     /// selection would otherwise shadow the real frontmost app on repeat invocations.
     private static func selectedTextViaAccessibility() -> String? {
+        let frontmost = NSWorkspace.shared.frontmostApplication
+        DebugLog.log("  focus: frontmost=\(frontmost?.bundleIdentifier ?? "?") pid=\(frontmost?.processIdentifier ?? -1) name=\(frontmost?.localizedName ?? "?")")
+
         let system = AXUIElementCreateSystemWide()
         var focused: AnyObject?
-        guard AXUIElementCopyAttributeValue(system, kAXFocusedUIElementAttribute as CFString, &focused) == .success,
-              let element = focused else { return nil }
+        let focusStatus = AXUIElementCopyAttributeValue(system, kAXFocusedUIElementAttribute as CFString, &focused)
+        guard focusStatus == .success, let element = focused else {
+            DebugLog.log("  focus: no system-wide focused element status=\(focusStatus.rawValue)")
+            return nil
+        }
 
         let axElement = element as! AXUIElement
 
-        // Ignore focus that belongs to Parrot itself.
         var pid: pid_t = 0
-        if AXUIElementGetPid(axElement, &pid) == .success, pid == getpid() {
+        _ = AXUIElementGetPid(axElement, &pid)
+
+        var roleValue: AnyObject?
+        let role = AXUIElementCopyAttributeValue(axElement, kAXRoleAttribute as CFString, &roleValue) == .success
+            ? (roleValue as? String) ?? "?" : "?"
+        var subroleValue: AnyObject?
+        let subrole = AXUIElementCopyAttributeValue(axElement, kAXSubroleAttribute as CFString, &subroleValue) == .success
+            ? (subroleValue as? String) ?? "" : ""
+        DebugLog.log("  focus: axPid=\(pid) role=\(role) subrole=\(subrole) selfPid=\(getpid())")
+
+        // Ignore focus that belongs to Parrot itself.
+        if pid == getpid() {
+            DebugLog.log("  focus: skipping (owned by Parrot)")
             return nil
         }
 
         var value: AnyObject?
-        guard AXUIElementCopyAttributeValue(axElement, kAXSelectedTextAttribute as CFString, &value) == .success,
-              let text = value as? String else { return nil }
+        let attrStatus = AXUIElementCopyAttributeValue(axElement, kAXSelectedTextAttribute as CFString, &value)
+        guard attrStatus == .success else {
+            DebugLog.log("  AX kAXSelectedTextAttribute status=\(attrStatus.rawValue) (attributeUnsupported=-25205, noValue=-25212)")
+            return nil
+        }
+        guard let text = value as? String else {
+            DebugLog.log("  AX kAXSelectedTextAttribute non-string value=\(String(describing: value))")
+            return nil
+        }
         return text
     }
 
@@ -44,6 +68,16 @@ enum SelectionCapture {
         let pasteboard = NSPasteboard.general
         let saved = pasteboard.string(forType: .string)
         let savedChangeCount = pasteboard.changeCount
+
+        let liveFlags = NSEvent.modifierFlags
+        DebugLog.log("  copy: preFlags=0x\(String(liveFlags.rawValue, radix: 16)) option=\(liveFlags.contains(.option)) command=\(liveFlags.contains(.command)) control=\(liveFlags.contains(.control)) shift=\(liveFlags.contains(.shift))")
+
+        // Wait for the hotkey's own modifier keys (⌥ in ⌥D, ⌘ in ⌘⇧E, ...) to be physically
+        // released before synthesizing ⌘C. On macOS 26/27, `CGEventSource(stateID: .privateState)`
+        // no longer fully isolates modifier state — a still-held ⌥ leaks in and the OS sees
+        // ⌥⌘C, which most apps ignore. Waiting for release fixes the "AX empty + Copy nil"
+        // double failure most users see when they hold ⌥D longer than a beat.
+        waitForHotkeyModifiersToClear()
 
         sendCommandC()
 
@@ -83,6 +117,7 @@ enum SelectionCapture {
         let up = CGEvent(keyboardEventSource: source, virtualKey: cKey, keyDown: false)
         down?.flags = .maskCommand
         up?.flags = .maskCommand
+        DebugLog.log("  copy: post ⌘C down.flags=0x\(String(down?.flags.rawValue ?? 0, radix: 16)) up.flags=0x\(String(up?.flags.rawValue ?? 0, radix: 16))")
         down?.post(tap: .cghidEventTap)
         up?.post(tap: .cghidEventTap)
     }
@@ -90,5 +125,22 @@ enum SelectionCapture {
     /// Whether the app has Accessibility permission (needed for AX read & key synthesis).
     static func hasAccessibilityPermission(prompt: Bool) -> Bool {
         AppPermissions.accessibility(prompt: prompt)
+    }
+
+    private static func waitForHotkeyModifiersToClear(timeout: TimeInterval = 0.25) {
+        let watched: NSEvent.ModifierFlags = [.option, .control, .command, .shift]
+        let start = Date()
+        var waited: TimeInterval = 0
+        while Date().timeIntervalSince(start) < timeout {
+            if NSEvent.modifierFlags.intersection(watched).isEmpty {
+                if waited > 0 {
+                    DebugLog.log("  copy: waited \(Int(waited * 1000))ms for modifiers to clear")
+                }
+                return
+            }
+            RunLoop.current.run(mode: .default, before: Date().addingTimeInterval(0.01))
+            waited = Date().timeIntervalSince(start)
+        }
+        DebugLog.log("  copy: modifier release timed out after \(Int(waited * 1000))ms flags=0x\(String(NSEvent.modifierFlags.rawValue, radix: 16))")
     }
 }
