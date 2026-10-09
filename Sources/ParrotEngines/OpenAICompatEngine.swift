@@ -84,6 +84,7 @@ open class OpenAICompatEngine: TranslationProvider, @unchecked Sendable {
         if let apiKey, !apiKey.isEmpty {
             request.setValue("Bearer \(apiKey)", forHTTPHeaderField: "Authorization")
         }
+        configureRequest(&request, for: req)
         request.httpBody = try JSONSerialization.data(withJSONObject: payload)
 
         let (data, response): (Data, URLResponse)
@@ -321,6 +322,8 @@ open class OpenAICompatEngine: TranslationProvider, @unchecked Sendable {
     open func additionalPayload(for req: TranslateRequest) -> [String: Any] {
         [:]
     }
+
+    open func configureRequest(_ request: inout URLRequest, for req: TranslateRequest) {}
 }
 
 // MARK: - P1 LLM thin subclasses
@@ -347,6 +350,12 @@ public final class OpenCodeGoEngine: OpenAICompatEngine {
             requestTimeout: 180,
             session: session
         )
+    }
+
+    public override func configureRequest(_ request: inout URLRequest, for req: TranslateRequest) {
+        request.setValue(req.sessionID.uuidString, forHTTPHeaderField: "x-opencode-session")
+        let version = Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "0.1"
+        request.setValue("Parrot/\(version)", forHTTPHeaderField: "User-Agent")
     }
 }
 

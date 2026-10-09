@@ -150,6 +150,57 @@ import Foundation
     #expect(engine.displayName == "OpenCode Go")
 }
 
+@Test func openCodeGoSendsStableSessionHeader() async throws {
+    let configuration = URLSessionConfiguration.ephemeral
+    configuration.protocolClasses = [OpenCodeRequestStub.self]
+    let session = URLSession(configuration: configuration)
+    defer { session.invalidateAndCancel() }
+
+    let engine = OpenCodeGoEngine(session: session)
+    try engine.configure(ProviderConfig(extra: ["apiKey": "test-key"]))
+    let request = TranslateRequest(text: "hello", to: .zh)
+
+    _ = try await engine.translate(request)
+    _ = try await engine.translate(request)
+    _ = try await engine.translate(TranslateRequest(text: "goodbye", to: .zh))
+
+    let sent = OpenCodeRequestStub.recordedRequests
+    #expect(sent.count == 3)
+    #expect(sent[0].value(forHTTPHeaderField: "x-opencode-session") == request.sessionID.uuidString)
+    #expect(sent[1].value(forHTTPHeaderField: "x-opencode-session") == request.sessionID.uuidString)
+    #expect(sent[2].value(forHTTPHeaderField: "x-opencode-session") != request.sessionID.uuidString)
+    #expect(sent.allSatisfy { $0.value(forHTTPHeaderField: "User-Agent")?.hasPrefix("Parrot/") == true })
+    #expect(sent.allSatisfy { $0.value(forHTTPHeaderField: "Authorization") == "Bearer test-key" })
+    #expect(request.withText("hello again").sessionID == request.sessionID)
+    #expect(request.withContext(nil).sessionID == request.sessionID)
+}
+
+private final class OpenCodeRequestStub: URLProtocol {
+    private static let lock = NSLock()
+    private static var requests: [URLRequest] = []
+
+    static var recordedRequests: [URLRequest] {
+        lock.lock()
+        defer { lock.unlock() }
+        return requests
+    }
+
+    override class func canInit(with request: URLRequest) -> Bool { true }
+    override class func canonicalRequest(for request: URLRequest) -> URLRequest { request }
+
+    override func startLoading() {
+        Self.lock.lock()
+        Self.requests.append(request)
+        Self.lock.unlock()
+        let response = HTTPURLResponse(url: request.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!
+        client?.urlProtocol(self, didReceive: response, cacheStoragePolicy: .notAllowed)
+        client?.urlProtocol(self, didLoad: Data(#"{"choices":[{"message":{"content":"你好"}}]}"#.utf8))
+        client?.urlProtocolDidFinishLoading(self)
+    }
+
+    override func stopLoading() {}
+}
+
 @Test func geminiParsesContent() throws {
     let json = """
     {"candidates":[{"content":{"parts":[{"text":"你好"}]}}]}

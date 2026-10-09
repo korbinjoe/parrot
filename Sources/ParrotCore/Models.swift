@@ -64,6 +64,8 @@ public enum TranslateMode: Sendable, Equatable {
 }
 
 public struct TranslateRequest: Sendable {
+    /// Identifies one user translation across provider calls and retries.
+    public let sessionID: UUID
     public let text: String
     public let from: Language
     public let to: Language
@@ -77,8 +79,10 @@ public struct TranslateRequest: Sendable {
         to: Language,
         mode: TranslateMode = .translate,
         terminology: TerminologySnapshot? = nil,
-        context: TranslationContext? = nil
+        context: TranslationContext? = nil,
+        sessionID: UUID = UUID()
     ) {
+        self.sessionID = sessionID
         self.text = text
         self.from = from
         self.to = to
@@ -94,7 +98,8 @@ public struct TranslateRequest: Sendable {
             to: to,
             mode: mode,
             terminology: terminology,
-            context: context
+            context: context,
+            sessionID: sessionID
         )
     }
 
@@ -105,7 +110,8 @@ public struct TranslateRequest: Sendable {
             to: to,
             mode: mode,
             terminology: terminology,
-            context: context
+            context: context,
+            sessionID: sessionID
         )
     }
 }

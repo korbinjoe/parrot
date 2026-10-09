@@ -1453,7 +1453,16 @@ final class AppState: ObservableObject {
         let trimmed = committedSourceTrimmed
         guard !trimmed.isEmpty else { return }
         let direction = resolvedDirection(text: trimmed, mode: currentMode)
-        let req = makeRequest(text: trimmed, direction: direction, mode: currentMode)
+        let req: TranslateRequest
+        if let currentRequest,
+           currentRequest.text == trimmed,
+           currentRequest.from == direction.from,
+           currentRequest.to == direction.to,
+           currentRequest.mode == currentMode {
+            req = currentRequest
+        } else {
+            req = makeRequest(text: trimmed, direction: direction, mode: currentMode)
+        }
         currentRequest = req
 
         guard let provider = routedActiveProviders(for: req.context).first(where: { $0.id == id }) else {

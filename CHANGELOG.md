@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.1.3 — 2026-10-09
+
+### Fixed
+
+- Preserve the translation session ID across provider calls, request copies, and macOS provider retries.
+- Send the `x-opencode-session` and versioned `User-Agent` headers to OpenCode Go.
+
+### Added
+
+- Regression coverage for stable session headers, new translation sessions, authorization, and request copies.
+
 ## 2026-09-20
 
 ### Fixed
