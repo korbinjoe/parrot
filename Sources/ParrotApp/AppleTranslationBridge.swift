@@ -35,6 +35,27 @@ fileprivate func appleLocaleLanguage(_ lang: Language) -> Locale.Language {
     }
 }
 
+/// Apple's detector can reject short words even when the language pair is installed.
+/// Recover only that narrow failure; explicit directions and other failures keep
+/// their existing behavior.
+@available(macOS 15.0, *)
+enum AppleTranslationSourceFallback {
+    static func sourceLanguage(text: String, from: Language?, to: Language, error: Error) -> Language? {
+        guard from == nil,
+              TranslationError.unableToIdentifyLanguage ~= error,
+              let targetCode = to.code?.lowercased().replacingOccurrences(of: "_", with: "-"),
+              targetCode.split(separator: "-").first != "en" else { return nil }
+        let text = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !text.isEmpty, text.count <= 40,
+              text.split(whereSeparator: \.isWhitespace).count <= 4,
+              text.unicodeScalars.allSatisfy({ $0.isASCII }),
+              text.unicodeScalars.contains(where: {
+                  (65...90).contains($0.value) || (97...122).contains($0.value)
+              }) else { return nil }
+        return .en
+    }
+}
+
 @available(macOS 15.0, *)
 @MainActor
 private final class AppleTranslationRunner: @unchecked Sendable {
@@ -206,18 +227,22 @@ final class AppAppleTranslationEngine: HTTPTranslationEngine, @unchecked Sendabl
 
     override func translate(_ req: TranslateRequest) async throws -> TranslateResult {
         let from: Language? = req.from == .auto ? nil : req.from
-        let requiresPreparation = try await preparationRequired(text: req.text, from: from, to: req.to)
-        let translated = try await AppleTranslationBridge.translate(text: req.text, from: from, to: req.to, requiresPreparation: requiresPreparation)
+        let preparation = try await preparation(text: req.text, from: from, to: req.to)
+        let translated = try await AppleTranslationBridge.translate(
+            text: req.text, from: preparation.source, to: req.to,
+            requiresPreparation: preparation.required
+        )
         return TranslateResult(
             providerId: id,
             translated: translated,
-            detectedFrom: req.from == .auto ? nil : req.from
+            detectedFrom: preparation.source
         )
     }
 
-    private func preparationRequired(text: String, from: Language?, to: Language) async throws -> Bool {
+    private func preparation(text: String, from: Language?, to: Language) async throws -> (source: Language?, required: Bool) {
         let availability = LanguageAvailability()
         let target = appleLocaleLanguage(to)
+        var source = from
         let status: LanguageAvailability.Status
         do {
             if let from {
@@ -226,14 +251,19 @@ final class AppAppleTranslationEngine: HTTPTranslationEngine, @unchecked Sendabl
                 status = try await availability.status(for: text, to: target)
             }
         } catch {
-            throw ProviderError.unsupportedLanguage
+            guard let fallback = AppleTranslationSourceFallback.sourceLanguage(
+                text: text, from: from, to: to, error: error
+            ) else { throw ProviderError.unsupportedLanguage }
+            source = fallback
+            DebugLog.log("apple-translation: short ASCII detection unavailable; checking explicit English pair")
+            status = await availability.status(from: appleLocaleLanguage(fallback), to: target)
         }
 
         switch status {
         case .installed:
-            return false
+            return (source, false)
         case .supported:
-            return true
+            return (source, true)
         case .unsupported:
             throw ProviderError.unsupportedLanguage
         @unknown default:

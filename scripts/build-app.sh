@@ -3,12 +3,14 @@
 # Requires full Xcode (for AppKit/SwiftUI/Vision). Run: bash scripts/build-app.sh
 set -euo pipefail
 
-export DEVELOPER_DIR="${DEVELOPER_DIR:-/Applications/Xcode.app/Contents/Developer}"
+if [[ -z "${DEVELOPER_DIR:-}" && -d /Applications/Xcode.app/Contents/Developer ]]; then
+    export DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer
+fi
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 CONFIG="${1:-release}"
 
 echo "==> swift build ($CONFIG)"
-swift build -c "$CONFIG" --product Parrot
+swift build -c "$CONFIG" --product Parrot --jobs "${PARROT_BUILD_JOBS:-4}"
 
 BIN="$(swift build -c "$CONFIG" --product Parrot --show-bin-path)/Parrot"
 APP="$ROOT/build/Parrot.app"

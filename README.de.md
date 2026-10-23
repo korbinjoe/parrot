@@ -18,16 +18,19 @@ Open-Source-Übersetzung und OCR für macOS und iOS: markierten Text übersetzen
 
 ## Funktionen
 
+Standardmäßig übersetzt der bevorzugte Dienst; bei einem Fehler wird automatisch ein anderer konfigurierter Dienst versucht. Der Vergleich mehrerer Dienste lässt sich bei Bedarf einschalten. Eingegebener, markierter oder per OCR erfasster Ausgangstext bleibt im selben Übersetzungsbereich bearbeitbar und kann erneut übersetzt werden.
+
 | Funktion | Bedienung |
 | --- | --- |
 | Markierten Text übersetzen | `⌥D`, Menü oder PopClip |
 | Wörter nachschlagen | `⌥E`, Menü oder PopClip |
 | Screenshot-OCR und Übersetzung | `⌥S` oder Menü |
 | Eingegebenen Text übersetzen | `⌥A` oder Menü |
-| Mehrere Dienste vergleichen | Ergebnisse aktivierter Anbieter automatisch zusammenführen |
-| Terminologieglossar | Einstellungen → Terminologie; [Anleitung](./docs/terminology.md) |
+| Mehrere Dienste vergleichen | Im Menü More oder unter Einstellungen → Übersetzung einschalten |
+| Lernen, Kontext und Textüberarbeitung | Advanced Features unter Einstellungen → Allgemein einschalten |
+| Terminologieglossar | Advanced Features einschalten, dann Einstellungen → Terminologie; [Anleitung](./docs/terminology.md) |
 | Verlauf und Favoriten | Übersetzungen speichern und durchsuchen; ⭐ im Fenster |
-| Sprachausgabe | Ausgangstext oder Übersetzung vorlesen; 🔊 im Fenster |
+| Sprachausgabe | Ausgangstext oder Übersetzung vorlesen; Menü More |
 | JavaScript-Plugins | LLMs und Wörterbücher ergänzen; [Entwicklungsanleitung](./docs/plugin-development.md) |
 | PopClip-Anbindung | `examples/Parrot.popclipext` installieren |
 | URL-Anbindung | `parrot://translate?text=` oder `parrot://lookup?text=` |

@@ -7,6 +7,7 @@ final class AppSettings: ObservableObject {
     private let defaults: UserDefaults
     private var keyCache: [String: String] = [:]
     private var missingKeyCache: Set<String> = []
+    private(set) var credentialRevisions: [String: UInt64] = [:]
     private let terminologyStore: TerminologyStore
 
     // MARK: - Secret account IDs
@@ -45,6 +46,14 @@ final class AppSettings: ObservableObject {
     }
     @Published var sourceLanguageCode: String {
         didSet { defaults.set(sourceLanguageCode, forKey: "sourceLanguageCode") }
+    }
+    /// A normal translation asks one engine; comparison is an explicit choice.
+    @Published var compareTranslations: Bool {
+        didSet { defaults.set(compareTranslations, forKey: "translation.compareEngines") }
+    }
+    /// Keep optional learning and contextual workflows out of the default workspace.
+    @Published var advancedFeaturesEnabled: Bool {
+        didSet { defaults.set(advancedFeaturesEnabled, forKey: "features.advanced.enabled") }
     }
     @Published var lastContextProfileCode: String {
         didSet { defaults.set(lastContextProfileCode, forKey: "context.profile.last") }
@@ -159,13 +168,15 @@ final class AppSettings: ObservableObject {
         L10n.setLanguageCode(initialAppLanguageCode, defaults: defaults, notify: false)
         self.targetLanguageCode = defaults.string(forKey: "targetLanguageCode") ?? "zh"
         self.sourceLanguageCode = defaults.string(forKey: "sourceLanguageCode") ?? "auto"
+        self.compareTranslations = defaults.bool(forKey: "translation.compareEngines")
+        self.advancedFeaturesEnabled = defaults.bool(forKey: "features.advanced.enabled")
         self.lastContextProfileCode = defaults.string(forKey: "context.profile.last") ?? TranslationContextProfile.quickTranslate.rawValue
         self.contextRuleDocumentEnabled = defaults.object(forKey: "context.rule.document.enabled") as? Bool ?? true
         self.contextRuleDeveloperEnabled = defaults.object(forKey: "context.rule.developer.enabled") as? Bool ?? true
         self.contextRulePrivateEnabled = defaults.object(forKey: "context.rule.private.enabled") as? Bool ?? true
         self.googleEnabled = defaults.object(forKey: "engine.google.enabled") as? Bool ?? true
-        self.deepLEnabled = defaults.object(forKey: "engine.deepl.enabled") as? Bool ?? true
-        self.openAIEnabled = defaults.object(forKey: "engine.openai.enabled") as? Bool ?? true
+        self.deepLEnabled = defaults.object(forKey: "engine.deepl.enabled") as? Bool ?? false
+        self.openAIEnabled = defaults.object(forKey: "engine.openai.enabled") as? Bool ?? false
         self.tencentEnabled = defaults.object(forKey: "engine.tencent.enabled") as? Bool ?? false
         self.baiduEnabled = defaults.object(forKey: "engine.baidu.enabled") as? Bool ?? false
         self.youdaoEnabled = defaults.object(forKey: "engine.youdao.enabled") as? Bool ?? false
@@ -685,11 +696,13 @@ final class AppSettings: ObservableObject {
             missingKeyCache.remove(account)
         }
         updateSecretMetadata(account: account, value: value)
+        credentialRevisions[account, default: 0] &+= 1
         objectWillChange.send()
         return true
     }
 
-    func removeKey(account: String) {
+    @discardableResult
+    func removeKey(account: String) -> Bool {
         setKey("", account: account)
     }
 

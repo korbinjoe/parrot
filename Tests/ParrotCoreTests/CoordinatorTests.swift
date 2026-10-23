@@ -1,4 +1,5 @@
 import Testing
+import Foundation
 @testable import ParrotCore
 @testable import ParrotEngines
 
@@ -31,6 +32,48 @@ import Testing
     )
     #expect(outcomes.first?.displayName == "Model Engine")
     #expect(outcomes.first?.modelName == "test-model")
+}
+
+@Test(arguments: [false, true])
+func coordinatorPreservesSessionThroughLanguageResolutionAndProtectedDispatch(protectsContent: Bool) async {
+    let calls = SessionRequestCalls()
+    let registry = ProviderRegistry()
+    registry.register(SessionEchoEngine(calls: calls))
+    let coordinator = TranslationCoordinator(registry: registry)
+    let source = "An AI Agent will email me at person@example.com tomorrow."
+    let terminology = protectsContent ? TerminologySnapshot(entries: [
+        TerminologyEntry(source: "AI Agent", target: "AI Agent", from: .en, to: .zh)
+    ]) : nil
+    let request = TranslateRequest(
+        text: source, from: .auto, to: .zh, terminology: terminology,
+        context: TranslationContext(
+            profile: .quickTranslate,
+            privacyPolicy: protectsContent ? .maskSensitive : .standard
+        )
+    )
+
+    let outcomes = await coordinator.translateAll(request)
+    let stream = await coordinator.translateIncrementally(request, strategy: .firstSuccessful)
+    var streamed: [AggregatedOutcome] = []
+    for await outcome in stream { streamed.append(outcome) }
+
+    let requests = await calls.requests
+    #expect(requests.count == 2)
+    for sent in requests {
+        #expect(sent.sessionID == request.sessionID)
+        #expect(sent.from == .en)
+        #expect(sent.to == .zh)
+        if protectsContent {
+            #expect(sent.text.contains("PARROTTERM0001"))
+            #expect(sent.text.contains("PARROTMASK_EMAIL"))
+            #expect(!sent.text.contains("AI Agent"))
+            #expect(!sent.text.contains("person@example.com"))
+        } else {
+            #expect(sent.text == source)
+        }
+    }
+    #expect(outcomes.first?.result?.translated == source)
+    #expect(streamed.first?.result?.translated == source)
 }
 
 @Test func disabledProviderIsExcluded() async {
@@ -117,6 +160,205 @@ import Testing
     #expect(ids == ["fast", "slow"])
 }
 
+@Test func singleResultUsesOnlyConfiguredPrimary() async {
+    let calls = ProviderCalls()
+    let registry = ProviderRegistry()
+    registry.register(TrackedEngine(id: "primary", calls: calls))
+    registry.register(TrackedEngine(id: "unused-backup", calls: calls))
+    let coordinator = TranslationCoordinator(registry: registry)
+    let stream = await coordinator.translateIncrementally(
+        TranslateRequest(text: "hello", to: .zh), strategy: .firstSuccessful
+    )
+    var outcomes: [AggregatedOutcome] = []
+    for await outcome in stream { outcomes.append(outcome) }
+
+    #expect(await calls.ids == ["primary"])
+    #expect(outcomes.map(\.providerId) == ["primary"])
+    #expect(outcomes.first?.isSuccess == true)
+}
+
+@Test func singleResultTriesOneBackupAfterFailure() async {
+    let calls = ProviderCalls()
+    let registry = ProviderRegistry()
+    registry.register(TrackedEngine(id: "primary", calls: calls, fails: true))
+    registry.register(TrackedEngine(id: "backup", calls: calls))
+    registry.register(TrackedEngine(id: "unused", calls: calls))
+    let coordinator = TranslationCoordinator(registry: registry)
+    let stream = await coordinator.translateIncrementally(
+        TranslateRequest(text: "hello", to: .zh), strategy: .firstSuccessful
+    )
+    var outcomes: [AggregatedOutcome] = []
+    for await outcome in stream { outcomes.append(outcome) }
+
+    #expect(await calls.ids == ["primary", "backup"])
+    #expect(outcomes.first?.error == .network)
+    #expect(outcomes.last?.isSuccess == true)
+}
+
+@Test func singleResultBoundsAutomaticFallbackWork() async {
+    let calls = ProviderCalls()
+    let registry = ProviderRegistry()
+    for id in ["primary", "backup", "unused"] {
+        registry.register(TrackedEngine(id: id, calls: calls, fails: true))
+    }
+    let coordinator = TranslationCoordinator(registry: registry)
+    let stream = await coordinator.translateIncrementally(
+        TranslateRequest(text: "hello", to: .zh), strategy: .firstSuccessful
+    )
+    for await _ in stream {}
+
+    #expect(await calls.ids == ["primary", "backup"])
+}
+
+@Test func unsupportedBackupDoesNotHideLaterUsableProvider() async {
+    let calls = ProviderCalls()
+    let registry = ProviderRegistry()
+    registry.register(TrackedEngine(id: "primary", calls: calls, fails: true))
+    registry.register(TrackedEngine(id: "unsupported", calls: calls, failure: .unsupportedLanguage))
+    registry.register(TrackedEngine(id: "usable", calls: calls))
+    registry.register(TrackedEngine(id: "unused", calls: calls))
+    let coordinator = TranslationCoordinator(registry: registry)
+    let stream = await coordinator.translateIncrementally(
+        TranslateRequest(text: "tide", to: .zh), strategy: .firstSuccessful
+    )
+    var outcomes: [AggregatedOutcome] = []
+    for await outcome in stream { outcomes.append(outcome) }
+
+    #expect(await calls.ids == ["primary", "unsupported", "usable"])
+    #expect(outcomes.last?.providerId == "usable")
+    #expect(outcomes.last?.isSuccess == true)
+}
+
+@Test func unconfiguredProvidersDoNotConsumeOperationalAttemptBudget() async {
+    let calls = ProviderCalls()
+    let registry = ProviderRegistry()
+    registry.register(TrackedEngine(id: "unconfigured", calls: calls, failure: .notConfigured))
+    registry.register(TrackedEngine(id: "first-failure", calls: calls, fails: true))
+    registry.register(TrackedEngine(id: "second-failure", calls: calls, fails: true))
+    registry.register(TrackedEngine(id: "unused", calls: calls))
+    let coordinator = TranslationCoordinator(registry: registry)
+    let stream = await coordinator.translateIncrementally(
+        TranslateRequest(text: "tide", to: .zh), strategy: .firstSuccessful
+    )
+    for await _ in stream {}
+
+    #expect(await calls.ids == ["unconfigured", "first-failure", "second-failure"])
+}
+
+@Test func singleResultLookupPrefersDictionaryBeforePlainTranslation() async {
+    let calls = ProviderCalls()
+    let registry = ProviderRegistry()
+    registry.register(TrackedEngine(id: "plain", calls: calls))
+    registry.register(TrackedEngine(id: "dictionary", calls: calls, supportsLookup: true))
+    registry.register(TrackedEngine(id: "second-dictionary", calls: calls, supportsLookup: true))
+    let coordinator = TranslationCoordinator(registry: registry)
+    let request = TranslateRequest(text: "tide", to: .zh, mode: .lookup)
+    let stream = await coordinator.translateIncrementally(request, strategy: .firstSuccessful)
+    var outcomes: [AggregatedOutcome] = []
+    for await outcome in stream { outcomes.append(outcome) }
+
+    #expect(await calls.ids == ["dictionary"])
+    #expect(outcomes.first?.result?.definitions?.isEmpty == false)
+    #expect(coordinator.plannedProviders(for: request, strategy: .comparison).map(\.id)
+            == ["plain", "dictionary", "second-dictionary"])
+}
+
+@Test func lookupFallsBackToPlainTranslationAfterDictionaryFailure() async {
+    let calls = ProviderCalls()
+    let registry = ProviderRegistry()
+    registry.register(TrackedEngine(id: "plain", calls: calls))
+    registry.register(TrackedEngine(id: "dictionary", calls: calls, fails: true, supportsLookup: true))
+    let coordinator = TranslationCoordinator(registry: registry)
+    let stream = await coordinator.translateIncrementally(
+        TranslateRequest(text: "tide", to: .zh, mode: .lookup), strategy: .firstSuccessful
+    )
+    var outcomes: [AggregatedOutcome] = []
+    for await outcome in stream { outcomes.append(outcome) }
+
+    #expect(await calls.ids == ["dictionary", "plain"])
+    #expect(outcomes.last?.providerId == "plain")
+    #expect(outcomes.last?.isSuccess == true)
+}
+
+@Test func lookupPreferencePreservesExplicitProviderRouting() async {
+    let calls = ProviderCalls()
+    let registry = ProviderRegistry()
+    registry.register(TrackedEngine(id: "plain", calls: calls))
+    registry.register(TrackedEngine(id: "dictionary", calls: calls, supportsLookup: true))
+    let coordinator = TranslationCoordinator(registry: registry)
+    let preferred = TranslateRequest(text: "tide", to: .zh, mode: .lookup,
+        context: TranslationContext(profile: .quickTranslate,
+            routingHints: ProviderRoutingHints(preferredProviderIDs: ["plain"])))
+    #expect(coordinator.plannedProviders(for: preferred, strategy: .firstSuccessful).map(\.id)
+            == ["plain", "dictionary"])
+    let privateRequest = preferred.withContext(TranslationContext(profile: .privateLocal,
+        routingHints: ProviderRoutingHints(allowedProviderIDs: ["plain"])))
+    let stream = await coordinator.translateIncrementally(privateRequest, strategy: .firstSuccessful)
+    for await _ in stream {}
+    #expect(await calls.ids == ["plain"])
+}
+
+@Test func singleResultRejectsBlankResponseAndUsesBackup() async {
+    let calls = ProviderCalls()
+    let registry = ProviderRegistry()
+    registry.register(TrackedEngine(id: "blank", calls: calls, translated: " \n "))
+    registry.register(TrackedEngine(id: "backup", calls: calls))
+    let coordinator = TranslationCoordinator(registry: registry)
+    let stream = await coordinator.translateIncrementally(
+        TranslateRequest(text: "hello", to: .zh), strategy: .firstSuccessful
+    )
+    var outcomes: [AggregatedOutcome] = []
+    for await outcome in stream { outcomes.append(outcome) }
+
+    #expect(await calls.ids == ["blank", "backup"])
+    #expect(outcomes.first?.isSuccess == false)
+    #expect(outcomes.last?.providerId == "backup")
+    #expect(outcomes.last?.isSuccess == true)
+}
+
+@Test func cancelledSingleResultDoesNotStartBackupOrPublishAnError() async throws {
+    let calls = ProviderCalls()
+    let registry = ProviderRegistry()
+    registry.register(TrackedEngine(id: "primary", calls: calls, delayMs: 5_000))
+    registry.register(TrackedEngine(id: "unused-backup", calls: calls))
+    let coordinator = TranslationCoordinator(registry: registry)
+    let task = Task {
+        let stream = await coordinator.translateIncrementally(
+            TranslateRequest(text: "hello", to: .zh), strategy: .firstSuccessful
+        )
+        var outcomes: [AggregatedOutcome] = []
+        for await outcome in stream { outcomes.append(outcome) }
+        return outcomes
+    }
+    for _ in 0..<100 {
+        if await !calls.ids.isEmpty { break }
+        try await Task.sleep(nanoseconds: 5_000_000)
+    }
+    #expect(await calls.ids == ["primary"])
+    task.cancel()
+    #expect(await task.value.isEmpty)
+    #expect(await calls.ids == ["primary"])
+}
+
+@Test func shortLatinWordKeepsAutomaticSourceLanguage() {
+    let resolver = TranslationDirectionResolver()
+    for word in ["tide", "chat", "gift"] {
+        let direction = resolver.resolve(text: word, from: .auto, to: .zh)
+        #expect(direction.from == .auto)
+        #expect(direction.detected == .auto)
+        #expect(direction.to == .zh)
+    }
+    let explicit = resolver.resolve(text: "tide", from: .en, to: .zh)
+    #expect(explicit.from == .en)
+    let englishTarget = resolver.resolve(text: "hello", from: .auto, to: .en)
+    #expect(englishTarget.from == .en)
+    #expect(englishTarget.to == .zh)
+    #expect(englishTarget.targetWasAdjusted)
+    let polish = resolver.resolvePolish(text: "tide", from: .auto)
+    #expect(polish.from == .en)
+    #expect(polish.to == .en)
+}
+
 @Test func languageDetection() {
     let detector = LanguageDetector()
     let lang = detector.detect("This is clearly an English sentence with enough words.")
@@ -129,6 +371,30 @@ import Testing
     #expect(direction.from == .zh)
     #expect(direction.to == .en)
     #expect(direction.targetWasAdjusted)
+}
+
+@Test func directionResolverPreservesExplicitSourceEvenWhenDetectionMatchesTarget() {
+    let resolver = TranslationDirectionResolver()
+    let direction = resolver.resolve(
+        text: "今天天气很好，我们去公园散步。", from: .en, to: .zh
+    )
+
+    #expect(direction.from == .en)
+    #expect(direction.to == .zh)
+    #expect(direction.detected == .zh)
+    #expect(!direction.targetWasAdjusted)
+}
+
+@Test func directionResolverPreservesAnExplicitlySelectedAutomaticTarget() {
+    let resolver = TranslationDirectionResolver()
+    let direction = resolver.resolve(
+        text: "今天天气很好，我们去公园散步。", from: .auto, to: .zh,
+        allowTargetAdjustment: false
+    )
+
+    #expect(direction.from == .zh)
+    #expect(direction.to == .zh)
+    #expect(!direction.targetWasAdjusted)
 }
 
 @Test func coordinatorAvoidsSameLanguageTranslationWhenDetectedInputMatchesTarget() async {
@@ -214,5 +480,52 @@ struct ModelEngine: TranslationProvider {
 
     func translate(_ req: TranslateRequest) async throws -> TranslateResult {
         TranslateResult(providerId: id, translated: "ok")
+    }
+}
+
+private actor ProviderCalls {
+    var ids: [String] = []
+    func record(_ id: String) { ids.append(id) }
+}
+
+private actor SessionRequestCalls {
+    var requests: [TranslateRequest] = []
+    func record(_ request: TranslateRequest) { requests.append(request) }
+}
+
+private struct SessionEchoEngine: TranslationProvider {
+    let calls: SessionRequestCalls
+    let id = "session-echo"
+    let displayName = "Session Echo"
+    let supportedLanguages: [Language] = [.auto, .en, .zh]
+    let capabilities = ProviderCapabilities(terminology: .placeholder)
+
+    func translate(_ req: TranslateRequest) async throws -> TranslateResult {
+        await calls.record(req)
+        return TranslateResult(providerId: id, translated: req.text)
+    }
+}
+
+private struct TrackedEngine: TranslationProvider {
+    let id: String
+    let calls: ProviderCalls
+    var fails = false
+    var delayMs: UInt64 = 0
+    var translated = "translated"
+    var failure: ProviderError?
+    var supportsLookup = false
+    var displayName: String { id }
+    var supportedLanguages: [Language] { [.auto, .zh, .en] }
+    var capabilities: ProviderCapabilities { ProviderCapabilities(supportsLookup: supportsLookup) }
+
+    func translate(_ req: TranslateRequest) async throws -> TranslateResult {
+        await calls.record(id)
+        if delayMs > 0 { try await Task.sleep(nanoseconds: delayMs * 1_000_000) }
+        if let failure { throw failure }
+        if fails { throw ProviderError.network }
+        return TranslateResult(
+            providerId: id, translated: translated,
+            definitions: supportsLookup ? [Definition(partOfSpeech: "n.", meanings: ["definition"])] : nil
+        )
     }
 }

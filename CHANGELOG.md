@@ -1,5 +1,25 @@
 # Changelog
 
+## 0.1.4 — 2026-10-23
+
+### Changed
+
+- Refreshed the application icon with a white tile and a more legible, restrained blue parrot; retained the monochrome menu bar mark.
+- Made menu rows, settings navigation, history and learning lists clickable across their full visible area. Disclosure headings expand and collapse across the whole row, and common icon buttons have 32 pt hit targets.
+- Simplified the translation workspace and native settings. Source text remains editable for in-place retranslation; a primary engine and automatic fallback are the default, with comparisons available on demand.
+- Kept enabled-engine order, model configuration and credential drafts together, with clearer validation, cancellation, reset and recovery actions.
+
+### Fixed
+
+- Improved asynchronous selection capture, clipboard restoration, short-word language detection, result ordering and history refresh.
+- Preserved the published settings observation, hotkey modifier-release and per-translation OpenCode session fixes while integrating the new workspace.
+- Added model-aware TranslateGemma request formatting and language handling for Ollama.
+
+### Validation
+
+- All 268 Swift tests passed, together with the Release build and native GUI acceptance, including actual mouse clicks in sidebar and disclosure trailing space.
+- Apple silicon DMG and ZIP artifacts, application signature verification, and SHA-256 checksums.
+
 ## 0.1.3 — 2026-10-09
 
 ### Fixed

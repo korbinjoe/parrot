@@ -4,7 +4,9 @@
 
 [下载最新版本](https://github.com/korbinjoe/parrot/releases/latest)
 
-开源 macOS / iOS 翻译 + OCR 工具：划词翻译、截图 OCR 翻译、输入翻译、查词、多引擎聚合对比、可扩展插件系统（接入任意 LLM）、历史/收藏、TTS。
+开源 macOS / iOS 翻译工具。macOS 默认专注一件事：把选中、输入或截图里的文字，快速变成可复制的译文。
+
+默认只请求一个首选引擎，失败时尝试备用引擎。原文始终可编辑，修改后在同一窗口重新翻译。需要比较译法时，从译文的「更多」菜单临时对比其他引擎。
 
 > 规划与设计见 `openspec/changes/macos-translator/`。
 
@@ -15,33 +17,47 @@
   <img src="docs/screenshots/menubar-icon.png" alt="Parrot Menu Bar Icon" width="64">
 </p>
 
+<p align="center">
+  <img src="docs/screenshots/native-translation-dark.png" alt="Parrot 原生翻译窗口" width="620">
+</p>
+
 | 平台 | 说明 |
 |------|------|
 | **macOS** | 菜单栏常驻 App，全局快捷键 + 悬浮翻译窗。克隆后运行 `bash scripts/build-app.sh` 产出 `build/Parrot.app`。 |
 | **iOS** | 社交阅读/写作助手与 Quick Lens OCR（iOS 17+）。运行 `xcodegen generate`，用 Xcode 打开 `Parrot.xcodeproj` 后运行 `ParrotiOS` scheme。交互原型见 [docs/mockups/ios-social-assistant/index.html](./docs/mockups/ios-social-assistant/index.html)。 |
 
-## 功能
+## 日常使用
 
 | 能力 | 说明 | 触发方式 |
 |------|------|---------|
 | 划词翻译 | 选中任意文本即时翻译 | `⌥D` / 菜单 / PopClip |
 | 查词 | 单词释义、音标、词性 | `⌥E` / 菜单 / PopClip |
 | 截图翻译 | 框选屏幕区域 OCR 后翻译 | `⌥S` / 菜单 |
-| 输入翻译 | 弹窗输入文本翻译 | `⌥A` / 菜单 |
-| 多引擎聚合 | Google / DeepL / OpenAI / 腾讯 / 百度 / 有道 / 彩云 / Microsoft / 10+ LLM / 插件 | 自动 |
+| 输入翻译 | 输入、修改、重新翻译都在同一窗口 | `⌥A` / 菜单 |
+| 历史 / 收藏 | 重开已有译文，按需修改和重译 | 菜单 → 历史 |
+| 复制译文 | 复制后继续原来的工作 | 译文 → 复制 |
+
+在「设置 → 翻译」选择首选引擎。只需配置一个常用服务；启用的其他引擎作为备用。每次对比多个引擎也可在此开启。
+
+## 按需开启
+
+在「设置 → 通用 → 高级功能」开启语境分析、润色和学习等扩展。已有学习记录、服务配置和历史会保留。
+
+| 能力 | 说明 | 入口 |
+|------|------|------|
+| 多引擎对比 | 比较不同引擎和模型的译文 | 译文 → 更多 / 设置 → 翻译 |
 | 术语表 | 专业名词、产品名、缩写固定译法 | 设置 → 术语 |
 | 插件系统 | JS 插件接入任意 LLM/词典（沙箱 + 网络白名单） | `~/Library/Application Support/Parrot/Plugins` |
-| 历史 / 收藏 | 自动记录、收藏、检索 | 悬浮窗 ⭐️ |
-| TTS 朗读 | 原文 / 译文语音合成 | 悬浮窗 🔊 |
+| TTS 朗读 | 原文 / 译文语音合成 | 悬浮窗 → 更多 → 朗读 |
 | PopClip | 选中后从 PopClip 调起 Parrot | `examples/Parrot.popclipext` |
 | URL Scheme | `parrot://translate?text=` / `parrot://lookup?text=` | 外部集成 |
 
 ## 引擎与密钥
 
-- **Google Translation LLM**：使用官方 Cloud Translation API，需配置 Google Cloud Project ID 与 API Key。
+- **Google Translation LLM**：使用官方 Cloud Translation Basic API，需配置 Google Cloud Project ID 与 API Key。
 - **DeepL / OpenAI / 腾讯 / 百度 / 有道 / 彩云 / Microsoft**：Swift 内置，需 API Key。
 - **LLM 全家桶**：DeepSeek、Gemini、Groq、Ollama、通义、豆包、Kimi、智谱、硅基流动 — Swift 内置。
-- **系统翻译**：macOS 15+（开发中）。
+- **系统翻译**：macOS 15+ 本地翻译，首次使用可能需要下载语言包。
 - **术语表**：在「设置 → 术语」维护专业名词，详见 [docs/terminology.md](./docs/terminology.md)。
 
 完整引擎清单与密钥申请链接见 **[docs/engines.md](./docs/engines.md)**。
@@ -74,7 +90,7 @@ bash scripts/build-app.sh   # 产出 build/Parrot.app（菜单栏常驻）
 **macOS**：Swift 6 + SwiftUI + AppKit，macOS 13+。  
 **iOS**：SwiftUI，iOS 17+；`xcodegen generate` 后打开 `Parrot.xcodeproj` 运行 `ParrotiOS`。
 
-提交前请运行 `swift build` 和 `swift test`。
+提交前请运行 `swift build`、`swift test` 和 `.codex/skills/ui-acceptance-review/scripts/parrot-ui-acceptance.sh`。
 
 ## 架构
 

@@ -4,6 +4,95 @@ import Testing
 import ParrotCore
 @testable import ParrotApp
 
+@Test func engineValidationRequiresUsableTranslation() async {
+    let provider = EngineValidationFixtureProvider(translated: " \n你好\t ")
+
+    #expect(await EngineValidator.validateDetailed(provider) == .passed)
+    #expect(await EngineValidator.validate(provider))
+}
+
+@Test(arguments: ["", " \n\t "])
+func engineValidationRejectsEmptyTranslation(_ translated: String) async {
+    let provider = EngineValidationFixtureProvider(translated: translated)
+
+    guard case .failed(let message) = await EngineValidator.validateDetailed(provider) else {
+        Issue.record("Expected empty translation to fail validation")
+        return
+    }
+    #expect(!message.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+    #expect(!(await EngineValidator.validate(provider)))
+}
+
+@Test(arguments: [ProviderError.network, .timeout, .rateLimited])
+func engineValidationDoesNotTreatTransientFailuresAsSuccess(_ failure: ProviderError) async {
+    let provider = EngineValidationFixtureProvider(failure: failure)
+    guard case .failed(let message) = await EngineValidator.validateDetailed(provider) else {
+        Issue.record("Expected validation failure for \(failure)")
+        return
+    }
+    #expect(!message.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+    #expect(!(await EngineValidator.validate(provider)))
+}
+
+@Test func engineValidationPreservesServiceFailureDetail() async {
+    let message = "Model big-pickle is unavailable for this subscription."
+    let provider = EngineValidationFixtureProvider(failure: .service(message))
+
+    guard case .failed(let detail) = await EngineValidator.validateDetailed(provider) else {
+        Issue.record("Expected service error to fail validation")
+        return
+    }
+    #expect(!detail.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+    #expect(detail.contains(message))
+    #expect(!(await EngineValidator.validate(provider)))
+}
+
+@Test func engineValidationPreservesPluginFailureDetail() async {
+    let message = "Gateway returned an invalid model response."
+    let provider = EngineValidationFixtureProvider(failure: .plugin(message))
+
+    guard case .failed(let detail) = await EngineValidator.validateDetailed(provider) else {
+        Issue.record("Expected plugin error to fail validation")
+        return
+    }
+    #expect(!detail.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+    #expect(detail.contains(message))
+    #expect(!(await EngineValidator.validate(provider)))
+}
+
+@Test func engineValidationRejectsUnknownErrorsWithTheirDetail() async {
+    let provider = EngineValidationFixtureProvider(throwsUnknownError: true)
+
+    guard case .failed(let message) = await EngineValidator.validateDetailed(provider) else {
+        Issue.record("Expected unknown error to fail validation")
+        return
+    }
+    #expect(!message.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+    #expect(message.contains(EngineValidationFixtureError().localizedDescription))
+    #expect(!(await EngineValidator.validate(provider)))
+}
+
+private struct EngineValidationFixtureProvider: TranslationProvider {
+    var translated = "你好"
+    var failure: ProviderError?
+    var throwsUnknownError = false
+
+    let id = "validation-fixture"
+    let displayName = "Validation Fixture"
+    let supportedLanguages: [Language] = [.en, .zh]
+    let capabilities = ProviderCapabilities()
+
+    func translate(_ request: TranslateRequest) async throws -> TranslateResult {
+        if let failure { throw failure }
+        if throwsUnknownError { throw EngineValidationFixtureError() }
+        return TranslateResult(providerId: id, translated: translated)
+    }
+}
+
+private struct EngineValidationFixtureError: LocalizedError {
+    var errorDescription: String? { "Unexpected upstream validation response." }
+}
+
 @MainActor
 @Test func credentialValidationUsesAvailableKeyWhenEngineIsDisabled() async throws {
     let suiteName = "parrot.test.disabled-validation.\(UUID().uuidString)"

@@ -2,21 +2,15 @@ import SwiftUI
 import AppKit
 import ParrotCore
 
-/// Floating result content: a language-direction header, source context, then all provider
-/// slots grouped by completion state with LLM results prioritized for comparison.
+/// A compact translation workspace: edit the source, translate, then copy the result.
 struct ResultView: View {
     private enum Layout {
         static let minWidth: CGFloat = 520
         static let idealWidth: CGFloat = 560
-        static let minHeight: CGFloat = 320
-        static let minScrollHeight: CGFloat = 260
-        static let idealScrollFloor: CGFloat = 520
-        static let maxPreferredHeight: CGFloat = 680
-        static let toolbarControlHeight: CGFloat = 28
-        static let fixedToolbarHeight = toolbarControlHeight + Theme.Spacing.s12 + Theme.Spacing.s8
+        static let minHeight: CGFloat = 280
+        static let toolbarControlHeight: CGFloat = 32
     }
 
-    @Environment(\.accessibilityReduceMotion) private var accessibilityReduceMotion
     @ObservedObject var state: AppState
     @ObservedObject var settings: AppSettings
     @ObservedObject var panelPresentation: FloatingPanelPresentation
@@ -28,11 +22,10 @@ struct ResultView: View {
     let onReturnToSourceApp: () -> Void
     let onWorkspaceNoticeAction: (WorkspaceNotice.Action) -> Void
     let onClose: () -> Void
+    let onContentMetricsChange: (FloatingPanelContentMetrics) -> Void
 
-    @State private var contentHeight: CGFloat = 160
     @State private var feedbackText: String = ""
     @State private var sourceComposerFocused: Bool = false
-    @State private var sourceLearningSelection: String = ""
 
     init(
         state: AppState,
@@ -44,7 +37,8 @@ struct ResultView: View {
         onReplaceInSourceApp: @escaping (String) -> Bool = { _ in false },
         onReturnToSourceApp: @escaping () -> Void = {},
         onWorkspaceNoticeAction: @escaping (WorkspaceNotice.Action) -> Void = { _ in },
-        onClose: @escaping () -> Void = {}
+        onClose: @escaping () -> Void = {},
+        onContentMetricsChange: @escaping (FloatingPanelContentMetrics) -> Void = { _ in }
     ) {
         self.state = state
         self.settings = state.settings
@@ -57,17 +51,24 @@ struct ResultView: View {
         self.onReturnToSourceApp = onReturnToSourceApp
         self.onWorkspaceNoticeAction = onWorkspaceNoticeAction
         self.onClose = onClose
+        self.onContentMetricsChange = onContentMetricsChange
     }
 
     var body: some View {
         workspaceBody
-        .onPreferenceChange(ContentHeightKey.self) { contentHeight = $0 }
+        .onPreferenceChange(WorkspaceLayoutMeasurementsKey.self) { measurements in
+            guard measurements.viewportWidth > 0, measurements.contentSize.height > 0 else { return }
+            onContentMetricsChange(FloatingPanelContentMetrics(
+                contentSize: CGSize(width: measurements.viewportWidth,
+                                    height: measurements.contentSize.height),
+                chromeHeight: measurements.chromeHeight,
+                preferredWidth: measurements.preferredWidth,
+                sessionID: measurements.sessionID
+            ))
+        }
         .onDisappear {
             sourceComposerFocused = false
             state.setComposerFocused(false)
-        }
-        .onChange(of: state.manualLearningSelectionRevision) { _ in
-            sourceLearningSelection = ""
         }
         .onExitCommand {
             onClose()
@@ -77,43 +78,71 @@ struct ResultView: View {
     private var workspaceBody: some View {
         VStack(spacing: 0) {
             VStack(spacing: 0) {
-                if state.isOffline {
-                    WarningBar("无网络连接，翻译可能失败")
-                }
-                fixedToolbar
-                ScrollView {
-                    VStack(alignment: .leading, spacing: Theme.Spacing.s8) {
-                        if let notice = state.workspaceNotice {
-                            WorkspaceNoticeView(notice: notice, onAction: handleNoticeAction)
-                        }
-                        if state.ocrCandidates.count > 1 {
-                            OCRCandidatesView(
-                                candidates: state.ocrCandidates,
-                                selectedID: state.selectedOCRCandidateID,
-                                onSelect: { state.selectOCRCandidate(id: $0) }
-                            )
-                        }
-                        sourceBlock
-
-                        resultsList
+                VStack(spacing: 0) {
+                    if state.isOffline {
+                        WarningBar("无网络连接，翻译可能失败")
                     }
-                    .padding(.horizontal, Theme.Spacing.s12)
-                    .padding(.bottom, Theme.Spacing.s12)
+                    fixedToolbar
+                }
+                .background(GeometryReader { geometry in
+                    Color.clear.preference(
+                        key: WorkspaceLayoutMeasurementsKey.self,
+                        value: WorkspaceLayoutMeasurements(chromeHeight: geometry.size.height)
+                    )
+                })
+                ScrollView {
+                    VStack(alignment: .leading, spacing: Theme.Spacing.s16) {
+                        if panelPresentation.isCapturingSelection {
+                            selectionCaptureState
+                        } else {
+                            if let notice = state.workspaceNotice {
+                                WorkspaceNoticeView(notice: notice, onAction: handleNoticeAction)
+                            }
+                            if state.ocrCandidates.count > 1 {
+                                OCRCandidatesView(
+                                    candidates: state.ocrCandidates,
+                                    selectedID: state.selectedOCRCandidateID,
+                                    onSelect: { state.selectOCRCandidate(id: $0) }
+                                )
+                            }
+                            sourceBlock
+                            resultsList
+                        }
+                    }
+                    .padding(.horizontal, Theme.Spacing.s20)
+                    .padding(.bottom, Theme.Spacing.s20)
                     .background(GeometryReader { geo in
-                        Color.clear.preference(key: ContentHeightKey.self, value: geo.size.height)
+                        Color.clear.preference(
+                            key: WorkspaceLayoutMeasurementsKey.self,
+                            value: WorkspaceLayoutMeasurements(
+                                contentSize: geo.size,
+                                sessionID: sizingSessionID,
+                                preferredWidth: preferredContentWidth
+                            )
+                        )
                     })
                 }
-                .frame(
-                    minHeight: Layout.minScrollHeight,
-                    idealHeight: preferredScrollHeight,
-                    maxHeight: .infinity
-                )
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                .background(GeometryReader { geometry in
+                    Color.clear.preference(
+                        key: WorkspaceLayoutMeasurementsKey.self,
+                        value: WorkspaceLayoutMeasurements(viewportWidth: geometry.size.width)
+                    )
+                })
                 if !feedbackText.isEmpty {
-                    Divider()
-                    Text(feedbackText)
-                        .font(Theme.Font.caption)
-                        .foregroundStyle(Theme.Palette.label2)
-                        .frame(maxWidth: .infinity, minHeight: 26)
+                    VStack(spacing: 0) {
+                        Divider()
+                        Text(feedbackText)
+                            .font(Theme.Font.caption)
+                            .foregroundStyle(Theme.Palette.label2)
+                            .frame(maxWidth: .infinity, minHeight: 26)
+                    }
+                    .background(GeometryReader { geometry in
+                        Color.clear.preference(
+                            key: WorkspaceLayoutMeasurementsKey.self,
+                            value: WorkspaceLayoutMeasurements(chromeHeight: geometry.size.height)
+                        )
+                    })
                 }
             }
             .background(Theme.Palette.bgPanel)
@@ -125,19 +154,22 @@ struct ResultView: View {
             idealWidth: Layout.idealWidth,
             maxWidth: .infinity,
             minHeight: Layout.minHeight,
-            idealHeight: preferredPanelHeight,
             maxHeight: .infinity
         )
     }
 
-    private var preferredScrollHeight: CGFloat {
-        let floor = max(Layout.minScrollHeight, Layout.idealScrollFloor - Layout.fixedToolbarHeight)
-        let ceiling = Layout.maxPreferredHeight - Layout.fixedToolbarHeight
-        return min(max(contentHeight, floor), ceiling)
+    private var sizingSessionID: String {
+        [state.currentOrigin.rawValue, state.isLookupMode ? "lookup" : (state.isPolishMode ? "polish" : "translate"),
+         state.sourceLanguage.code ?? "auto", state.targetLanguage.code ?? "auto",
+         state.sourceText].joined(separator: "\u{0}")
     }
 
-    private var preferredPanelHeight: CGFloat {
-        min(max(contentHeight + Layout.fixedToolbarHeight, Layout.idealScrollFloor), Layout.maxPreferredHeight)
+    private var preferredContentWidth: CGFloat {
+        let longestResult = state.outcomes.compactMap { $0.result?.translated.count }.max() ?? 0
+        return FloatingPanelSizing.preferredWidth(
+            longestTextCount: max(state.sourceDraft.count, longestResult),
+            providerCount: state.outcomes.count + state.pendingProviders.count
+        )
     }
 
     private var panelStroke: some View {
@@ -147,31 +179,6 @@ struct ResultView: View {
                 RoundedRectangle(cornerRadius: Theme.Radius.window)
                     .strokeBorder(panelPresentation.isPinned ? Theme.Palette.accentSoft : Color.clear, lineWidth: 1)
             )
-    }
-
-    private var emptyState: some View {
-        Text(L("输入、划词或截图后，源文会出现在这里。"))
-            .foregroundStyle(Theme.Palette.label2)
-            .font(Theme.Font.callout)
-            .padding(.vertical, Theme.Spacing.s8)
-            .frame(maxWidth: .infinity, alignment: .leading)
-    }
-
-    private var readyToTranslateState: some View {
-        HStack(spacing: Theme.Spacing.s8) {
-            Image(systemName: "keyboard")
-                .font(.system(size: 12))
-                .foregroundStyle(Theme.Palette.accent)
-            Text(L("校对文本后选择“润色”或“翻译”。"))
-                .font(Theme.Font.callout)
-                .foregroundStyle(Theme.Palette.label2)
-            Spacer(minLength: 0)
-        }
-        .padding(.horizontal, Theme.Spacing.s12)
-        .padding(.vertical, 10)
-        .background(Theme.Palette.bgContent)
-        .clipShape(RoundedRectangle(cornerRadius: Theme.Radius.card))
-        .overlay(RoundedRectangle(cornerRadius: Theme.Radius.card).strokeBorder(Theme.Palette.hairline, lineWidth: 0.5))
     }
 
     private var recognizingState: some View {
@@ -189,36 +196,36 @@ struct ResultView: View {
         .overlay(RoundedRectangle(cornerRadius: Theme.Radius.card).strokeBorder(Theme.Palette.hairline, lineWidth: 0.5))
     }
 
+    private var selectionCaptureState: some View {
+        HStack(spacing: Theme.Spacing.s8) {
+            ProgressView().controlSize(.small)
+            Text(L("正在获取选中文字…"))
+                .font(Theme.Font.callout)
+                .foregroundStyle(Theme.Palette.label2)
+            Spacer(minLength: 0)
+        }
+        .padding(Theme.Spacing.s12)
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
     @ViewBuilder
     private var resultsList: some View {
         if state.isTranslating && state.outcomes.isEmpty && state.pendingProviders.isEmpty {
-            ForEach(0..<2, id: \.self) { _ in SkeletonCard() }
+            HStack(spacing: Theme.Spacing.s8) {
+                ProgressView().controlSize(.small)
+                Text(L("正在请求翻译结果。"))
+                    .font(Theme.Font.callout)
+                    .foregroundStyle(Theme.Palette.label2)
+            }
+            .padding(Theme.Spacing.s12)
         } else if state.outcomes.isEmpty && state.pendingProviders.isEmpty {
             if state.isRecognizingOCR {
                 recognizingState
-            } else if state.canTranslateDraft {
-                readyToTranslateState
-            } else {
-                emptyState
             }
         } else {
             VStack(alignment: .leading, spacing: Theme.Spacing.s8) {
-                if !state.isPolishMode {
-                    resultsOverview
-                }
-                if showsAlignedBilingualResult,
-                   let outcome = state.primarySuccessfulOutcome,
-                   let result = outcome.result {
-                    BilingualParagraphView(
-                        sourceHints: state.paragraphHints,
-                        translatedText: result.translated,
-                        providerName: outcome.displayName,
-                        onCopyParagraph: { copy($0) },
-                        onCopyAll: { copy(result.translated) },
-                        onCopyAndReturn: canReturnToSourceApp ? { copyAndReturn(result.translated) } : nil
-                    )
-                }
-                if state.isPolishMode, !state.polishVariants.isEmpty {
+                if state.settings.advancedFeaturesEnabled,
+                   state.isPolishMode, !state.polishVariants.isEmpty {
                     PolishVariantsView(
                         variants: state.polishVariants,
                         selectedTone: state.selectedPolishTone,
@@ -227,31 +234,11 @@ struct ResultView: View {
                         onReplace: { replaceInSourceApp($0) },
                         onSave: { saveCurrentExpression($0) }
                     )
-                    ForEach(visibleOrderedSlots) { slot in
-                        providerSlotView(slot)
-                    }
-                } else {
-                    ForEach(visibleOrderedSlots) { slot in
-                        if !showsAlignedBilingualResult || slot.id != state.primarySuccessfulOutcome?.providerId {
-                            providerSlotView(
-                                slot,
-                                isPrimary: slot.id == state.primarySuccessfulOutcome?.providerId
-                            )
-                            .transition(
-                                accessibilityReduceMotion
-                                    ? .opacity
-                                    : .opacity.combined(with: .move(edge: .top))
-                            )
-                        }
-                    }
+                }
+                ForEach(visibleOrderedSlots) { slot in
+                    providerSlotView(slot, isPrimary: slot.id == state.primarySuccessfulOutcome?.providerId)
                 }
             }
-            .animation(
-                accessibilityReduceMotion
-                    ? nil
-                    : .timingCurve(0.16, 1, 0.3, 1, duration: 0.28),
-                value: resultPresentationKey
-            )
         }
     }
 
@@ -259,32 +246,18 @@ struct ResultView: View {
     private func providerSlotView(_ slot: TranslationSlot, isPrimary: Bool = false) -> some View {
         switch slot {
         case .outcome(let outcome):
-            TranslationOutcomeCard(outcome: outcome,
-                                   isPrimary: isPrimary,
-                                   isSlow: state.slowProviderIDs.contains(outcome.providerId),
-                                   settings: state.settings,
-                                   sourceText: state.sourceText,
-                                   learningEnabled: state.settings.learningRecognitionEnabled,
-                                   microPracticeEnabled: state.settings.learningMicroPracticeEnabled,
-                                   occurrenceCounts: state.learningOccurrenceCounts,
-                                   sourceSelection: sourceLearningSelection,
-                                   onSpeakSource: { state.speakSource($0) },
-                                   onSpeak: { state.speakTranslation($0) },
-                                   onCopy: { copy($0) },
-                                   onLookupSelection: { selection, contextText, usesTranslation in
-                                       await state.lookupLearningSelection(
-                                           selection,
-                                           contextText: contextText,
-                                           providerID: outcome.providerId,
-                                           usesTranslation: usesTranslation
-                                       )
-                                   },
-                                   onSaveExpression: { saveCurrentExpression($0) },
-                                   onCopyAndReturn: isPrimary && canReturnToSourceApp ? { copyAndReturn($0) } : nil,
-                                   onReplaceInSourceApp: state.isPolishMode ? { replaceInSourceApp($0) } : nil,
-                                   onRetry: { state.retryProvider(outcome.providerId) },
-                                   onConfigure: { onConfigureProvider(outcome.providerId) })
-                .id("\(outcome.providerId)-\(state.manualLearningSelectionRevision)")
+            TranslationOutcomeCard(
+                outcome: outcome,
+                isPrimary: isPrimary,
+                isSlow: state.slowProviderIDs.contains(outcome.providerId),
+                advancedFeaturesEnabled: state.settings.advancedFeaturesEnabled,
+                onSpeak: { state.speakTranslation($0) },
+                onCopy: { copy($0) },
+                onCopyAndReturn: isPrimary && canReturnToSourceApp ? { copyAndReturn($0) } : nil,
+                onReplaceInSourceApp: state.isPolishMode ? { replaceInSourceApp($0) } : nil,
+                onRetry: { state.retryProvider(outcome.providerId) },
+                onConfigure: { onConfigureProvider(outcome.providerId) }
+            )
         case .pending(let provider):
             PendingOutcomeCard(provider: provider)
         }
@@ -294,11 +267,12 @@ struct ResultView: View {
 
     private var fixedToolbar: some View {
         header
-            .padding(.horizontal, Theme.Spacing.s12)
-            .padding(.top, Theme.Spacing.s12)
-            .padding(.bottom, Theme.Spacing.s8)
+            .padding(.horizontal, Theme.Spacing.s16)
+            .padding(.top, 10)
+            .padding(.bottom, 10)
             .frame(maxWidth: .infinity)
-            .background(Theme.Palette.bgPanel)
+            .background(MacMaterialBackground(material: .headerView))
+            .overlay(alignment: .bottom) { Divider().opacity(0.45) }
             .zIndex(1)
     }
 
@@ -311,23 +285,23 @@ struct ResultView: View {
                 onTargetChange: { state.setLanguageDirection(targetCode: $0) },
                 onSwap: swapLanguages
             )
-            ContextProfileMenu(selection: state.contextProfile) { profile in
-                state.setContextProfile(profile)
+            if state.contextProfile == .privateLocal {
+                Menu {
+                    Button(L("切换到常规翻译")) { state.setContextProfile(.quickTranslate) }
+                } label: {
+                    Label(L("仅本地翻译"), systemImage: "lock.shield")
+                        .font(Theme.Font.caption)
+                        .foregroundStyle(Theme.Palette.label2)
+                        .padding(.horizontal, 6)
+                        .frame(minHeight: 32)
+                        .contentShape(Rectangle())
+                }
+                .menuStyle(.borderlessButton)
+                .fixedSize()
+                .accessibilityLabel(L("仅本地翻译"))
             }
-            toolbarStatus
             Spacer(minLength: 0)
             HStack(spacing: Theme.Spacing.s4) {
-                IconButton(
-                    state.isFavorite ? "star.fill" : "star",
-                    help: state.savedRecordId == nil ? "翻译完成后可收藏" : (state.isFavorite ? "取消收藏" : "收藏"),
-                    foreground: state.isFavorite ? Theme.Palette.star : nil,
-                    activeBackground: state.isFavorite,
-                    isEnabled: state.savedRecordId != nil
-                ) {
-                    state.toggleFavorite()
-                    showFeedback(state.isFavorite ? "已收藏" : "已取消收藏")
-                }
-
                 IconButton(
                     panelPresentation.isPinned ? "pin.fill" : "pin",
                     help: panelPresentation.isPinned ? "取消常驻" : "常驻",
@@ -340,25 +314,54 @@ struct ResultView: View {
                     Button { copy(state.actionSourceText) } label: {
                         Label(L("复制原文"), systemImage: "text.alignleft")
                     }
-                    .disabled(state.actionSourceText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                    .disabled(!state.canTranslateDraft)
                     Button { state.speakSource() } label: {
                         Label(L("朗读原文"), systemImage: "speaker.wave.2")
                     }
-                    .disabled(state.actionSourceText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
-                    Divider()
-                    Button { onVocabulary() } label: {
-                        Label(L("个人词库"), systemImage: "text.book.closed")
+                    .disabled(!state.canTranslateDraft)
+                    Button { state.clearDraft() } label: {
+                        Label(L("清空源文"), systemImage: "xmark.circle")
                     }
-                    Button { onContextMemory() } label: {
-                        Label(L("规则记忆"), systemImage: "slider.horizontal.3")
+                    .disabled(!state.canTranslateDraft)
+                    Divider()
+                    if state.canCompareOtherEngines {
+                        Button { state.compareOtherEngines() } label: {
+                            Label(L("比较其他引擎"), systemImage: "square.stack")
+                        }
+                    }
+                    Button {
+                        state.toggleFavorite()
+                        showFeedback(state.isFavorite ? "已收藏" : "已取消收藏")
+                    } label: {
+                        Label(L(state.isFavorite ? "取消收藏" : "收藏"), systemImage: state.isFavorite ? "star.fill" : "star")
+                    }
+                    .disabled(state.savedRecordId == nil)
+                    if state.settings.advancedFeaturesEnabled {
+                        Divider()
+                        Menu(L("更多工具")) {
+                            Button(L("输入润色")) { state.translateDraft(mode: .polish) }
+                                .disabled(!state.canTranslateDraft)
+                            Button(L("删除空行")) { state.removeBlankDraftLines() }
+                                .disabled(!state.canTranslateDraft)
+                            Button(L("合并为一段")) { state.mergeDraftLines() }
+                                .disabled(!state.canTranslateDraft)
+                            ContextProfileMenu(selection: state.contextProfile) { profile in
+                                state.setContextProfile(profile)
+                            }
+                            Divider()
+                            Button(L("个人词库")) { onVocabulary() }
+                            Button(L("规则记忆")) { onContextMemory() }
+                        }
                     }
                 } label: {
                     Image(systemName: "ellipsis.circle")
                         .font(.system(size: 13, weight: .medium))
                         .foregroundStyle(Theme.Palette.label2)
-                        .frame(width: 28, height: 28)
+                        .frame(width: 32, height: 32)
+                        .contentShape(Rectangle())
                 }
                 .menuStyle(.borderlessButton)
+                .menuIndicator(.hidden)
                 .fixedSize()
                 .help(L("更多操作"))
                 .accessibilityLabel(L("更多操作"))
@@ -367,17 +370,6 @@ struct ResultView: View {
             }
         }
         .frame(height: Layout.toolbarControlHeight)
-    }
-
-    @ViewBuilder
-    private var toolbarStatus: some View {
-        if state.isTranslating {
-            LearningStatusChip(text: state.isPolishMode ? "润色中" : "翻译中", tone: Theme.Palette.accent)
-        } else if state.isSourceDirty {
-            LearningStatusChip(text: "已修改", tone: Theme.Palette.warning)
-        } else if state.settings.learningRecognitionEnabled {
-            LearningStatusChip(text: "选词学习", tone: Theme.Palette.success)
-        }
     }
 
     private func swapLanguages() {
@@ -390,16 +382,21 @@ struct ResultView: View {
     // MARK: - Source block
 
     private var sourceBlock: some View {
-        VStack(alignment: .leading, spacing: Theme.Spacing.s8) {
+        VStack(alignment: .leading, spacing: 10) {
+            HStack {
+                Text(L("原文"))
+                    .font(Theme.Font.callout.weight(.medium))
+                    .foregroundStyle(Theme.Palette.label2)
+                Spacer(minLength: 0)
+            }
             ZStack(alignment: .topLeading) {
                 if state.sourceDraft.isEmpty {
                     Text(state.isPolishMode
                         ? L("输入或粘贴要润色的草稿…")
                         : L("输入或粘贴要翻译的文本…"))
-                        .font(Theme.Font.body)
+                        .font(.system(size: 14))
                         .foregroundStyle(Theme.Palette.label3)
-                        .padding(.top, 8)
-                        .padding(.leading, 5)
+                        .padding(.top, 10)
                         .allowsHitTesting(false)
                 }
                 SourceComposerTextView(
@@ -410,49 +407,24 @@ struct ResultView: View {
                         sourceComposerFocused = focused
                         state.setComposerFocused(focused)
                     },
-                    onSelectionChange: { selection in
-                        sourceLearningSelection = selection
-                    }
+                    onSelectionChange: { _ in }
                 )
                     .frame(height: sourceEditorHeight)
                     .accessibilityLabel(L("源文编辑器"))
             }
+            .padding(.horizontal, 12)
+            .padding(.vertical, 6)
             .frame(maxWidth: .infinity, alignment: .leading)
+            .background(Theme.Palette.bgContent)
+            .clipShape(RoundedRectangle(cornerRadius: Theme.Radius.input))
+            .overlay(
+                RoundedRectangle(cornerRadius: Theme.Radius.input)
+                    .strokeBorder(sourceComposerFocused ? Theme.Palette.accent.opacity(0.55) : Theme.Palette.hairline,
+                                  lineWidth: sourceComposerFocused ? 1 : 0.5)
+            )
             HStack {
-                Text(sourceStatusText)
                 Spacer(minLength: 0)
-                if state.isTranslating {
-                    ProgressView().controlSize(.small)
-                } else if state.isSourceDirty {
-                    Text(L("已修改，可重新润色或翻译"))
-                } else {
-                    Text(L("%d 个字符", state.sourceDraft.count))
-                }
-                IconButton(
-                    "speaker.wave.2",
-                    help: "朗读原文",
-                    size: 12,
-                    isEnabled: state.canTranslateDraft
-                ) {
-                    state.speakSource(state.sourceDraft)
-                }
-                Menu {
-                    Button(L("删除空行")) { state.removeBlankDraftLines() }
-                    Button(L("合并为一段")) { state.mergeDraftLines() }
-                    Divider()
-                    Button(L("清空源文"), role: .destructive) { state.clearDraft() }
-                } label: {
-                    Image(systemName: "wand.and.stars")
-                        .font(.system(size: 12))
-                        .foregroundStyle(state.canTranslateDraft ? Theme.Palette.label2 : Theme.Palette.label3)
-                        .frame(width: 26, height: 26)
-                }
-                .menuStyle(.borderlessButton)
-                .fixedSize()
-                .disabled(!state.canTranslateDraft)
-                .help(state.isPolishMode ? L("整理草稿") : L("整理源文"))
-                .accessibilityLabel(state.isPolishMode ? L("整理草稿") : L("整理源文"))
-                if state.isPolishMode {
+                if state.settings.advancedFeaturesEnabled && state.isPolishMode {
                     Button {
                         state.cyclePolishTone()
                     } label: {
@@ -467,25 +439,16 @@ struct ResultView: View {
                     } label: {
                         Label(L("生成改写"), systemImage: "sparkles")
                     }
-                    .buttonStyle(PrimaryActionButtonStyle())
+                    .buttonStyle(PrimaryActionButtonStyle(isProminent: state.isSourceDirty || state.outcomes.isEmpty))
                     .keyboardShortcut(.return, modifiers: [])
                     .disabled(!state.canTranslateDraft)
                 } else {
                     Button {
-                        state.translateDraft(mode: .polish)
-                    } label: {
-                        Label(L("润色"), systemImage: "sparkles")
-                    }
-                    .buttonStyle(SecondaryActionButtonStyle())
-                    .disabled(!state.canTranslateDraft)
-                    .help(L("润色当前草稿"))
-                    .accessibilityLabel(L("润色当前草稿"))
-                    Button {
                         state.translateDraft(mode: .translate)
                     } label: {
-                        Label(L("翻译"), systemImage: "arrow.right.circle.fill")
+                        Label(L("翻译"), systemImage: "arrow.right")
                     }
-                    .buttonStyle(PrimaryActionButtonStyle())
+                    .buttonStyle(PrimaryActionButtonStyle(isProminent: state.isSourceDirty || state.outcomes.isEmpty))
                     .keyboardShortcut(.return, modifiers: [])
                     .disabled(!state.canTranslateDraft)
                 }
@@ -493,15 +456,7 @@ struct ResultView: View {
             .font(Theme.Font.caption)
             .foregroundStyle(Theme.Palette.label3)
         }
-        .padding(.horizontal, Theme.Spacing.s12)
-        .padding(.vertical, 11)
-        .background(Theme.Palette.bgContent)
-        .clipShape(RoundedRectangle(cornerRadius: Theme.Radius.card))
-        .overlay(
-            RoundedRectangle(cornerRadius: Theme.Radius.card)
-                .strokeBorder(sourceComposerFocused ? Theme.Palette.accent.opacity(0.75) : Theme.Palette.hairline,
-                              lineWidth: sourceComposerFocused ? 1.2 : 0.5)
-        )
+        .padding(.top, Theme.Spacing.s16)
     }
 
     private var sourceDraftBinding: Binding<String> {
@@ -516,30 +471,8 @@ struct ResultView: View {
             char.isNewline ? count + 1 : count
         })
         let wrappedLines = max(1, Int(ceil(Double(max(state.sourceDraft.count, 1)) / 42.0)))
-        let lines = min(7, max(2, max(explicitLines, wrappedLines)))
-        return CGFloat(lines) * 18 + 22
-    }
-
-    private var sourceStatusText: String {
-        if state.sourceDraftTrimmed.isEmpty {
-            return state.isPolishMode ? L("编辑草稿") : L("编辑源文")
-        }
-        if state.isPolishMode, state.didCaptureFocusedInputDraft {
-            return L("来自当前输入框")
-        }
-        return sourceLanguageText
-    }
-
-    private var sourceLanguageText: String {
-        if state.isPolishMode {
-            let language = state.targetLanguage == .auto ? state.detectedSource : state.targetLanguage
-            return L("润色 %@", LangPill.label(language, auto: "原文"))
-        }
-        if state.sourceLanguage == .auto {
-            if state.detectedSource == .auto { return L("自动检测") }
-            return L("自动检测 %@", LangPill.label(state.detectedSource, auto: ""))
-        }
-        return L("来源 %@", LangPill.label(state.sourceLanguage, auto: ""))
+        let lines = min(6, max(2, max(explicitLines, wrappedLines)))
+        return CGFloat(lines) * 20 + 12
     }
 
     private func copy(_ text: String) {
@@ -568,34 +501,6 @@ struct ResultView: View {
         showFeedback(onReplaceInSourceApp(translatedText) ? "已发送替换" : "没有可替换的原 App")
     }
 
-    @ViewBuilder
-    private func qualityBadges(for result: TranslateResult) -> some View {
-        if result.qualitySummary?.isRecommended == true {
-            QualityStatusBadge("推荐", tone: .accent)
-        }
-        if result.qualitySummary?.needsReview == true {
-            QualityStatusBadge("需复核", tone: .warning)
-        }
-        if let report = result.privacyMaskingReport, report.applied {
-            QualityStatusBadge("隐私遮罩 \(report.totalCount)", tone: .secondary)
-        }
-    }
-
-    private func profileLabel(_ profile: TranslationContextProfile) -> String {
-        switch profile {
-        case .quickTranslate: return L("快译")
-        case .understand: return L("理解")
-        case .nativePolish: return L("润色")
-        case .reply: return L("回复")
-        case .strictTerminology: return L("术语")
-        case .privateLocal: return L("隐私")
-        case .github: return "GitHub"
-        case .social: return L("社媒")
-        case .email: return L("邮件")
-        case .document: return L("长文")
-        }
-    }
-
     private func showFeedback(_ text: String) {
         let localized = L(text)
         feedbackText = localized
@@ -616,85 +521,18 @@ struct ResultView: View {
         state.currentContextSourceApp != nil
     }
 
-    private var resultsOverview: some View {
-        let successfulCount = orderedSlots.filter(\.isSuccess).count
-        let pendingCount = orderedSlots.filter(\.isPending).count
-        let failedCount = orderedSlots.filter(\.isFailure).count
-
-        return HStack(spacing: Theme.Spacing.s8) {
-            Label(L("全部引擎结果"), systemImage: "square.stack.3d.up.fill")
-                .font(Theme.Font.callout.weight(.semibold))
-                .foregroundStyle(Theme.Palette.label)
-            Spacer(minLength: 0)
-            if successfulCount > 0 {
-                resultCountLabel(
-                    L("%d 成功", successfulCount),
-                    systemImage: "checkmark.circle.fill",
-                    color: Theme.Palette.success
-                )
-            }
-            if pendingCount > 0 {
-                HStack(spacing: Theme.Spacing.s4) {
-                    ProgressView().controlSize(.mini)
-                    Text(L("%d 进行中", pendingCount))
-                }
-                .font(Theme.Font.caption.monospacedDigit())
-                .foregroundStyle(Theme.Palette.label2)
-            }
-            if failedCount > 0 {
-                resultCountLabel(
-                    L("%d 失败", failedCount),
-                    systemImage: "exclamationmark.circle.fill",
-                    color: Theme.Palette.danger
-                )
-            }
-        }
-        .padding(.horizontal, Theme.Spacing.s4)
-        .padding(.top, Theme.Spacing.s4)
-        .accessibilityElement(children: .combine)
-    }
-
-    private func resultCountLabel(_ text: String, systemImage: String, color: Color) -> some View {
-        Label(text, systemImage: systemImage)
-            .font(Theme.Font.caption.monospacedDigit())
-            .foregroundStyle(color)
-    }
-
-    private var showsAlignedBilingualResult: Bool {
-        guard state.canShowParagraphBilingualView,
-              let translated = state.primarySuccessfulOutcome?.result?.translated else { return false }
-        return BilingualParagraphView.canAlign(
-            sourceHints: state.paragraphHints,
-            translatedText: translated
+    private var orderedSlots: [TranslationSlot] {
+        translationSlotsForPresentation(
+            outcomes: state.outcomes,
+            pendingProviders: state.pendingProviders,
+            providerOrder: state.providerDisplayOrder
         )
     }
 
-    private var orderedSlots: [TranslationSlot] {
-        var outcomesByID: [String: AggregatedOutcome] = [:]
-        for outcome in state.outcomes { outcomesByID[outcome.providerId] = outcome }
-        var pendingByID: [String: PendingProviderViewState] = [:]
-        for provider in state.pendingProviders { pendingByID[provider.id] = provider }
-        let observedIDs = state.outcomes.map(\.providerId) + state.pendingProviders.map(\.id)
-        let configuredIDs = state.providerDisplayOrder
-        let orderedIDs = configuredIDs + observedIDs.filter { !configuredIDs.contains($0) }
-
-        var seen: Set<String> = []
-        var slots: [TranslationSlot] = []
-        for id in orderedIDs where !seen.contains(id) {
-            seen.insert(id)
-            if let outcome = outcomesByID[id] {
-                slots.append(.outcome(outcome))
-            } else if let pending = pendingByID[id] {
-                slots.append(.pending(pending))
-            }
-        }
-        return slots
-    }
-
     private var visibleOrderedSlots: [TranslationSlot] {
-        let prioritized = sortedTranslationSlotsForPresentation(orderedSlots)
-        guard state.isPolishMode, !state.polishVariants.isEmpty else { return prioritized }
-        return prioritized.filter { slot in
+        let slots = orderedSlots
+        guard state.settings.advancedFeaturesEnabled, state.isPolishMode, !state.polishVariants.isEmpty else { return slots }
+        return slots.filter { slot in
             switch slot {
             case .outcome(let outcome):
                 return outcome.result == nil
@@ -704,11 +542,7 @@ struct ResultView: View {
         }
     }
 
-    private var resultPresentationKey: String {
-        visibleOrderedSlots
-            .map { "\($0.id):\($0.presentationPhase.rawValue)" }
-            .joined(separator: "|")
-    }
+
 }
 
 enum TranslationSlot: Identifiable {
@@ -722,52 +556,26 @@ enum TranslationSlot: Identifiable {
         }
     }
 
-    var presentationPhase: TranslationSlotPresentationPhase {
-        switch self {
-        case .outcome(let outcome): return outcome.result == nil ? .failure : .success
-        case .pending: return .pending
-        }
-    }
-
-    var modelName: String? {
-        switch self {
-        case .outcome(let outcome): return outcome.modelName
-        case .pending(let provider): return provider.modelName
-        }
-    }
-
-    var isSuccess: Bool { presentationPhase == .success }
-    var isPending: Bool { presentationPhase == .pending }
-    var isFailure: Bool { presentationPhase == .failure }
-}
-
-enum TranslationSlotPresentationPhase: Int {
-    case success
-    case pending
-    case failure
 }
 
 @MainActor
-func sortedTranslationSlotsForPresentation(_ slots: [TranslationSlot]) -> [TranslationSlot] {
-    slots.enumerated()
-        .sorted { lhs, rhs in
-            let lhsPhase = lhs.element.presentationPhase.rawValue
-            let rhsPhase = rhs.element.presentationPhase.rawValue
-            if lhsPhase != rhsPhase { return lhsPhase < rhsPhase }
-
-            let lhsEngine = EngineCatalog.resultPresentationPriority(
-                for: lhs.element.id,
-                modelName: lhs.element.modelName
-            )
-            let rhsEngine = EngineCatalog.resultPresentationPriority(
-                for: rhs.element.id,
-                modelName: rhs.element.modelName
-            )
-            if lhsEngine != rhsEngine { return lhsEngine < rhsEngine }
-
-            return lhs.offset < rhs.offset
-        }
-        .map(\.element)
+func translationSlotsForPresentation(
+    outcomes: [AggregatedOutcome],
+    pendingProviders: [PendingProviderViewState],
+    providerOrder: [String]
+) -> [TranslationSlot] {
+    var outcomesByID: [String: AggregatedOutcome] = [:]
+    for outcome in outcomes { outcomesByID[outcome.providerId] = outcome }
+    let observedIDs = outcomes.map(\.providerId) + pendingProviders.map(\.id)
+    var pendingByID: [String: PendingProviderViewState] = [:]
+    for provider in pendingProviders { pendingByID[provider.id] = provider }
+    var seen: Set<String> = []
+    let slots: [TranslationSlot] = observedIDs.compactMap { id in
+        guard seen.insert(id).inserted else { return nil }
+        if let outcome = outcomesByID[id] { return .outcome(outcome) }
+        return pendingByID[id].map(TranslationSlot.pending)
+    }
+    return TranslationResultOrdering.ordered(slots, providerOrder: providerOrder, providerID: \.id)
 }
 
 private struct WorkspaceNoticeView: View {
@@ -797,20 +605,23 @@ private struct WorkspaceNoticeView: View {
                 .foregroundStyle(Theme.Palette.label3)
                 .lineLimit(1)
             Spacer(minLength: 0)
-            Button {
-                onAction(.dismiss)
-            } label: {
-                Image(systemName: "xmark")
-                    .font(.system(size: 9, weight: .semibold))
-                    .foregroundStyle(Theme.Palette.label3)
-                    .frame(width: 18, height: 18)
+            if let primary = notice.primaryAction, primary.action != .dismiss {
+                Button { onAction(primary.action) } label: {
+                    Text(L(primary.title))
+                        .foregroundStyle(Theme.Palette.accent)
+                        .padding(.horizontal, 6)
+                        .frame(minHeight: 32)
+                        .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                .fixedSize()
             }
-            .buttonStyle(.borderless)
-            .help(L("隐藏提示"))
-            .accessibilityLabel(L("隐藏提示"))
+            IconButton("xmark", help: "隐藏提示", size: 9, foreground: Theme.Palette.label3) {
+                onAction(.dismiss)
+            }
         }
         .padding(.horizontal, 10)
-        .frame(height: 30)
+        .frame(minHeight: 36)
         .background(Theme.Palette.bgControl.opacity(0.55))
         .clipShape(RoundedRectangle(cornerRadius: Theme.Radius.control))
     }
@@ -833,34 +644,26 @@ private struct WorkspaceNoticeView: View {
                     HStack(spacing: Theme.Spacing.s8) {
                         if let primary = notice.primaryAction {
                             Button(L(primary.title)) { onAction(primary.action) }
-                                .controlSize(.small)
+                                .buttonStyle(SecondaryActionButtonStyle())
                         }
                         if let secondary = notice.secondaryAction {
                             Button(L(secondary.title)) { onAction(secondary.action) }
-                                .controlSize(.small)
+                                .buttonStyle(SecondaryActionButtonStyle())
                         }
                     }
                     .padding(.top, 2)
                 }
             }
             Spacer(minLength: 0)
-            Button {
+            IconButton("xmark", help: "隐藏提示", size: 10, foreground: Theme.Palette.label3) {
                 onAction(.dismiss)
-            } label: {
-                Image(systemName: "xmark")
-                    .font(.system(size: 10, weight: .semibold))
-                    .foregroundStyle(Theme.Palette.label3)
-                    .frame(width: 22, height: 22)
             }
-            .buttonStyle(.borderless)
-            .help(L("隐藏提示"))
-            .accessibilityLabel(L("隐藏提示"))
         }
         .padding(.horizontal, Theme.Spacing.s12)
         .padding(.vertical, 10)
-        .background(tint.opacity(0.10))
+        .background(Theme.Palette.bgControl.opacity(0.55))
         .clipShape(RoundedRectangle(cornerRadius: Theme.Radius.card))
-        .overlay(RoundedRectangle(cornerRadius: Theme.Radius.card).strokeBorder(tint.opacity(0.35), lineWidth: 0.5))
+        .overlay(RoundedRectangle(cornerRadius: Theme.Radius.card).strokeBorder(Theme.Palette.hairline, lineWidth: 0.5))
     }
 
     private var tint: Color {
@@ -901,25 +704,22 @@ private struct LanguageDirectionControl: View {
     ]
 
     var body: some View {
-        HStack(spacing: 4) {
+        HStack(spacing: 8) {
             languageMenu(title: shortLabel(sourceCode, auto: "自动"), options: sourceOptions, action: onSourceChange)
             Button(action: onSwap) {
                 Image(systemName: "arrow.left.arrow.right")
-                    .font(.system(size: 9, weight: .semibold))
+                    .font(.system(size: 11, weight: .regular))
                     .foregroundStyle(sourceCode == "auto" ? Theme.Palette.label3 : Theme.Palette.accent)
-                    .frame(width: 18, height: 18)
+                    .frame(width: 32, height: 32)
+                    .contentShape(Rectangle())
             }
-            .buttonStyle(.borderless)
+            .buttonStyle(.plain)
             .disabled(sourceCode == "auto")
             .help(L(sourceCode == "auto" ? "自动检测来源语言时不可互换" : "互换来源与目标语言"))
             languageMenu(title: shortLabel(targetCode, auto: "中"), options: targetOptions, action: onTargetChange)
         }
-        .font(.system(size: 11, weight: .semibold))
-        .frame(height: 24)
-        .padding(.horizontal, 10)
-        .background(Theme.Palette.bgControl)
-        .clipShape(Capsule())
-        .overlay(Capsule().strokeBorder(Theme.Palette.separator, lineWidth: 0.5))
+        .font(.system(size: 13, weight: .medium))
+        .frame(height: 32)
     }
 
     private func languageMenu(
@@ -933,8 +733,10 @@ private struct LanguageDirectionControl: View {
             }
         } label: {
             Text(L(title))
-                .foregroundStyle(Theme.Palette.label2)
-                .frame(minWidth: 24)
+                .foregroundStyle(Theme.Palette.label)
+                .padding(.horizontal, 6)
+                .frame(minWidth: 40, minHeight: 32)
+                .contentShape(Rectangle())
         }
         .menuStyle(.borderlessButton)
         .fixedSize()
@@ -946,12 +748,29 @@ private struct LanguageDirectionControl: View {
     }
 }
 
-/// Measures the intrinsic content height so the window can hug short content
-/// and switch to scrolling once it exceeds the cap.
-private struct ContentHeightKey: PreferenceKey {
-    static let defaultValue: CGFloat = 0
-    static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) {
-        value = max(value, nextValue())
+/// The scroll document reports its full natural height; fixed chrome is measured
+/// separately so the window can grow before the scroll view needs a scrollbar.
+private struct WorkspaceLayoutMeasurements: Equatable {
+    var contentSize: CGSize = .zero
+    var chromeHeight: CGFloat = 0
+    var sessionID = ""
+    var preferredWidth: CGFloat = 0
+    var viewportWidth: CGFloat = 0
+}
+
+private struct WorkspaceLayoutMeasurementsKey: PreferenceKey {
+    static let defaultValue = WorkspaceLayoutMeasurements()
+
+    static func reduce(value: inout WorkspaceLayoutMeasurements,
+                       nextValue: () -> WorkspaceLayoutMeasurements) {
+        let next = nextValue()
+        if next.contentSize != .zero {
+            value.contentSize = next.contentSize
+            value.sessionID = next.sessionID
+            value.preferredWidth = next.preferredWidth
+        }
+        value.chromeHeight += next.chromeHeight
+        if next.viewportWidth > 0 { value.viewportWidth = next.viewportWidth }
     }
 }
 
@@ -984,10 +803,10 @@ private struct SourceComposerTextView: NSViewRepresentable {
         textView.importsGraphics = false
         textView.allowsUndo = true
         textView.drawsBackground = false
-        textView.font = NSFont.systemFont(ofSize: 13)
+        textView.font = NSFont.systemFont(ofSize: 14)
         textView.textColor = .labelColor
         textView.insertionPointColor = .controlAccentColor
-        textView.textContainerInset = NSSize(width: 4, height: 6)
+        textView.textContainerInset = NSSize(width: 0, height: 6)
         textView.textContainer?.lineFragmentPadding = 0
         textView.textContainer?.widthTracksTextView = true
         textView.isHorizontallyResizable = false
@@ -1005,7 +824,7 @@ private struct SourceComposerTextView: NSViewRepresentable {
         context.coordinator.parent = self
         guard let textView = scrollView.documentView as? CommandAwareTextView else { return }
         textView.onReturn = onReturn
-        textView.font = NSFont.systemFont(ofSize: 13)
+        textView.font = NSFont.systemFont(ofSize: 14)
         textView.textColor = .labelColor
         if textView.string != text {
             textView.string = text
@@ -1165,402 +984,109 @@ private struct PolishVariantsView: View {
 // MARK: - Provider slots
 
 private struct TranslationOutcomeCard: View {
-    private enum ManualLearningState {
-        case resolved(LearningExpression)
-        case pending(LearningExpression)
-    }
-
-    private struct ManualSelectionContext: Equatable {
-        let key: String
-        let selection: String
-        let contextText: String
-        let usesTranslation: Bool
-    }
-
     let outcome: AggregatedOutcome
     let isPrimary: Bool
     let isSlow: Bool
-    @ObservedObject var settings: AppSettings
-    let sourceText: String
-    let learningEnabled: Bool
-    let microPracticeEnabled: Bool
-    let occurrenceCounts: [String: Int]
-    let sourceSelection: String
-    let onSpeakSource: (String) -> Void
+    let advancedFeaturesEnabled: Bool
     let onSpeak: (String) -> Void
     let onCopy: (String) -> Void
-    let onLookupSelection: (String, String, Bool) async -> TranslateResult?
-    let onSaveExpression: (String) -> Void
     let onCopyAndReturn: ((String) -> Void)?
     let onReplaceInSourceApp: ((String) -> Void)?
     let onRetry: () -> Void
     let onConfigure: () -> Void
-    @State private var showTerminologyDetails = false
-    @State private var translatedSelection: String = ""
-    @State private var manualLookupResults: [String: TranslateResult] = [:]
-    @State private var manualLookupFailures: Set<String> = []
-    @State private var manualLookupInFlight: Set<String> = []
 
     var body: some View {
-        VStack(alignment: .leading, spacing: Theme.Spacing.s8) {
-            head
-            content
-            terminologyDetails
-            if let result = outcome.result {
-                HStack(spacing: Theme.Spacing.s4) {
-                    if let onCopyAndReturn {
-                        Button {
-                            onCopyAndReturn(result.translated)
-                        } label: {
-                            Label(L("复制并返回"), systemImage: "arrowshape.turn.up.backward")
-                        }
-                        .buttonStyle(PrimaryActionButtonStyle())
-                    }
-                    Spacer(minLength: 0)
-                    IconButton("bookmark", help: "存为表达", size: 11) { onSaveExpression(result.translated) }
-                    if let onReplaceInSourceApp {
-                        IconButton("arrowshape.turn.up.left", help: "替换到原 App", size: 11) { onReplaceInSourceApp(result.translated) }
-                    }
-                    IconButton("arrow.clockwise", help: "重试此引擎", size: 11) { onRetry() }
-                    IconButton("doc.on.doc", help: "复制译文", size: 11) { onCopy(result.translated) }
-                    IconButton("speaker.wave.2", help: "朗读译文", size: 11) { onSpeak(result.translated) }
-                }
-                .frame(maxWidth: .infinity, minHeight: 26, alignment: .trailing)
-                .padding(.top, Theme.Spacing.s4)
-            }
-        }
-        .padding(.horizontal, Theme.Spacing.s12)
-        .padding(.vertical, 11)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .background(Theme.Palette.bgContent)
-        .clipShape(RoundedRectangle(cornerRadius: Theme.Radius.card))
-        .overlay(
-            RoundedRectangle(cornerRadius: Theme.Radius.card)
-                .strokeBorder(cardStroke, lineWidth: cardStrokeWidth)
-        )
-    }
-
-    private var head: some View {
-        HStack(spacing: Theme.Spacing.s8) {
-            EngineTag(outcome.displayName, tone: outcome.error == nil ? .accent : .danger)
-            if let modelName = outcome.modelName, !modelName.isEmpty {
-                EngineTag(modelName, tone: .secondary, preservesCase: true)
-            }
-            if let application = outcome.result?.terminologyApplication {
-                TerminologyStatusButton(
-                    application: application,
-                    isExpanded: $showTerminologyDetails
-                )
-            }
-            if isPrimary {
-                QualityStatusBadge("推荐结果", tone: .accent)
-            } else if outcome.result?.qualitySummary?.isRecommended == true {
-                QualityStatusBadge("推荐", tone: .accent)
-            }
-            if outcome.result?.qualitySummary?.needsReview == true {
-                QualityStatusBadge("需复核", tone: .warning)
-            }
-            if let report = outcome.result?.privacyMaskingReport, report.applied {
-                QualityStatusBadge("隐私遮罩 \(report.totalCount)", tone: .secondary)
-            }
-            if isSlow {
-                Text(L("较慢生成"))
-                    .font(Theme.Font.caption)
-                    .foregroundStyle(Theme.Palette.label3)
-            }
-            Spacer(minLength: 0)
-            Text(outcome.error == nil ? "\(outcome.latencyMs)ms" : providerStatusText(outcome.error))
-                .font(Theme.Font.caption.monospacedDigit())
-                .foregroundStyle(outcome.error == nil ? Theme.Palette.label3 : Theme.Palette.danger)
-        }
-    }
-
-    private var cardStroke: Color {
-        if outcome.error != nil { return Theme.Palette.danger.opacity(0.6) }
-        if isPrimary || outcome.result?.qualitySummary?.isRecommended == true { return Theme.Palette.accent.opacity(0.65) }
-        if outcome.result?.qualitySummary?.needsReview == true { return Theme.Palette.warning.opacity(0.65) }
-        return Theme.Palette.hairline
-    }
-
-    private var cardStrokeWidth: CGFloat {
-        isPrimary || outcome.result?.qualitySummary?.isRecommended == true || outcome.result?.qualitySummary?.needsReview == true ? 0.8 : 0.5
-    }
-
-    @ViewBuilder
-    private var content: some View {
-        if let result = outcome.result {
-            learningBody(for: result)
-        } else if let error = outcome.error {
-            VStack(alignment: .leading, spacing: Theme.Spacing.s8) {
-                Text(providerErrorText(error))
-                    .font(Theme.Font.callout)
-                    .foregroundStyle(Theme.Palette.danger)
-                    .fixedSize(horizontal: false, vertical: true)
-                if providerNeedsConfiguration(error) {
-                    Button { onConfigure() } label: {
-                        Label(L("配置密钥"), systemImage: "gearshape")
-                    }
-                    .controlSize(.small)
-                } else {
-                    Button { onRetry() } label: {
-                        Label(L("重试此引擎"), systemImage: "arrow.clockwise")
-                    }
-                    .controlSize(.small)
-                }
-            }
-        }
-    }
-
-    @ViewBuilder
-    private func learningBody(for result: TranslateResult) -> some View {
-        VStack(alignment: .leading, spacing: Theme.Spacing.s8) {
-            if let interpretation = result.interpretation {
-                InterpretationBody(interpretation: interpretation) { selection in
-                    translatedSelection = selection
-                }
-            } else {
-                TranslationBody(result: result, lineLimit: nil) { selection in
-                    translatedSelection = selection
-                }
-            }
-            translationDetails(for: result)
-
-            if learningEnabled, let selectionState = manualLearningState(for: result) {
-                switch selectionState {
-                case .resolved(let selected):
-                    manualLearningPanel(expression: selected, origin: manualSelectionOrigin)
-                case .pending(let selected):
-                    manualLearningPanel(expression: selected, origin: manualSelectionOrigin, isPending: true)
-                }
-            }
-        }
-        .task(id: manualLookupTaskID(for: result)) {
-            await runManualLookupIfNeeded(for: result)
-        }
-    }
-
-    @ViewBuilder
-    private func manualLearningPanel(
-        expression selected: LearningExpression,
-        origin: String,
-        isPending: Bool = false
-    ) -> some View {
-        VStack(alignment: .leading, spacing: Theme.Spacing.s8) {
-            HStack {
-                LearningStatusChip(text: origin)
-                Text(L("已选中“%@”", selected.term))
+        VStack(alignment: .leading, spacing: Theme.Spacing.s12) {
+            Divider().opacity(0.6)
+                .padding(.bottom, Theme.Spacing.s4)
+            HStack(spacing: Theme.Spacing.s8) {
+                Text(L("译文"))
+                    .font(Theme.Font.callout.weight(.medium))
+                    .foregroundStyle(Theme.Palette.label2)
+                Spacer(minLength: 0)
+                Text(outcome.displayName)
                     .font(Theme.Font.caption)
                     .foregroundStyle(Theme.Palette.label2)
                     .lineLimit(1)
-                Spacer(minLength: 0)
-            }
-            LearningContextCard(
-                expression: selected,
-                saved: savedLearningIDs.contains(selected.id),
-                mastered: masteredLearningIDs.contains(selected.id),
-                actionsEnabled: !isPending,
-                onSpeak: manualSelectionUsesTranslation ? onSpeak : onSpeakSource,
-                onKnown: { settings.markLearningMastered(selected) },
-                onSave: { settings.markLearningSaved(selected) }
-            )
-            if microPracticeEnabled && !isPending {
-                LearningMicroPracticeView(expression: selected) {
-                    settings.recordLearningReview(selected, correct: true)
-                } onWrong: {
-                    settings.recordLearningReview(selected, correct: false)
-                }
-                .id(selected.id)
-            }
-        }
-        .padding(10)
-        .background(Theme.Palette.bgControl.opacity(0.55))
-        .clipShape(RoundedRectangle(cornerRadius: Theme.Radius.control))
-        .overlay(RoundedRectangle(cornerRadius: Theme.Radius.control).strokeBorder(Theme.Palette.separator, lineWidth: 0.5))
-    }
-
-    private var manualSelectionText: String {
-        let translated = translatedSelection.trimmingCharacters(in: .whitespacesAndNewlines)
-        if !translated.isEmpty { return translated }
-        return sourceSelection.trimmingCharacters(in: .whitespacesAndNewlines)
-    }
-
-    private var manualSelectionUsesTranslation: Bool {
-        !translatedSelection.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-    }
-
-    private var manualSelectionOrigin: String {
-        manualSelectionUsesTranslation ? "译文选词" : "原文选词"
-    }
-
-    private func manualLearningState(for result: TranslateResult) -> ManualLearningState? {
-        guard let selectionContext = manualSelectionContext(for: result) else { return nil }
-        if let directExpression = manualLearningExpression(
-            for: result,
-            selectionContext: selectionContext,
-            lookupResult: nil,
-            allowGenericFallback: false
-        ) {
-            return .resolved(directExpression)
-        }
-        if let lookupResult = manualLookupResults[selectionContext.key],
-           let lookupExpression = manualLearningExpression(
-                for: result,
-                selectionContext: selectionContext,
-                lookupResult: lookupResult,
-                allowGenericFallback: true
-           ) {
-            return .resolved(lookupExpression)
-        }
-        if manualLookupFailures.contains(selectionContext.key),
-           let fallbackExpression = manualLearningExpression(
-                for: result,
-                selectionContext: selectionContext,
-                lookupResult: nil,
-                allowGenericFallback: true
-           ) {
-            return .resolved(fallbackExpression)
-        }
-        guard let pendingExpression = LearningRecommendationEngine.pendingManualSelectionExpression(
-            selectionContext.selection,
-            contextText: selectionContext.contextText,
-            sourceText: sourceText,
-            occurrenceCounts: occurrenceCounts
-        ) else { return nil }
-        return .pending(pendingExpression)
-    }
-
-    private func manualLearningExpression(
-        for result: TranslateResult,
-        selectionContext: ManualSelectionContext,
-        lookupResult: TranslateResult?,
-        allowGenericFallback: Bool
-    ) -> LearningExpression? {
-        LearningRecommendationEngine.expressionForManualSelection(
-            selectionContext.selection,
-            contextText: selectionContext.contextText,
-            sourceText: sourceText,
-            occurrenceCounts: occurrenceCounts,
-            definitions: selectionContext.usesTranslation
-                ? lookupResult?.definitions
-                : (lookupResult?.definitions ?? result.definitions),
-            phonetics: selectionContext.usesTranslation
-                ? lookupResult?.phonetics
-                : (lookupResult?.phonetics ?? result.phonetics),
-            lookupText: lookupResult?.translated,
-            allowGenericFallback: allowGenericFallback
-        )
-    }
-
-    private func manualSelectionContext(for result: TranslateResult) -> ManualSelectionContext? {
-        let selection = manualSelectionText
-        guard !selection.isEmpty else { return nil }
-        let usesTranslation = manualSelectionUsesTranslation
-        let contextText = usesTranslation ? result.translated : sourceText
-        return ManualSelectionContext(
-            key: manualLookupKey(selection: selection, contextText: contextText, usesTranslation: usesTranslation),
-            selection: selection,
-            contextText: contextText,
-            usesTranslation: usesTranslation
-        )
-    }
-
-    private func manualLookupTaskID(for result: TranslateResult) -> String? {
-        manualLookupRequest(for: result)?.key
-    }
-
-    private func manualLookupRequest(for result: TranslateResult) -> ManualSelectionContext? {
-        guard learningEnabled,
-              let selectionContext = manualSelectionContext(for: result),
-              manualLookupResults[selectionContext.key] == nil,
-              !manualLookupFailures.contains(selectionContext.key),
-              manualLearningExpression(
-                for: result,
-                selectionContext: selectionContext,
-                lookupResult: nil,
-                allowGenericFallback: false
-              ) == nil else { return nil }
-        return selectionContext
-    }
-
-    @MainActor
-    private func runManualLookupIfNeeded(for result: TranslateResult) async {
-        guard let request = manualLookupRequest(for: result),
-              !manualLookupInFlight.contains(request.key) else { return }
-        manualLookupInFlight.insert(request.key)
-        let lookupResult = await onLookupSelection(request.selection, request.contextText, request.usesTranslation)
-        manualLookupInFlight.remove(request.key)
-        if let lookupResult,
-           manualLearningExpression(
-                for: result,
-                selectionContext: request,
-                lookupResult: lookupResult,
-                allowGenericFallback: false
-           ) != nil {
-            manualLookupResults[request.key] = lookupResult
-        } else {
-            manualLookupFailures.insert(request.key)
-        }
-    }
-
-    private func manualLookupKey(selection: String, contextText: String, usesTranslation: Bool) -> String {
-        [
-            outcome.providerId,
-            usesTranslation ? "translated" : "source",
-            LearningRecommendationEngine.key(for: selection),
-            LearningRecommendationEngine.key(for: contextText)
-        ].joined(separator: "|")
-    }
-
-    @ViewBuilder
-    private func translationDetails(for result: TranslateResult) -> some View {
-        if let phonetics = result.phonetics, !phonetics.isEmpty {
-            Text(phonetics.map { "\($0.type) \($0.value)" }.joined(separator: "  "))
-                .font(Theme.Font.callout)
-                .foregroundStyle(Theme.Palette.label2)
-        }
-        if let defs = result.definitions {
-            ForEach(Array(defs.enumerated()), id: \.offset) { _, definition in
-                VStack(alignment: .leading, spacing: Theme.Spacing.s4) {
-                    Text("\(definition.partOfSpeech) \(definition.meanings.joined(separator: "；"))")
-                        .font(Theme.Font.callout)
-                        .foregroundStyle(Theme.Palette.label2)
-                    ForEach(definition.examples.prefix(2), id: \.self) { example in
-                        Text(example)
-                            .font(Theme.Font.caption)
-                            .foregroundStyle(Theme.Palette.label3)
-                    }
-                }
-                .fixedSize(horizontal: false, vertical: true)
-            }
-        }
-    }
-
-    private var savedLearningIDs: Set<String> {
-        Set(settings.learningSavedExpressionIDs)
-    }
-
-    private var masteredLearningIDs: Set<String> {
-        Set(settings.learningMasteredExpressionIDs)
-    }
-
-    @ViewBuilder
-    private var terminologyDetails: some View {
-        if showTerminologyDetails,
-           let matches = outcome.result?.terminologyApplication?.matches,
-           !matches.isEmpty {
-            VStack(alignment: .leading, spacing: 3) {
-                ForEach(matches) { match in
-                    Text("\(match.source) -> \(match.target)")
+                if let modelName = outcome.modelName, !modelName.isEmpty {
+                    Text(modelName)
                         .font(Theme.Font.caption)
                         .foregroundStyle(Theme.Palette.label2)
+                        .lineLimit(1)
+                }
+                if outcome.error != nil {
+                    Text(providerStatusText(outcome.error))
+                        .font(Theme.Font.caption)
+                        .foregroundStyle(Theme.Palette.danger)
+                }
+                if let result = outcome.result {
+                    Menu {
+                        Button { onSpeak(result.translated) } label: {
+                            Label(L("朗读译文"), systemImage: "speaker.wave.2")
+                        }
+                        Button { onRetry() } label: {
+                            Label(L("重试此引擎"), systemImage: "arrow.clockwise")
+                        }
+                        if let onReplaceInSourceApp {
+                            Button { onReplaceInSourceApp(result.translated) } label: {
+                                Label(L("替换到原 App"), systemImage: "arrowshape.turn.up.left")
+                            }
+                        }
+                    } label: {
+                        Image(systemName: "ellipsis")
+                            .font(.system(size: 12, weight: .semibold))
+                            .foregroundStyle(Theme.Palette.label2)
+                            .frame(width: 32, height: 32)
+                            .contentShape(Rectangle())
+                    }
+                    .menuStyle(.borderlessButton)
+                    .menuIndicator(.hidden)
+                    .fixedSize()
+                    .help(L("更多操作"))
+                    .accessibilityLabel(L("更多操作"))
                 }
             }
-            .padding(.horizontal, Theme.Spacing.s8)
-            .padding(.vertical, Theme.Spacing.s4)
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .background(Theme.Palette.bgControl)
-            .clipShape(RoundedRectangle(cornerRadius: Theme.Radius.control))
+            if let result = outcome.result {
+                TranslationBody(result: result, lineLimit: nil)
+                HStack(spacing: Theme.Spacing.s8) {
+                    Spacer(minLength: 0)
+                    if let onCopyAndReturn {
+                        Button { onCopyAndReturn(result.translated) } label: {
+                            Label(L("复制并返回"), systemImage: "arrowshape.turn.up.backward")
+                        }
+                        .buttonStyle(SecondaryActionButtonStyle())
+                    }
+                    Button { onCopy(result.translated) } label: {
+                        Label(L("复制译文"), systemImage: "doc.on.doc")
+                    }
+                    .buttonStyle(PrimaryActionButtonStyle())
+                }
+                .padding(.top, Theme.Spacing.s4)
+            } else if let error = outcome.error {
+                VStack(alignment: .leading, spacing: Theme.Spacing.s8) {
+                    Text(providerErrorText(error))
+                        .font(Theme.Font.callout)
+                        .foregroundStyle(Theme.Palette.danger)
+                        .fixedSize(horizontal: false, vertical: true)
+                    HStack(spacing: Theme.Spacing.s8) {
+                        if !providerNeedsConfiguration(error) || CredentialCatalog.descriptor(matching: outcome.providerId) == nil {
+                            Button { onRetry() } label: {
+                                Label(L("重试此引擎"), systemImage: "arrow.clockwise")
+                            }
+                            .controlSize(.small)
+                        }
+                        if CredentialCatalog.descriptor(matching: outcome.providerId) != nil {
+                            Button { onConfigure() } label: {
+                                Label(L("配置服务"), systemImage: "gearshape")
+                            }
+                            .controlSize(.small)
+                        }
+                    }
+                }
+            }
         }
+        .padding(.bottom, Theme.Spacing.s4)
+        .frame(maxWidth: .infinity, alignment: .leading)
     }
 }
 
@@ -1570,17 +1096,16 @@ private struct PendingOutcomeCard: View {
     var body: some View {
         VStack(alignment: .leading, spacing: Theme.Spacing.s8) {
             HStack(spacing: Theme.Spacing.s8) {
+                ProgressView().controlSize(.small)
                 EngineTag(provider.displayName, tone: .secondary)
-                if let modelName = provider.modelName, !modelName.isEmpty {
-                    EngineTag(modelName, tone: .secondary, preservesCase: true)
+                if let model = provider.modelName, !model.isEmpty {
+                    Text(model).font(Theme.Font.caption).foregroundStyle(Theme.Palette.label2).lineLimit(1)
                 }
                 Spacer(minLength: 0)
                 Text(L(provider.softTimedOut ? "仍在生成" : (provider.isSlow ? "生成中" : "请求中")))
                     .font(Theme.Font.caption)
                     .foregroundStyle(Theme.Palette.label3)
             }
-            SkeletonLine(width: nil)
-            SkeletonLine(width: 210)
             if provider.softTimedOut {
                 Text(message)
                     .font(Theme.Font.caption)
@@ -1588,15 +1113,8 @@ private struct PendingOutcomeCard: View {
                     .fixedSize(horizontal: false, vertical: true)
             }
         }
-        .padding(.horizontal, Theme.Spacing.s12)
-        .padding(.vertical, 11)
+        .padding(.vertical, Theme.Spacing.s12)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(Theme.Palette.bgContent)
-        .clipShape(RoundedRectangle(cornerRadius: Theme.Radius.card))
-        .overlay(
-            RoundedRectangle(cornerRadius: Theme.Radius.card)
-                .strokeBorder(Theme.Palette.hairline, lineWidth: 0.5)
-        )
     }
 
     private var message: String {
@@ -1784,6 +1302,7 @@ private struct TranslationBody: View {
             } else {
                 Text(result.translated)
                     .font(Theme.Font.result)
+                    .lineSpacing(4)
                     .foregroundStyle(Theme.Palette.label)
                     .textSelection(.enabled)
                     .lineLimit(lineLimit)
@@ -2009,6 +1528,7 @@ private struct OCRCandidatesView: View {
                                 RoundedRectangle(cornerRadius: Theme.Radius.control)
                                     .strokeBorder(selectedID == candidate.id ? Theme.Palette.accent.opacity(0.65) : Theme.Palette.separator, lineWidth: 0.5)
                             )
+                            .contentShape(Rectangle())
                         }
                         .buttonStyle(.plain)
                         .help(L("切换 OCR 候选并重新翻译"))
@@ -2089,11 +1609,12 @@ private struct ContextProfileMenu: View {
                     .foregroundStyle(Theme.Palette.label3)
             }
             .foregroundStyle(Theme.Palette.label2)
-            .frame(height: 24)
+            .frame(minHeight: 32)
             .padding(.horizontal, 9)
             .background(Theme.Palette.bgControl)
             .clipShape(Capsule())
             .overlay(Capsule().strokeBorder(Theme.Palette.separator, lineWidth: 0.5))
+            .contentShape(Rectangle())
         }
         .menuStyle(.borderlessButton)
         .fixedSize()
@@ -2324,15 +1845,11 @@ private struct EngineTag: View {
     }
 
     var body: some View {
-        Text(preservesCase ? label : L(label).uppercased())
+        Text(preservesCase ? label : L(label))
             .font(Theme.Font.tag)
             .lineLimit(1)
             .truncationMode(.middle)
-            .foregroundStyle(foreground)
-            .padding(.horizontal, 6)
-            .padding(.vertical, 2)
-            .background(background)
-            .clipShape(RoundedRectangle(cornerRadius: 5))
+            .foregroundStyle(tone == .danger ? Theme.Palette.danger : Theme.Palette.label2)
     }
 
     private var foreground: Color {
@@ -2372,9 +1889,10 @@ private struct TerminologyStatusButton: View {
             .font(Theme.Font.tag)
             .foregroundStyle(foreground)
             .padding(.horizontal, 7)
-            .frame(height: 20)
+            .frame(minHeight: 32)
             .background(background)
             .clipShape(RoundedRectangle(cornerRadius: Theme.Radius.control))
+            .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
         .disabled(application.matchCount == 0)
@@ -2446,47 +1964,5 @@ private func providerStatusText(_ e: ProviderError?) -> String {
     case .timeout: return L("超时")
     case .none: return ""
     default: return L("失败")
-    }
-}
-
-// MARK: - Loading skeleton
-
-private struct SkeletonCard: View {
-    @State private var shimmer = false
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: Theme.Spacing.s8) {
-            bar(width: 64).frame(height: 12)
-            bar(width: .infinity).frame(height: 13)
-            bar(width: 200).frame(height: 13)
-        }
-        .padding(Theme.Spacing.s12)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .background(Theme.Palette.bgContent)
-        .clipShape(RoundedRectangle(cornerRadius: Theme.Radius.card))
-    }
-
-    private func bar(width: CGFloat) -> some View {
-        RoundedRectangle(cornerRadius: 5)
-            .fill(Theme.Palette.bgSkeleton)
-            .frame(maxWidth: width == .infinity ? .infinity : width, alignment: .leading)
-            .opacity(shimmer ? 0.5 : 1)
-            .animation(.easeInOut(duration: 0.9).repeatForever(autoreverses: true), value: shimmer)
-            .onAppear { shimmer = true }
-    }
-}
-
-private struct SkeletonLine: View {
-    let width: CGFloat?
-    @State private var shimmer = false
-
-    var body: some View {
-        RoundedRectangle(cornerRadius: 5)
-            .fill(Theme.Palette.bgSkeleton)
-            .frame(width: width, height: 13)
-            .frame(maxWidth: width == nil ? .infinity : nil, alignment: .leading)
-            .opacity(shimmer ? 0.55 : 1)
-            .animation(.easeInOut(duration: 0.9).repeatForever(autoreverses: true), value: shimmer)
-            .onAppear { shimmer = true }
     }
 }

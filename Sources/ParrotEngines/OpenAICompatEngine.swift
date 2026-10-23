@@ -10,7 +10,8 @@ open class OpenAICompatEngine: TranslationProvider, @unchecked Sendable {
     public let id: String
     public let displayName: String
     public let supportedLanguages: [Language]
-    public let capabilities: ProviderCapabilities
+    private let configuredCapabilities: ProviderCapabilities
+    open var capabilities: ProviderCapabilities { configuredCapabilities }
 
     private let defaultEndpoint: URL
     private let defaultModel: String
@@ -48,7 +49,7 @@ open class OpenAICompatEngine: TranslationProvider, @unchecked Sendable {
         self.model = defaultModel
         self.endpoint = defaultEndpoint
         self.supportedLanguages = supportedLanguages
-        self.capabilities = capabilities
+        self.configuredCapabilities = capabilities
         self.session = session
     }
 
@@ -60,17 +61,14 @@ open class OpenAICompatEngine: TranslationProvider, @unchecked Sendable {
         if let e = config.extra["endpoint"], let url = URL(string: e) { endpoint = url }
     }
 
-    public func translate(_ req: TranslateRequest) async throws -> TranslateResult {
+    open func translate(_ req: TranslateRequest) async throws -> TranslateResult {
         if requiresAPIKey {
             guard let apiKey, !apiKey.isEmpty else { throw ProviderError.notConfigured }
         }
 
         var payload: [String: Any] = [
             "model": model,
-            "messages": [
-                ["role": "system", "content": Self.systemPrompt(for: req)],
-                ["role": "user", "content": Self.userPrompt(for: req)]
-            ],
+            "messages": try messages(for: req),
             "temperature": 0.2
         ]
         for (key, value) in additionalPayload(for: req) {
@@ -83,6 +81,9 @@ open class OpenAICompatEngine: TranslationProvider, @unchecked Sendable {
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
         if let apiKey, !apiKey.isEmpty {
             request.setValue("Bearer \(apiKey)", forHTTPHeaderField: "Authorization")
+        }
+        for (field, value) in additionalHeaders(for: req) {
+            request.setValue(value, forHTTPHeaderField: field)
         }
         configureRequest(&request, for: req)
         request.httpBody = try JSONSerialization.data(withJSONObject: payload)
@@ -324,6 +325,17 @@ open class OpenAICompatEngine: TranslationProvider, @unchecked Sendable {
     }
 
     open func configureRequest(_ request: inout URLRequest, for req: TranslateRequest) {}
+
+    open func messages(for req: TranslateRequest) throws -> [[String: String]] {
+        [
+            ["role": "system", "content": Self.systemPrompt(for: req)],
+            ["role": "user", "content": Self.userPrompt(for: req)]
+        ]
+    }
+
+    open func additionalHeaders(for req: TranslateRequest) -> [String: String] {
+        [:]
+    }
 }
 
 // MARK: - P1 LLM thin subclasses
@@ -352,10 +364,17 @@ public final class OpenCodeGoEngine: OpenAICompatEngine {
         )
     }
 
-    public override func configureRequest(_ request: inout URLRequest, for req: TranslateRequest) {
-        request.setValue(req.sessionID.uuidString, forHTTPHeaderField: "x-opencode-session")
-        let version = Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "0.1"
-        request.setValue("Parrot/\(version)", forHTTPHeaderField: "User-Agent")
+    public override func additionalHeaders(for req: TranslateRequest) -> [String: String] {
+        // Preserve one user translation across provider reloads, copies and retries.
+        // Test runners have their own bundle version, so use the app version only in Parrot.
+        let bundle = Bundle.main
+        let version = bundle.object(forInfoDictionaryKey: "CFBundleExecutable") as? String == "Parrot"
+            ? bundle.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String
+            : nil
+        return [
+            "User-Agent": "Parrot/\(version ?? "0.1")",
+            "x-opencode-session": req.sessionID.uuidString
+        ]
     }
 }
 
@@ -393,6 +412,42 @@ public final class OllamaEngine: OpenAICompatEngine {
             requiresAPIKey: false,
             session: session
         )
+    }
+
+    public override var capabilities: ProviderCapabilities {
+        let base = super.capabilities
+        guard TranslateGemmaPrompt.matches(model: modelName) else { return base }
+        return ProviderCapabilities(
+            // TranslateGemma can supply the translation fallback for lookup, but
+            // is not an instruction-following dictionary or JSON interpreter.
+            supportsLookup: false,
+            supportsStream: base.supportsStream,
+            supportsPolish: base.supportsPolish,
+            supportsInterpretation: false,
+            terminology: .placeholder
+        )
+    }
+
+    public override func messages(for req: TranslateRequest) throws -> [[String: String]] {
+        guard usesTranslateGemmaPrompt(for: req) else {
+            return try super.messages(for: req)
+        }
+        return [["role": "user", "content": try TranslateGemmaPrompt.content(for: req)]]
+    }
+
+    public override func translate(_ req: TranslateRequest) async throws -> TranslateResult {
+        if usesTranslateGemmaPrompt(for: req), TranslateGemmaPrompt.containsOnlyProtectedTokens(req.text) {
+            guard req.to != .auto else { throw ProviderError.unsupportedLanguage }
+            // There is no natural-language content left to translate. Let the coordinator
+            // restore the protected glossary terms and private entities locally.
+            return TranslateResult(providerId: id, translated: req.text,
+                                   detectedFrom: req.from == .auto ? nil : req.from)
+        }
+        return try await super.translate(req)
+    }
+
+    private func usesTranslateGemmaPrompt(for req: TranslateRequest) -> Bool {
+        TranslateGemmaPrompt.matches(model: modelName) && req.mode != .polish
     }
 }
 

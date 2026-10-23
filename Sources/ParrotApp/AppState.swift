@@ -27,7 +27,9 @@ struct WorkspaceNotice: Equatable {
 
     enum Action: Equatable {
         case retryScreenshot
+        case retryTranslation
         case openSettings
+        case openTranslationSettings
         case openScreenRecordingSettings
         case openOCRSettings
         case dismiss
@@ -45,6 +47,7 @@ struct WorkspaceNotice: Equatable {
     let prominence: Prominence
     let primaryAction: ButtonSpec?
     let secondaryAction: ButtonSpec?
+    var dismissOnTranslation: Bool = false
 }
 
 enum PolishTone: String, CaseIterable, Identifiable, Equatable {
@@ -123,8 +126,8 @@ final class AppState: ObservableObject {
     let ocrCoordinator = OCRCoordinator()
     let ttsCoordinator = TTSCoordinator()
 
-    let history = HistoryStore()
-    let settings = AppSettings()
+    let history: HistoryStore
+    let settings: AppSettings
 
     @Published var sourceText: String = ""
     @Published var sourceDraft: String = ""
@@ -132,6 +135,7 @@ final class AppState: ObservableObject {
     @Published var pendingProviders: [PendingProviderViewState] = []
     @Published var slowProviderIDs: Set<String> = []
     @Published var isTranslating: Bool = false
+    @Published private(set) var isComparingEngines: Bool = false
     @Published var isComposerFocused: Bool = false
     @Published var composerFocusRequest: Int = 0
     @Published var isRecognizingOCR: Bool = false
@@ -164,10 +168,17 @@ final class AppState: ObservableObject {
     private let netMonitor = NWPathMonitor()
     private var translationTask: Task<Void, Never>?
     private var slowHintTasks: [Task<Void, Never>] = []
+    private var remainingProviderPlan: [PendingProviderViewState] = []
+    private var currentExecutionStrategy: TranslationExecutionStrategy = .firstSuccessful
     private var currentTranslationID = UUID()
     private var currentRequest: TranslateRequest?
+    private var appliedTranslationConfiguration: TranslationConfigurationSnapshot?
+    private var currentRequestConfiguration: TranslationConfigurationSnapshot?
+    private var runningTranslationConfiguration: TranslationConfigurationSnapshot?
+    private var outcomeConfigurations: [String: TranslationConfigurationSnapshot] = [:]
     private var didSaveCurrentTranslation = false
     private var currentMode: TranslateMode = .translate
+    private var hasExplicitWorkspaceTarget = false
     private let directionResolver = TranslationDirectionResolver()
     private var learningHistoryRefreshGeneration = 0
     private static let slowProviderSoftTimeout: TimeInterval = 8
@@ -242,6 +253,15 @@ final class AppState: ObservableObject {
             ?? outcomes.first { $0.result != nil }
     }
 
+    var canCompareOtherEngines: Bool {
+        guard !isTranslating, !isSourceDirty, let currentRequest,
+              outcomes.contains(where: \.isSuccess),
+              !translationSettingsNeedRefresh else { return false }
+        let completedIDs = Set(outcomes.filter(\.isSuccess).map(\.providerId))
+        return coordinator.plannedProviders(for: currentRequest, strategy: .comparison)
+            .contains { !completedIDs.contains($0.id) }
+    }
+
     var paragraphHints: [ParagraphHint] {
         if let hints = currentRequest?.context?.paragraphHints, !hints.isEmpty {
             return hints
@@ -280,14 +300,17 @@ final class AppState: ObservableObject {
             || workspaceNotice != nil
     }
 
-    init() {
+    init(settings: AppSettings? = nil, history: HistoryStore? = nil) {
+        self.settings = settings ?? AppSettings()
+        self.history = history ?? HistoryStore()
         coordinator = TranslationCoordinator(registry: registry)
-        sourceLanguage = settings.sourceLanguage
-        targetLanguage = settings.targetLanguage
+        sourceLanguage = self.settings.sourceLanguage
+        targetLanguage = self.settings.targetLanguage
         Speaker.shared.coordinator = ttsCoordinator
         startNetworkMonitor()
         reloadProviders()
         loadPlugins()
+        appliedTranslationConfiguration = translationConfigurationSnapshot()
         refreshLearningHistory()
     }
 
@@ -307,16 +330,87 @@ final class AppState: ObservableObject {
     }
 
     func applySettings() {
-        sourceLanguage = settings.sourceLanguage
-        targetLanguage = settings.targetLanguage
+        // Keep the effective direction of displayed results when only provider
+        // settings change (auto detection may have reversed the default target).
+        if appliedTranslationConfiguration?.requestOptions.source != settings.sourceLanguageCode {
+            sourceLanguage = settings.sourceLanguage
+        }
+        if appliedTranslationConfiguration?.requestOptions.target != settings.targetLanguageCode {
+            targetLanguage = settings.targetLanguage
+        }
         reloadProviders()
         loadPlugins()
+        refreshLearningHistory()
+        let configuration = translationConfigurationSnapshot()
+        let changed = appliedTranslationConfiguration != configuration
+        appliedTranslationConfiguration = configuration
+        guard changed else { return }
+
+        // A reordered fallback list only changes presentation. Other changes must
+        // not let an old key/model request complete under the new configuration.
+        if isTranslating, runningTranslationConfiguration != configuration {
+            cancelTranslationWork()
+            currentTranslationID = UUID()
+            isTranslating = false
+            pendingProviders = []
+            slowProviderIDs = []
+        }
+        refreshTranslationSettingsNotice()
     }
 
-    func refreshPermissions(promptAccessibility: Bool = false, promptScreenRecording: Bool = false) {
-        permissionsHolder.snapshot = AppPermissions.snapshot(
-            promptAccessibility: promptAccessibility,
-            promptScreenRecording: promptScreenRecording
+    private func translationConfigurationSnapshot() -> TranslationConfigurationSnapshot {
+        TranslationConfigurationSnapshot(settings: settings, providers: registry.activeProviders())
+    }
+
+    private var translationSettingsNeedRefresh: Bool {
+        guard let currentRequestConfiguration else { return false }
+        let configuration = translationConfigurationSnapshot()
+        guard currentRequestConfiguration == configuration else { return true }
+        return outcomes.contains { outcome in
+            guard let producedWith = outcomeConfigurations[outcome.providerId] else { return true }
+            return !producedWith.matchesResult(from: outcome.providerId, in: configuration)
+        }
+    }
+
+    /// Repeated selection should restore useful work, never conceal a repaired
+    /// configuration behind the previous error or a different lookup operation.
+    func canRestoreCapturedTranslation(text: String) -> Bool {
+        let captured = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !captured.isEmpty, captured == committedSourceTrimmed else { return false }
+        if isSourceDirty { return true }
+        guard currentMode == .translate,
+              currentRequestConfiguration != nil,
+              !translationSettingsNeedRefresh else { return false }
+        return isTranslating || outcomes.contains(where: \.isSuccess)
+    }
+
+    private func refreshTranslationSettingsNotice() {
+        if translationSettingsNeedRefresh, !committedSourceTrimmed.isEmpty {
+            workspaceNotice = WorkspaceNotice(
+                tone: .info,
+                systemImage: "arrow.clockwise",
+                title: L("翻译设置已更新"),
+                detail: L("下方保留原有结果，重新翻译后应用新设置。"),
+                prominence: .compact,
+                primaryAction: WorkspaceNotice.ButtonSpec(title: L("重新翻译"), action: .retryTranslation),
+                secondaryAction: nil,
+                dismissOnTranslation: true
+            )
+        } else if workspaceNotice?.primaryAction?.action == .retryTranslation {
+            workspaceNotice = nil
+        }
+    }
+
+    func refreshPermissions(
+        promptAccessibility: Bool = false,
+        promptScreenRecording: Bool = false,
+        includeScreenRecording: Bool = true
+    ) {
+        permissionsHolder.snapshot = PermissionSnapshot(
+            accessibilityGranted: AppPermissions.accessibility(prompt: promptAccessibility),
+            screenRecordingGranted: includeScreenRecording || promptScreenRecording
+                ? AppPermissions.screenRecording(prompt: promptScreenRecording)
+                : permissions.screenRecordingGranted
         )
     }
 
@@ -325,9 +419,11 @@ final class AppState: ObservableObject {
             settings.sourceLanguageCode = sourceCode
         }
         if let targetCode {
+            hasExplicitWorkspaceTarget = true
             settings.targetLanguageCode = targetCode
         }
-        applySettings()
+        sourceLanguage = settings.sourceLanguage
+        targetLanguage = settings.targetLanguage
         let text = sourceDraftTrimmed.isEmpty ? committedSourceTrimmed : sourceDraft
         guard !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return }
         translate(text, mode: currentMode)
@@ -393,6 +489,36 @@ final class AppState: ObservableObject {
         workspaceNotice = nil
     }
 
+    /// A failed capture must never look like a new translation. Keep the user's
+    /// existing work visible and explicitly identify it as previously shown content.
+    func showSelectionCaptureNotice(openInput: Bool) {
+        let hasContent = !sourceDraftTrimmed.isEmpty || !committedSourceTrimmed.isEmpty
+            || !outcomes.isEmpty || !pendingProviders.isEmpty
+        if openInput {
+            if !hasContent {
+                currentMode = .translate
+                currentOrigin = .manualInput
+                currentContextSourceApp = nil
+                currentContextWindowTitle = nil
+                currentContextSourceURL = nil
+                contextProfile = manualInputProfile()
+            }
+            requestComposerFocus()
+        }
+        workspaceNotice = WorkspaceNotice(
+            tone: .info,
+            systemImage: "character.cursor.ibeam",
+            title: L("未获取到选中文字"),
+            detail: hasContent
+                ? L("本次没有获取到新选文，下方仍是原有内容。请在其他应用选中文字后重试，或直接在这里输入。")
+                : L("请先在其他应用选中文字后再按快捷键，或直接在这里输入。"),
+            prominence: .compact,
+            primaryAction: WorkspaceNotice.ButtonSpec(title: L("知道了"), action: .dismiss),
+            secondaryAction: nil,
+            dismissOnTranslation: true
+        )
+    }
+
     func requestComposerFocus() {
         composerFocusRequest += 1
     }
@@ -416,6 +542,7 @@ final class AppState: ObservableObject {
         windowTitle: String? = nil,
         sourceURL: String? = nil
     ) {
+        hasExplicitWorkspaceTarget = false
         currentMode = mode
         currentOrigin = origin
         currentContextSourceApp = Self.cleanedMetadata(sourceApp)
@@ -441,12 +568,13 @@ final class AppState: ObservableObject {
 
     func openHistoryWorkspace(
         _ record: TranslationRecord,
-        autoRun: Bool = true,
+        autoRun: Bool = false,
         sourceApp: String? = nil
     ) {
         settings.sourceLanguageCode = record.sourceLang
         settings.targetLanguageCode = record.targetLang
-        applySettings()
+        sourceLanguage = settings.sourceLanguage
+        targetLanguage = settings.targetLanguage
         openWorkspace(
             text: record.sourceText,
             autoRun: autoRun,
@@ -454,6 +582,39 @@ final class AppState: ObservableObject {
             origin: .history,
             sourceApp: sourceApp
         )
+        guard !autoRun else { return }
+        cancelTranslationWork()
+        currentTranslationID = UUID()
+        sourceText = record.sourceText
+        detectedSource = sourceLanguage
+        outcomes = record.displayOutcomes.map { saved in
+            AggregatedOutcome(
+                providerId: saved.providerId, displayName: saved.displayName,
+                modelName: saved.modelName,
+                result: TranslateResult(
+                    providerId: saved.providerId, translated: saved.translated,
+                    detectedFrom: sourceLanguage,
+                    terminologyApplication: saved.terminologyApplication,
+                    interpretation: saved.interpretation
+                ),
+                error: nil, latencyMs: saved.latencyMs ?? 0
+            )
+        }
+        if let primaryIndex = outcomes.firstIndex(where: { $0.providerId == record.providerId }) {
+            outcomes.insert(outcomes.remove(at: primaryIndex), at: 0)
+        }
+        let terminology = settings.terminologySnapshot()
+        currentRequest = TranslateRequest(
+            text: record.sourceText, from: sourceLanguage, to: targetLanguage,
+            terminology: terminology,
+            context: makeContext(text: record.sourceText, mode: .translate, terminology: terminology)
+        )
+        pendingProviders = []
+        slowProviderIDs = []
+        isTranslating = false
+        savedRecordId = record.id
+        isFavorite = record.isFavorite
+        didSaveCurrentTranslation = true
     }
 
     func beginOCRRecognition(providerName: String) {
@@ -462,7 +623,7 @@ final class AppState: ObservableObject {
         currentContextSourceApp = nil
         currentContextWindowTitle = nil
         currentContextSourceURL = nil
-        contextProfile = .understand
+        contextProfile = settings.advancedFeaturesEnabled ? .understand : .quickTranslate
         isRecognizingOCR = true
         sourceDraft = ""
         clearOCRCandidates()
@@ -479,13 +640,17 @@ final class AppState: ObservableObject {
     }
 
     func openOCRWorkspace(result: OCRResult, providerName: String) {
+        if !isRecognizingOCR {
+            hasExplicitWorkspaceTarget = false
+        }
+        cancelTranslationWork()
         isRecognizingOCR = false
         currentMode = .translate
         currentOrigin = .ocr
         currentContextSourceApp = nil
         currentContextWindowTitle = nil
         currentContextSourceURL = nil
-        contextProfile = .understand
+        contextProfile = settings.advancedFeaturesEnabled ? .understand : .quickTranslate
         let text = result.fullText.trimmingCharacters(in: .whitespacesAndNewlines)
         let candidates = Self.makeOCRCandidates(from: result)
         let selectedCandidate = candidates.first
@@ -635,9 +800,10 @@ final class AppState: ObservableObject {
     func translate(_ text: String, mode: TranslateMode = .translate) {
         let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else { return }
-        translationTask?.cancel()
-        slowHintTasks.forEach { $0.cancel() }
-        slowHintTasks = []
+        if workspaceNotice?.dismissOnTranslation == true {
+            workspaceNotice = nil
+        }
+        cancelTranslationWork()
         isRecognizingOCR = false
         resetManualLearningSelection()
 
@@ -654,8 +820,16 @@ final class AppState: ObservableObject {
         detectedSource = direction.detected
         isTranslating = true
         let req = makeRequest(text: trimmed, direction: direction, mode: mode)
+        DebugLog.log("translate: request mode=\(mode) from=\(req.from.code ?? "auto") to=\(req.to.code ?? "auto") origin=\(currentOrigin.rawValue) profile=\(contextProfile.rawValue)")
         currentRequest = req
-        let activeProviders = routedActiveProviders(for: req.context)
+        let configuration = translationConfigurationSnapshot()
+        currentRequestConfiguration = configuration
+        runningTranslationConfiguration = configuration
+        appliedTranslationConfiguration = configuration
+        outcomeConfigurations = [:]
+        currentExecutionStrategy = settings.compareTranslations ? .comparison : .firstSuccessful
+        isComparingEngines = currentExecutionStrategy == .comparison
+        let activeProviders = coordinator.plannedProviders(for: req, strategy: currentExecutionStrategy)
         if contextProfile == .privateLocal && activeProviders.isEmpty {
             outcomes = []
             slowProviderIDs = []
@@ -669,14 +843,37 @@ final class AppState: ObservableObject {
                 title: L("需要本地引擎"),
                 detail: L("隐私本地模式不会发送到云端。请启用 Apple 或 Ollama 本地引擎，或切换到其他上下文配置。"),
                 prominence: .card,
-                primaryAction: WorkspaceNotice.ButtonSpec(title: L("打开设置"), action: .openSettings),
+                primaryAction: WorkspaceNotice.ButtonSpec(title: L("翻译引擎"), action: .openTranslationSettings),
                 secondaryAction: WorkspaceNotice.ButtonSpec(title: L("知道了"), action: .dismiss)
             )
             return
         }
-        outcomes = missingConfigurationOutcomes
+        if activeProviders.isEmpty && missingConfigurationOutcomes.isEmpty {
+            outcomes = []
+            pendingProviders = []
+            slowProviderIDs = []
+            savedRecordId = nil
+            isFavorite = false
+            isTranslating = false
+            isComparingEngines = false
+            workspaceNotice = WorkspaceNotice(
+                tone: .warning, systemImage: "globe",
+                title: L("尚未启用翻译引擎"),
+                detail: L("先启用并配置一个翻译服务，再回来翻译。原文会保留。"),
+                prominence: .card,
+                primaryAction: WorkspaceNotice.ButtonSpec(title: L("翻译引擎"), action: .openTranslationSettings),
+                secondaryAction: nil
+            )
+            return
+        }
+        if workspaceNotice?.primaryAction?.action == .openTranslationSettings {
+            workspaceNotice = nil
+        }
+        // Configuration belongs in Settings. A working primary result should not arrive
+        // surrounded by error cards for engines the user has never configured.
+        outcomes = activeProviders.isEmpty ? missingConfigurationOutcomes : []
         slowProviderIDs = Set(activeProviders.filter(Self.isSlowProvider).map(\.id))
-        pendingProviders = activeProviders.map {
+        remainingProviderPlan = activeProviders.map {
             PendingProviderViewState(
                 id: $0.id,
                 displayName: $0.displayName,
@@ -684,18 +881,60 @@ final class AppState: ObservableObject {
                 isSlow: Self.isSlowProvider($0)
             )
         }
+        pendingProviders = currentExecutionStrategy == .comparison
+            ? remainingProviderPlan : Array(remainingProviderPlan.prefix(1))
         savedRecordId = nil
         isFavorite = false
 
         scheduleSlowProviderHints(runID: runID)
 
+        runTranslation(req, strategy: currentExecutionStrategy, runID: runID)
+    }
+
+    /// Comparison is extra work requested after the useful primary result has arrived.
+    /// Keep that result and query only providers that have not already succeeded.
+    func compareOtherEngines() {
+        guard canCompareOtherEngines, let request = currentRequest else { return }
+        let completedIDs = Set(outcomes.filter(\.isSuccess).map(\.providerId))
+        let providers = coordinator.plannedProviders(for: request, strategy: .comparison)
+            .filter { !completedIDs.contains($0.id) }
+        guard !providers.isEmpty else { return }
+        cancelTranslationWork()
+        currentTranslationID = UUID()
+        runningTranslationConfiguration = translationConfigurationSnapshot()
+        currentExecutionStrategy = .comparison
+        isComparingEngines = true
+        isTranslating = true
+        didSaveCurrentTranslation = false
+        let ids = Set(providers.map(\.id))
+        outcomes.removeAll { ids.contains($0.providerId) }
+        remainingProviderPlan = providers.map {
+            PendingProviderViewState(id: $0.id, displayName: $0.displayName,
+                                     modelName: $0.modelName, isSlow: Self.isSlowProvider($0))
+        }
+        pendingProviders = remainingProviderPlan
+        slowProviderIDs = Set(providers.filter(Self.isSlowProvider).map(\.id))
+        var context = request.context ?? TranslationContext(profile: .quickTranslate)
+        context.routingHints.allowedProviderIDs = providers.map(\.id)
+        let comparisonRequest = request.withContext(context)
+        scheduleSlowProviderHints(runID: currentTranslationID)
+        runTranslation(comparisonRequest, strategy: .comparison, runID: currentTranslationID)
+    }
+
+    private func runTranslation(
+        _ request: TranslateRequest,
+        strategy: TranslationExecutionStrategy,
+        runID: UUID
+    ) {
         let coordinator = coordinator
         translationTask = Task { [weak self, coordinator] in
-            let stream = await coordinator.translateIncrementally(req)
+            guard !Task.isCancelled else { return }
+            let stream = await coordinator.translateIncrementally(request, strategy: strategy)
             for await outcome in stream {
-                guard !Task.isCancelled else { break }
+                guard !Task.isCancelled else { return }
                 await self?.handleIncrementalOutcome(outcome, runID: runID)
             }
+            guard !Task.isCancelled else { return }
             await self?.finishTranslation(runID: runID)
         }
     }
@@ -733,6 +972,8 @@ final class AppState: ObservableObject {
 
     func selectOCRCandidate(id: UUID, autoRun: Bool = true) {
         guard let candidate = ocrCandidates.first(where: { $0.id == id }) else { return }
+        cancelTranslationWork()
+        currentTranslationID = UUID()
         selectedOCRCandidateID = id
         sourceDraft = candidate.text
         sourceText = ""
@@ -1016,7 +1257,8 @@ final class AppState: ObservableObject {
         return directionResolver.resolve(
             text: text,
             from: settings.sourceLanguage,
-            to: settings.targetLanguage
+            to: settings.targetLanguage,
+            allowTargetAdjustment: !hasExplicitWorkspaceTarget
         )
     }
 
@@ -1068,7 +1310,13 @@ final class AppState: ObservableObject {
         origin: TranslationOrigin,
         text: String
     ) -> TranslationContextProfile {
-        if let ruleProfile = automaticRuleProfile(mode: mode, origin: origin, text: text) {
+        let ruleProfile = automaticRuleProfile(mode: mode, origin: origin, text: text)
+        // Simplifying the feature surface must not bypass an existing local-only rule.
+        if ruleProfile == .privateLocal { return .privateLocal }
+        if mode == .translate, !settings.advancedFeaturesEnabled {
+            return .quickTranslate
+        }
+        if let ruleProfile {
             return ruleProfile
         }
         return TranslationContextProfile.defaultProfile(
@@ -1124,6 +1372,8 @@ final class AppState: ObservableObject {
 
     private func manualInputProfile() -> TranslationContextProfile {
         let profile = settings.lastContextProfile
+        if profile == .privateLocal { return .privateLocal }
+        guard settings.advancedFeaturesEnabled else { return .quickTranslate }
         switch profile {
         case .nativePolish:
             return .quickTranslate
@@ -1173,10 +1423,19 @@ final class AppState: ObservableObject {
             }
     }
 
-    private func resetTranslationSession(keepDraft: Bool) {
+    private func cancelTranslationWork() {
         translationTask?.cancel()
+        translationTask = nil
         slowHintTasks.forEach { $0.cancel() }
         slowHintTasks = []
+        remainingProviderPlan = []
+        isComparingEngines = false
+        runningTranslationConfiguration = nil
+    }
+
+    private func resetTranslationSession(keepDraft: Bool) {
+        hasExplicitWorkspaceTarget = false
+        cancelTranslationWork()
         resetManualLearningSelection()
         if !keepDraft {
             sourceDraft = ""
@@ -1192,6 +1451,8 @@ final class AppState: ObservableObject {
         isFavorite = false
         didSaveCurrentTranslation = false
         currentRequest = nil
+        currentRequestConfiguration = nil
+        outcomeConfigurations = [:]
         currentTranslationID = UUID()
     }
 
@@ -1273,6 +1534,21 @@ final class AppState: ObservableObject {
     ) async {
         guard currentTranslationID == runID else { return }
         log(outcome)
+        if let runningTranslationConfiguration {
+            outcomeConfigurations[outcome.providerId] = runningTranslationConfiguration
+        }
+
+        if currentExecutionStrategy == .firstSuccessful {
+            remainingProviderPlan.removeAll { $0.id == outcome.providerId }
+            if outcome.isSuccess {
+                outcomes.removeAll { !$0.isSuccess }
+                remainingProviderPlan = []
+                pendingProviders = []
+            } else {
+                pendingProviders = Array(remainingProviderPlan.prefix(1))
+                scheduleSlowProviderHints(runID: runID)
+            }
+        }
 
         if let index = outcomes.firstIndex(where: { $0.providerId == outcome.providerId }) {
             outcomes[index] = outcome
@@ -1287,12 +1563,18 @@ final class AppState: ObservableObject {
         if sourceLanguage == .auto, let detected = outcome.result?.detectedFrom {
             detectedSource = detected
         }
+        if workspaceNotice?.primaryAction?.action == .retryTranslation {
+            refreshTranslationSettingsNotice()
+        }
     }
 
     private func finishTranslation(runID: UUID) async {
         guard currentTranslationID == runID else { return }
         isTranslating = false
+        runningTranslationConfiguration = nil
+        isComparingEngines = false
         pendingProviders = []
+        remainingProviderPlan = []
         if let currentRequest {
             outcomes = ResultQualityEvaluator.withRecommendation(outcomes: outcomes, request: currentRequest)
         }
@@ -1318,6 +1600,17 @@ final class AppState: ObservableObject {
         let recommendedProviderID = primarySuccessfulOutcome?.providerId
         guard let primary = successes.first(where: { $0.providerId == recommendedProviderID }) ?? successes.first else { return }
         didSaveCurrentTranslation = true
+        if let savedRecordId {
+            let updated = await history.updateOutcomes(
+                id: savedRecordId, translated: primary.translated,
+                providerId: primary.providerId, outcomes: successes
+            )
+            guard currentTranslationID == runID else { return }
+            if updated {
+                refreshLearningHistory()
+                return
+            }
+        }
         let record = TranslationRecord(
             sourceText: sourceText,
             translated: primary.translated,
@@ -1326,14 +1619,21 @@ final class AppState: ObservableObject {
             sourceLang: ((sourceLanguage == .auto ? detectedSource : sourceLanguage).code ?? "auto"),
             targetLang: (targetLanguage.code ?? "")
         )
+        // Publish identity before yielding so a requested comparison can update this
+        // same record even while its first disk write is still queued.
+        savedRecordId = record.id
         await history.add(record)
         guard currentTranslationID == runID else { return }
-        savedRecordId = record.id
         refreshLearningHistory()
     }
 
     func refreshLearningHistory() {
         learningHistoryRefreshGeneration += 1
+        guard settings.advancedFeaturesEnabled else {
+            if !learningHistoryRecords.isEmpty { learningHistoryRecords = [] }
+            if !learningOccurrenceCounts.isEmpty { learningOccurrenceCounts = [:] }
+            return
+        }
         let generation = learningHistoryRefreshGeneration
         let historyStore = history
         Task {
@@ -1479,25 +1779,28 @@ final class AppState: ObservableObject {
             return
         }
 
+        cancelTranslationWork()
+        currentTranslationID = UUID()
         let runID = currentTranslationID
+        let configuration = translationConfigurationSnapshot()
+        currentRequestConfiguration = configuration
+        runningTranslationConfiguration = configuration
+        appliedTranslationConfiguration = configuration
+        currentExecutionStrategy = .firstSuccessful
+        didSaveCurrentTranslation = false
         outcomes.removeAll { $0.providerId == id }
-        pendingProviders.removeAll { $0.id == id }
-        pendingProviders.append(PendingProviderViewState(
+        remainingProviderPlan = [PendingProviderViewState(
             id: provider.id,
             displayName: provider.displayName,
             modelName: provider.modelName,
             isSlow: Self.isSlowProvider(provider)
-        ))
+        )]
+        pendingProviders = remainingProviderPlan
         isTranslating = true
-
-        Task { [weak self, provider] in
-            let outcome = await TranslationCoordinator.runProvider(provider, req: req, baseTimeout: 15)
-            await self?.handleIncrementalOutcome(outcome, runID: runID)
-            await MainActor.run {
-                guard let self else { return }
-                if self.pendingProviders.isEmpty { self.isTranslating = false }
-            }
-        }
+        var context = req.context ?? TranslationContext(profile: .quickTranslate)
+        context.routingHints.allowedProviderIDs = [id]
+        scheduleSlowProviderHints(runID: runID)
+        runTranslation(req.withContext(context), strategy: .firstSuccessful, runID: runID)
     }
 
     private func upsertOutcome(_ outcome: AggregatedOutcome) {

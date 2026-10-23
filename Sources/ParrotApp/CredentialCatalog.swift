@@ -59,7 +59,9 @@ struct CredentialDescriptor: Identifiable, Equatable {
 
     func matchesServiceID(_ serviceID: String?) -> Bool {
         guard let serviceID else { return false }
+        let engineID = EngineModelConfig.baseEngineID(forProviderID: serviceID)
         return id == serviceID || aliases.contains(serviceID)
+            || id == engineID || aliases.contains(engineID)
     }
 }
 

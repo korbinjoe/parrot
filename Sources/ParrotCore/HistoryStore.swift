@@ -100,6 +100,7 @@ public actor HistoryStore {
     private var records: [TranslationRecord] = []
     private let fileURL: URL
     private let maxRecords: Int
+    private var hasLoaded = false
 
     public init(fileURL: URL? = nil, maxRecords: Int = 5000) {
         if let fileURL {
@@ -107,14 +108,16 @@ public actor HistoryStore {
         } else {
             let base = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first!
             let dir = base.appendingPathComponent("Parrot", isDirectory: true)
-            try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
             self.fileURL = dir.appendingPathComponent("history.json")
         }
         self.maxRecords = maxRecords
-        load()
     }
 
-    private func load() {
+    /// AppState constructs this store on the main actor. Defer disk access until the
+    /// first history operation so decoding a large archive never stalls app launch.
+    private func loadIfNeeded() {
+        guard !hasLoaded else { return }
+        hasLoaded = true
         let decoder = JSONDecoder()
         decoder.dateDecodingStrategy = .iso8601
         guard let data = try? Data(contentsOf: fileURL),
@@ -128,6 +131,10 @@ public actor HistoryStore {
         let encoder = JSONEncoder()
         encoder.dateEncodingStrategy = .iso8601
         if let data = try? encoder.encode(records) {
+            try? FileManager.default.createDirectory(
+                at: fileURL.deletingLastPathComponent(),
+                withIntermediateDirectories: true
+            )
             try? data.write(to: fileURL, options: .atomic)
         }
     }
@@ -135,6 +142,7 @@ public actor HistoryStore {
     /// Insert a record at the front, trimming to `maxRecords`. Returns the stored record.
     @discardableResult
     public func add(_ record: TranslationRecord) -> TranslationRecord {
+        loadIfNeeded()
         records.insert(record, at: 0)
         trim()
         persist()
@@ -156,17 +164,25 @@ public actor HistoryStore {
         }
     }
 
-    public func all() -> [TranslationRecord] { records }
+    public func all() -> [TranslationRecord] {
+        loadIfNeeded()
+        return records
+    }
 
     public func latest(limit: Int) -> [TranslationRecord] {
         guard limit > 0 else { return [] }
+        loadIfNeeded()
         return Array(records.prefix(limit))
     }
 
-    public func favorites() -> [TranslationRecord] { records.filter { $0.isFavorite } }
+    public func favorites() -> [TranslationRecord] {
+        loadIfNeeded()
+        return records.filter { $0.isFavorite }
+    }
 
     /// Case-insensitive substring search over source and translated text.
     public func search(_ query: String) -> [TranslationRecord] {
+        loadIfNeeded()
         let q = query.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
         guard !q.isEmpty else { return records }
         return records.filter {
@@ -176,18 +192,45 @@ public actor HistoryStore {
 
     @discardableResult
     public func setFavorite(_ id: UUID, _ value: Bool) -> Bool {
+        loadIfNeeded()
         guard let idx = records.firstIndex(where: { $0.id == id }) else { return false }
+        guard records[idx].isFavorite != value else { return true }
         records[idx].isFavorite = value
         persist()
         return true
     }
 
+    /// Extend an existing request with explicit comparisons/retries while retaining
+    /// the record's identity, date, favorite status, source text, and language pair.
+    @discardableResult
+    public func updateOutcomes(
+        id: UUID,
+        translated: String,
+        providerId: String,
+        outcomes: [TranslationRecordOutcome]
+    ) -> Bool {
+        loadIfNeeded()
+        guard let index = records.firstIndex(where: { $0.id == id }) else { return false }
+        guard records[index].translated != translated
+                || records[index].providerId != providerId
+                || records[index].outcomes != outcomes else { return true }
+        records[index].translated = translated
+        records[index].providerId = providerId
+        records[index].outcomes = outcomes
+        persist()
+        return true
+    }
+
     public func delete(_ id: UUID) {
-        records.removeAll { $0.id == id }
+        loadIfNeeded()
+        guard let index = records.firstIndex(where: { $0.id == id }) else { return }
+        records.remove(at: index)
         persist()
     }
 
     public func clear() {
+        loadIfNeeded()
+        guard !records.isEmpty else { return }
         records.removeAll()
         persist()
     }

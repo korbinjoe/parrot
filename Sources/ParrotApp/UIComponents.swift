@@ -1,4 +1,5 @@
 import SwiftUI
+import AppKit
 import ParrotCore
 
 /// Shared UI primitives used across the floating panel, input bar and (later) history window.
@@ -12,17 +13,13 @@ struct LangPill: View {
     var body: some View {
         HStack(spacing: 6) {
             Text(Self.label(from, auto: "自动"))
-            Image(systemName: "arrow.left.arrow.right").font(.system(size: 9))
-                .foregroundStyle(Theme.Palette.accent)
+            Image(systemName: "arrow.right").font(.system(size: 10))
+                .foregroundStyle(Theme.Palette.label3)
             Text(Self.label(to, auto: "中"))
         }
-        .font(.system(size: 11, weight: .semibold))
+        .font(.system(size: 12, weight: .medium))
         .foregroundStyle(Theme.Palette.label2)
-        .frame(height: 24)
-        .padding(.horizontal, 10)
-        .background(Theme.Palette.bgControl)
-        .clipShape(Capsule())
-        .overlay(Capsule().strokeBorder(Theme.Palette.separator, lineWidth: 0.5))
+        .frame(height: 26)
     }
 
     static func label(_ lang: Language, auto: String) -> String {
@@ -60,7 +57,7 @@ struct WarningBar: View {
     }
 }
 
-/// Borderless icon button with a consistent 24×24 hit area.
+/// Borderless icon button with a consistent 32×32 hit area.
 struct IconButton: View {
     let name: String
     let help: String
@@ -71,7 +68,6 @@ struct IconButton: View {
     let action: () -> Void
 
     @State private var hovering = false
-    @State private var showTip = false
 
     init(
         _ name: String,
@@ -99,68 +95,37 @@ struct IconButton: View {
             Image(systemName: name)
                 .font(.system(size: size))
                 .foregroundStyle(foreground ?? Theme.Palette.label2)
-                .frame(width: 26, height: 26)
+                .frame(width: 32, height: 32)
+                .contentShape(Rectangle())
         }
-        .buttonStyle(.borderless)
+        .buttonStyle(.plain)
+        .disabled(!isEnabled)
         .opacity(isEnabled ? 1 : 0.42)
         .background(activeBackground ? Theme.Palette.bgSelection : (hovering ? Theme.Palette.bgControl : Color.clear))
         .clipShape(RoundedRectangle(cornerRadius: Theme.Radius.control))
-        .contentShape(RoundedRectangle(cornerRadius: Theme.Radius.control))
-        .overlay(alignment: .bottom) {
-            if showTip {
-                Text(L(help))
-                    .font(Theme.Font.caption)
-                    .foregroundStyle(Theme.Palette.label)
-                    .lineLimit(1)
-                    .padding(.horizontal, 8)
-                    .frame(height: 22)
-                    .background(Theme.Palette.bgPanel)
-                    .clipShape(RoundedRectangle(cornerRadius: Theme.Radius.control))
-                    .overlay(
-                        RoundedRectangle(cornerRadius: Theme.Radius.control)
-                            .strokeBorder(Theme.Palette.separator, lineWidth: 0.5)
-                    )
-                    .shadow(color: Color.black.opacity(0.14), radius: 5, y: 2)
-                    .fixedSize()
-                    .offset(y: 28)
-                    .allowsHitTesting(false)
-                    .accessibilityHidden(true)
-                    .transition(.opacity)
-            }
-        }
-        .zIndex(showTip ? 10 : 0)
-        .onHover { inside in
-            hovering = inside
-            if inside {
-                DispatchQueue.main.asyncAfter(deadline: .now() + 0.25) {
-                    guard hovering else { return }
-                    withAnimation(.easeOut(duration: 0.08)) {
-                        showTip = true
-                    }
-                }
-            } else {
-                withAnimation(.easeOut(duration: 0.06)) {
-                    showTip = false
-                }
-            }
-        }
+        .onHover { hovering = $0 }
         .help(L(help))
         .accessibilityLabel(L(help))
     }
 }
 
 struct PrimaryActionButtonStyle: ButtonStyle {
+    var isProminent = true
     @Environment(\.isEnabled) private var isEnabled
+
+    init(isProminent: Bool = true) {
+        self.isProminent = isProminent
+    }
 
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
-            .font(Theme.Font.body)
-            .foregroundStyle(Theme.Palette.accentInk)
+            .font(Theme.Font.body.weight(.medium))
+            .foregroundStyle(isEnabled ? (isProminent ? Theme.Palette.accentInk : Theme.Palette.label) : Theme.Palette.label3)
             .padding(.horizontal, 12)
-            .frame(minHeight: 28)
-            .background(isEnabled ? (configuration.isPressed ? Theme.Palette.accent.opacity(0.82) : Theme.Palette.accent) : Theme.Palette.bgControl)
+            .frame(minHeight: 30)
+            .background(isEnabled && isProminent ? (configuration.isPressed ? Theme.Palette.accent.opacity(0.82) : Theme.Palette.accent) : Theme.Palette.bgControl)
             .clipShape(RoundedRectangle(cornerRadius: Theme.Radius.control))
-            .scaleEffect(configuration.isPressed ? 0.985 : 1)
+            .contentShape(Rectangle())
             .opacity(isEnabled ? 1 : 0.55)
     }
 }
@@ -173,7 +138,7 @@ struct SecondaryActionButtonStyle: ButtonStyle {
             .font(Theme.Font.body)
             .foregroundStyle(isEnabled ? Theme.Palette.label : Theme.Palette.label3)
             .padding(.horizontal, 12)
-            .frame(minHeight: 28)
+            .frame(minHeight: 30)
             .background(
                 isEnabled
                     ? (configuration.isPressed ? Theme.Palette.bgSelection : Theme.Palette.bgControl)
@@ -184,7 +149,24 @@ struct SecondaryActionButtonStyle: ButtonStyle {
                 RoundedRectangle(cornerRadius: Theme.Radius.control)
                     .strokeBorder(Theme.Palette.separator, lineWidth: 0.5)
             )
-            .scaleEffect(configuration.isPressed ? 0.985 : 1)
+            .contentShape(Rectangle())
             .opacity(isEnabled ? 1 : 0.55)
+    }
+}
+
+/// System-rendered material that follows appearance and accessibility transparency settings.
+struct MacMaterialBackground: NSViewRepresentable {
+    var material: NSVisualEffectView.Material = .sidebar
+
+    func makeNSView(context: Context) -> NSVisualEffectView {
+        let view = NSVisualEffectView()
+        view.material = material
+        view.blendingMode = .withinWindow
+        view.state = .active
+        return view
+    }
+
+    func updateNSView(_ view: NSVisualEffectView, context: Context) {
+        view.material = material
     }
 }

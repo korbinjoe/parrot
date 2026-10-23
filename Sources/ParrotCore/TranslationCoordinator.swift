@@ -39,8 +39,15 @@ public struct AggregatedOutcome: Sendable {
     }
 }
 
-/// Orchestrates language detection + concurrent fan-out across all active providers.
-/// A single provider failing produces an error slot and never affects the others.
+public enum TranslationExecutionStrategy: Sendable, Equatable {
+    /// Use providers in configured order, allowing at most two operational attempts.
+    /// Providers that cannot serve the request are skipped without consuming that budget.
+    case firstSuccessful
+    /// Explicitly compare all configured providers concurrently.
+    case comparison
+}
+
+/// Orchestrates language detection and provider execution.
 public actor TranslationCoordinator {
     private let registry: ProviderRegistry
     private let detector: LanguageDetector
@@ -69,7 +76,8 @@ public actor TranslationCoordinator {
             to: direction.to,
             mode: req.mode,
             terminology: req.terminology,
-            context: req.context
+            context: req.context,
+            sessionID: req.sessionID
         )
     }
 
@@ -97,12 +105,14 @@ public actor TranslationCoordinator {
         return ResultQualityEvaluator.withRecommendation(outcomes: ordered, request: req)
     }
 
-    /// Fan out to every active provider concurrently and yield each outcome as soon as it finishes.
-    /// The stream order is completion order, so fast machine-translation providers can appear before
-    /// slower LLM providers finish.
-    public func translateIncrementally(_ request: TranslateRequest) -> AsyncStream<AggregatedOutcome> {
+    /// Yield results as they finish. Single-result requests stop after the first success and
+    /// never start unused providers; comparison requests run all providers concurrently.
+    public func translateIncrementally(
+        _ request: TranslateRequest,
+        strategy: TranslationExecutionStrategy = .comparison
+    ) -> AsyncStream<AggregatedOutcome> {
         let req = resolved(request)
-        let providers = routedProviders(for: req)
+        let providers = plannedProviders(for: req, strategy: strategy)
         let baseTimeout = perProviderTimeout
 
         return AsyncStream { continuation in
@@ -112,6 +122,27 @@ public actor TranslationCoordinator {
             }
 
             let task = Task {
+                if strategy == .firstSuccessful {
+                    var failedAttempts = 0
+                    for provider in providers {
+                        guard !Task.isCancelled, failedAttempts < 2 else { break }
+                        // A quick request must not inherit multi-minute comparison budgets.
+                        // Apple preparation remains interactive because it may request a download.
+                        let isApple = provider.id.components(separatedBy: "#").first == "apple"
+                        let outcome = await Self.runProvider(
+                            provider, req: req, baseTimeout: baseTimeout,
+                            maximumTimeout: isApple ? nil : baseTimeout
+                        )
+                        guard !Task.isCancelled else { break }
+                        continuation.yield(outcome)
+                        if outcome.isSuccess { break }
+                        if outcome.error != .unsupportedLanguage, outcome.error != .notConfigured {
+                            failedAttempts += 1
+                        }
+                    }
+                    continuation.finish()
+                    return
+                }
                 await withTaskGroup(of: AggregatedOutcome.self) { group in
                     for provider in providers {
                         group.addTask {
@@ -119,6 +150,10 @@ public actor TranslationCoordinator {
                         }
                     }
                     for await outcome in group {
+                        guard !Task.isCancelled else {
+                            group.cancelAll()
+                            break
+                        }
                         continuation.yield(outcome)
                     }
                 }
@@ -129,7 +164,24 @@ public actor TranslationCoordinator {
         }
     }
 
-    private func routedProviders(for req: TranslateRequest) -> [TranslationProvider] {
+    /// Shares the execution plan with the UI so queued backups are not shown as active work.
+    /// Registry order remains authoritative unless the request explicitly supplies routing hints.
+    public nonisolated func plannedProviders(
+        for request: TranslateRequest,
+        strategy: TranslationExecutionStrategy
+    ) -> [TranslationProvider] {
+        // Keep the full fallback queue. A provider that rejects the language locally
+        // must not prevent a later configured provider from serving the request.
+        routedProviders(
+            for: request,
+            preferLookup: strategy == .firstSuccessful && request.mode == .lookup
+        )
+    }
+
+    private nonisolated func routedProviders(
+        for req: TranslateRequest,
+        preferLookup: Bool = false
+    ) -> [TranslationProvider] {
         let providers = registry.activeProviders()
         let allowedProviders: [TranslationProvider]
         if let allowed = req.context?.routingHints.allowedProviderIDs {
@@ -138,7 +190,7 @@ public actor TranslationCoordinator {
         } else {
             allowedProviders = providers
         }
-        guard let hints = req.context?.routingHints else { return allowedProviders }
+        let hints = req.context?.routingHints ?? ProviderRoutingHints()
         var preferredRanks: [String: Int] = [:]
         for (index, providerID) in hints.preferredProviderIDs.enumerated()
             where preferredRanks[providerID] == nil {
@@ -149,6 +201,10 @@ public actor TranslationCoordinator {
                 let lhsRank = preferredRanks[lhs.element.id] ?? Int.max
                 let rhsRank = preferredRanks[rhs.element.id] ?? Int.max
                 if lhsRank != rhsRank { return lhsRank < rhsRank }
+                if preferLookup,
+                   lhs.element.capabilities.supportsLookup != rhs.element.capabilities.supportsLookup {
+                    return lhs.element.capabilities.supportsLookup
+                }
                 if hints.preferLLM,
                    lhs.element.capabilities.supportsInterpretation != rhs.element.capabilities.supportsInterpretation {
                     return lhs.element.capabilities.supportsInterpretation
@@ -161,11 +217,15 @@ public actor TranslationCoordinator {
     public static func runProvider(
         _ provider: TranslationProvider,
         req: TranslateRequest,
-        baseTimeout: TimeInterval
+        baseTimeout: TimeInterval,
+        maximumTimeout: TimeInterval? = nil
     ) async -> AggregatedOutcome {
         let start = Date()
         do {
-            return try await runProvider(provider, req: req, baseTimeout: baseTimeout, start: start)
+            return try await runProvider(
+                provider, req: req, baseTimeout: baseTimeout,
+                maximumTimeout: maximumTimeout, start: start
+            )
         } catch {
             let pErr = (error as? ProviderError) ?? .network
             return AggregatedOutcome(
@@ -183,12 +243,20 @@ public actor TranslationCoordinator {
         _ provider: TranslationProvider,
         req: TranslateRequest,
         baseTimeout: TimeInterval,
+        maximumTimeout: TimeInterval?,
         start: Date
     ) async throws -> AggregatedOutcome {
+        try Task.checkCancellation()
         let prepared = prepare(req, for: provider)
-        let timeout = Self.timeout(for: provider, base: baseTimeout)
+        let providerTimeout = Self.timeout(for: provider, base: baseTimeout)
+        let timeout = maximumTimeout.map { min($0, providerTimeout) } ?? providerTimeout
         let result = try await Self.withTimeout(timeout) {
-            try await provider.translate(prepared.request)
+            try Task.checkCancellation()
+            return try await provider.translate(prepared.request)
+        }
+        guard !result.translated.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+                || (req.mode == .lookup && result.definitions?.isEmpty == false) else {
+            throw ProviderError.service("Empty translation response.")
         }
         let finalResult = applyTerminology(
             to: result,
@@ -245,14 +313,7 @@ public actor TranslationCoordinator {
         switch support {
         case .placeholder, .promptAndPlaceholder:
             let protected = TerminologyProcessor.protect(maskedRequest)
-            let protectedRequest = TranslateRequest(
-                text: protected.text,
-                from: maskedRequest.from,
-                to: maskedRequest.to,
-                mode: maskedRequest.mode,
-                terminology: maskedRequest.terminology,
-                context: maskedRequest.context
-            )
+            let protectedRequest = maskedRequest.withText(protected.text)
             return PreparedRequest(
                 request: protectedRequest,
                 application: TerminologyApplication(strategy: strategy, matches: matches),

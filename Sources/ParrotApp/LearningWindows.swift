@@ -190,9 +190,10 @@ private struct LearningReviewView: View {
                                 }
                                 .padding(.horizontal, 10)
                                 .padding(.vertical, 9)
-                                .frame(minHeight: 52)
+                                .frame(maxWidth: .infinity, minHeight: 52, alignment: .leading)
                                 .background(selectedCard?.id == card.id ? Theme.Palette.bgSelection : Color.clear)
                                 .clipShape(RoundedRectangle(cornerRadius: 9))
+                                .contentShape(Rectangle())
                             }
                             .buttonStyle(.plain)
                         }
@@ -266,6 +267,7 @@ private struct LearningReviewView: View {
                                 .background(optionBackground(option, card: card))
                                 .clipShape(RoundedRectangle(cornerRadius: 8))
                                 .overlay(RoundedRectangle(cornerRadius: 8).strokeBorder(optionBorder(option, card: card), lineWidth: 0.5))
+                                .contentShape(Rectangle())
                             }
                             .buttonStyle(.plain)
                         }
@@ -289,11 +291,16 @@ private struct LearningReviewView: View {
 
                 HStack {
                     Spacer()
-                    Button(L("稍后再练")) {
+                    Button {
                         feedbackText = L("已保留在今日队列，稍后会再次出现。")
+                    } label: {
+                        Text(L("稍后再练"))
+                            .font(Theme.Font.callout)
+                            .padding(.horizontal, 10)
+                            .frame(minHeight: 30)
+                            .contentShape(Rectangle())
                     }
                     .buttonStyle(.borderless)
-                    .font(Theme.Font.callout)
                     Button {
                         moveToNextCard()
                     } label: {
@@ -491,6 +498,7 @@ private struct VocabularyView: View {
                             } label: {
                                 VocabularyRow(data: VocabularyRowData(item: item), selected: currentSelectedID == item.id)
                                     .equatable()
+                                    .contentShape(Rectangle())
                             }
                             .buttonStyle(.plain)
                         }
@@ -631,7 +639,7 @@ private struct VocabularyView: View {
                     LearningWindowTag(L("错过 %d 次", item.wrongCount))
                 }
                 Spacer()
-                Button(item.isSaved ? L("移出词库") : L("加入词库")) {
+                Button {
                     if item.isSaved {
                         let fallbackID = filteredItems(from: cachedItems).first { $0.id != item.id }?.id
                         settings.removeLearningVocabularyEntry(item.id)
@@ -639,9 +647,14 @@ private struct VocabularyView: View {
                     } else {
                         saveIfNeeded(item)
                     }
+                } label: {
+                    Text(item.isSaved ? L("移出词库") : L("加入词库"))
+                        .font(Theme.Font.callout)
+                        .padding(.horizontal, 10)
+                        .frame(minHeight: 30)
+                        .contentShape(Rectangle())
                 }
                 .buttonStyle(.borderless)
-                .font(Theme.Font.callout)
                 Button(item.expression.masteryStage >= 5 ? L("已掌握") : L("标记掌握")) {
                     settings.markLearningMastered(item.expression, sceneLabel: item.sceneLabel)
                 }
@@ -775,7 +788,7 @@ private struct VocabularyRow: View, Equatable {
         }
         .padding(.horizontal, 10)
         .padding(.vertical, 9)
-        .frame(minHeight: 58)
+        .frame(maxWidth: .infinity, minHeight: 58, alignment: .leading)
         .background(selected ? Theme.Palette.bgSelection : Color.clear)
         .clipShape(RoundedRectangle(cornerRadius: 9))
     }

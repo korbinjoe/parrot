@@ -7,7 +7,8 @@ import ParrotCore
 
 @MainActor
 @Test func sourceMetadataRulesSelectDeveloperProfile() {
-    let state = AppState()
+    let state = makeContextTestState()
+    state.settings.advancedFeaturesEnabled = true
     state.settings.contextRuleDeveloperEnabled = true
 
     state.openWorkspace(
@@ -24,7 +25,8 @@ import ParrotCore
 
 @MainActor
 @Test func shortBrowserSelectionUsesUnderstandProfile() {
-    let state = AppState()
+    let state = makeContextTestState()
+    state.settings.advancedFeaturesEnabled = true
     state.settings.contextRuleDocumentEnabled = true
 
     state.openWorkspace(
@@ -40,8 +42,319 @@ import ParrotCore
 }
 
 @MainActor
+@Test func mvpCapturesUseQuickTranslationWithoutImplicitProfiles() {
+    let state = makeContextTestState()
+    for origin in [TranslationOrigin.selection, .clipboard, .screenshot, .history, .url] {
+        state.openWorkspace(
+            text: "Review this pull request note.", autoRun: false, focusComposer: false,
+            origin: origin, sourceApp: "GitHub", sourceURL: "https://github.com/example/parrot"
+        )
+        #expect(state.contextProfile == .quickTranslate)
+    }
+    state.openWorkspace(text: "An ambiguous comment.", autoRun: false, focusComposer: false,
+                        origin: .selection, profile: .understand)
+    #expect(state.contextProfile == .understand)
+    #expect(state.learningHistoryRecords.isEmpty)
+    #expect(state.learningOccurrenceCounts.isEmpty)
+}
+
+@MainActor
+@Test func emptySelectionCaptureKeepsDraftResultsAndLabelsPreviouslyShownContent() {
+    let state = makeContextTestState()
+    let existing = TranslationRecord(
+        sourceText: "Previously translated text.", translated: "先前的译文", providerId: "saved",
+        sourceLang: "en", targetLang: "zh", isFavorite: true
+    )
+    state.openHistoryWorkspace(existing)
+    state.updateDraft("An unfinished edit.")
+
+    state.showSelectionCaptureNotice(openInput: false)
+
+    #expect(state.sourceDraft == "An unfinished edit.")
+    #expect(state.sourceText == existing.sourceText)
+    #expect(state.outcomes.first?.result?.translated == existing.translated)
+    #expect(state.savedRecordId == existing.id)
+    #expect(state.isFavorite)
+    #expect(state.workspaceNotice?.title == L("未获取到选中文字"))
+    #expect(state.workspaceNotice?.detail == L("本次没有获取到新选文，下方仍是原有内容。请在其他应用选中文字后重试，或直接在这里输入。"))
+    #expect(!state.isTranslating)
+}
+
+@MainActor
+@Test func translatingEditedTextClearsThePreviousCaptureFailureNotice() async throws {
+    let state = makeContextTestState()
+    state.registry.removeAll()
+    state.registry.register(AppMVPFixtureEngine(id: "primary", calls: AppProviderCalls()))
+    state.openWorkspace(text: "Old source.", autoRun: false, focusComposer: false, origin: .selection)
+    state.showSelectionCaptureNotice(openInput: false)
+
+    state.translate("   ")
+    #expect(state.workspaceNotice != nil)
+
+    state.updateDraft("A new source.")
+    state.translateDraft()
+    try await waitForMVPTranslation(state)
+
+    #expect(state.workspaceNotice == nil)
+    #expect(state.sourceText == "A new source.")
+    #expect(state.primaryActionTranslatedText == "quickTranslate:A new source.")
+}
+
+@MainActor
+@Test func captureWithoutExternalSourceOpensInputWithoutDiscardingExistingWork() {
+    let state = makeContextTestState()
+    state.openWorkspace(text: "Keep this draft.", autoRun: false, focusComposer: false, origin: .selection)
+    let previousFocusRequest = state.composerFocusRequest
+
+    state.showSelectionCaptureNotice(openInput: true)
+
+    #expect(state.currentOrigin == .selection)
+    #expect(state.sourceDraft == "Keep this draft.")
+    #expect(state.composerFocusRequest > previousFocusRequest)
+    #expect(state.workspaceNotice != nil)
+    #expect(!state.isTranslating)
+}
+
+@MainActor
+@Test func captureWithoutExternalSourceStartsManualInputForAnEmptyWorkspace() {
+    let state = makeContextTestState()
+
+    state.showSelectionCaptureNotice(openInput: true)
+
+    #expect(state.currentOrigin == .manualInput)
+    #expect(state.sourceDraft.isEmpty)
+    #expect(state.composerFocusRequest > 0)
+    #expect(state.workspaceNotice?.detail == L("请先在其他应用选中文字后再按快捷键，或直接在这里输入。"))
+}
+
+@MainActor
+@Test func changingLanguageDoesNotRebuildProviders() {
+    let state = makeContextTestState()
+    state.registry.removeAll()
+    state.registry.register(AppMVPFixtureEngine(id: "configured-primary", calls: AppProviderCalls()))
+
+    state.setLanguageDirection(targetCode: "ja")
+
+    #expect(state.targetLanguage == .ja)
+    #expect(state.registry.activeProviders().map(\.id) == ["configured-primary"])
+}
+
+@MainActor
+@Test func explicitWorkspaceTargetRetranslatesWithoutBeingReversedByTheCoordinator() async throws {
+    let state = makeContextTestState()
+    let calls = AppDirectionRequests()
+    state.settings.sourceLanguageCode = "auto"
+    state.settings.targetLanguageCode = "zh"
+    state.registry.removeAll()
+    state.registry.register(AppDirectionFixtureEngine(calls: calls))
+    state.openWorkspace(text: "今天天气很好，我们去公园散步。", autoRun: true,
+                        focusComposer: false, origin: .selection)
+    try await waitForMVPTranslation(state)
+    #expect(state.targetLanguage == .en)
+    #expect(state.primaryActionTranslatedText == "zh->en")
+
+    state.setLanguageDirection(targetCode: "zh")
+    #expect(state.targetLanguage == .zh)
+    #expect(state.outcomes.isEmpty)
+    try await waitForMVPTranslation(state)
+
+    let requests = await calls.requests
+    #expect(requests.map(\.from) == [.zh, .zh])
+    #expect(requests.map(\.to) == [.en, .zh])
+    #expect(state.primaryActionTranslatedText == "zh->zh")
+    #expect(state.registry.activeProviders().map(\.id) == ["direction-fixture"])
+}
+
+@MainActor
+@Test func newSelectionAndOCRRestoreDefaultAutomaticDirectionAfterAnExplicitTarget() async throws {
+    let state = makeContextTestState()
+    let calls = AppDirectionRequests()
+    let text = "今天天气很好，我们去公园散步。"
+    state.settings.sourceLanguageCode = "auto"
+    state.settings.targetLanguageCode = "zh"
+    state.registry.removeAll()
+    state.registry.register(AppDirectionFixtureEngine(calls: calls))
+    state.openWorkspace(text: text, autoRun: false, focusComposer: false, origin: .selection)
+    state.setLanguageDirection(targetCode: "zh")
+    try await waitForMVPTranslation(state)
+
+    state.openWorkspace(text: text, autoRun: true, focusComposer: false, origin: .selection)
+    try await waitForMVPTranslation(state)
+    #expect(state.targetLanguage == .en)
+
+    state.setLanguageDirection(targetCode: "zh")
+    try await waitForMVPTranslation(state)
+    state.openOCRWorkspace(result: OCRResult(fullText: text, blocks: [], confidence: 0.99), providerName: "Fixture")
+    state.translateDraft()
+    try await waitForMVPTranslation(state)
+
+    let requests = await calls.requests
+    #expect(requests.map(\.to) == [.zh, .en, .zh, .en])
+    #expect(state.targetLanguage == .en)
+}
+
+@MainActor
+@Test func mvpPreservesPrivateSurfacesAndSavedLocalOnlyProfile() {
+    let state = makeContextTestState()
+    state.openWorkspace(text: "Account details", autoRun: false, focusComposer: false,
+                        origin: .selection, sourceApp: "1Password")
+    #expect(!state.settings.advancedFeaturesEnabled)
+    #expect(state.contextProfile == .privateLocal)
+
+    state.settings.rememberContextProfile(.privateLocal)
+    state.openManualInputWorkspace()
+    #expect(state.contextProfile == .privateLocal)
+}
+
+@MainActor
+@Test func mvpQueriesOneProviderAndComparesOthersOnlyWhenRequested() async throws {
+    let state = makeContextTestState()
+    let calls = AppProviderCalls()
+    state.registry.removeAll()
+    state.registry.register(AppMVPFixtureEngine(id: "primary", calls: calls))
+    state.registry.register(AppMVPFixtureEngine(id: "second", calls: calls))
+    state.registry.register(AppMVPFixtureEngine(id: "third", calls: calls))
+
+    state.openWorkspace(text: "first source", autoRun: true, focusComposer: false, origin: .selection)
+    try await waitForMVPTranslation(state)
+
+    #expect(await calls.ids == ["primary"])
+    #expect(state.outcomes.map(\.providerId) == ["primary"])
+    #expect(state.primaryActionTranslatedText == "quickTranslate:first source")
+    #expect(state.canCompareOtherEngines)
+    let savedID = state.savedRecordId
+
+    state.compareOtherEngines()
+    try await waitForMVPTranslation(state)
+
+    #expect(await calls.ids.filter { $0 == "primary" }.count == 1)
+    #expect(Set(await calls.ids) == ["primary", "second", "third"])
+    #expect(state.outcomes.count == 3)
+    #expect(state.savedRecordId == savedID)
+    #expect(!state.canCompareOtherEngines)
+    let records = await state.history.all()
+    #expect(records.count == 1)
+    let saved = try #require(records.first)
+    #expect(saved.id == savedID)
+    #expect(saved.outcomes.count == 3)
+    state.openHistoryWorkspace(saved)
+    #expect(state.outcomes.count == 3)
+    #expect(!state.isTranslating)
+}
+
+@MainActor
+@Test func successfulBackupRemovesPrimaryFailureCard() async throws {
+    let state = makeContextTestState()
+    let calls = AppProviderCalls()
+    state.registry.removeAll()
+    state.registry.register(AppMVPFixtureEngine(id: "failed-primary", calls: calls, fails: true))
+    state.registry.register(AppMVPFixtureEngine(id: "backup", calls: calls))
+    state.translate("source")
+    try await waitForMVPTranslation(state)
+
+    #expect(await calls.ids == ["failed-primary", "backup"])
+    #expect(state.outcomes.map(\.providerId) == ["backup"])
+    #expect(state.pendingProviders.isEmpty)
+}
+
+@MainActor
+@Test func fallbackReachesUsableProviderAfterUnsupportedLanguage() async throws {
+    let state = makeContextTestState()
+    let calls = AppProviderCalls()
+    state.registry.removeAll()
+    state.registry.register(AppMVPFixtureEngine(id: "primary", calls: calls, fails: true))
+    state.registry.register(AppMVPFixtureEngine(id: "unsupported", calls: calls, failure: .unsupportedLanguage))
+    state.registry.register(AppMVPFixtureEngine(id: "usable", calls: calls))
+    state.translate("tide")
+    try await waitForMVPTranslation(state)
+
+    #expect(await calls.ids == ["primary", "unsupported", "usable"])
+    #expect(state.outcomes.map(\.providerId) == ["usable"])
+    #expect(state.primaryActionTranslatedText == "quickTranslate:tide")
+    #expect(state.pendingProviders.isEmpty)
+}
+
+@MainActor
+@Test func replacementRequestCancelsOldResultAndHistoryWrite() async throws {
+    let state = makeContextTestState()
+    let calls = AppProviderCalls()
+    state.registry.removeAll()
+    state.registry.register(AppMVPFixtureEngine(id: "primary", calls: calls, delayMs: 80))
+    state.translate("old source")
+    for _ in 0..<100 {
+        if await !calls.ids.isEmpty { break }
+        try await Task.sleep(nanoseconds: 5_000_000)
+    }
+    state.translate("new source")
+    try await waitForMVPTranslation(state)
+
+    #expect(state.sourceText == "new source")
+    #expect(state.primaryActionTranslatedText == "quickTranslate:new source")
+    #expect(await state.history.all().map(\.sourceText) == ["new source"])
+}
+
+@MainActor
+@Test func explicitRetryCancelsPendingAutomaticBackup() async throws {
+    let state = makeContextTestState()
+    let calls = AppProviderCalls()
+    state.registry.removeAll()
+    state.registry.register(AppMVPFixtureEngine(id: "primary", calls: calls, fails: true))
+    state.registry.register(AppMVPFixtureEngine(id: "backup", calls: calls, suspendUntilCancelled: true))
+    state.translate("source")
+    for _ in 0..<100 {
+        if await calls.ids.contains("backup"), state.pendingProviders.map(\.id) == ["backup"] { break }
+        try await Task.sleep(nanoseconds: 5_000_000)
+    }
+    #expect(await calls.ids == ["primary", "backup"])
+    #expect(state.pendingProviders.map(\.id) == ["backup"])
+    #expect(state.isTranslating)
+    state.retryProvider("primary")
+    for _ in 0..<100 {
+        if !state.isTranslating { break }
+        try await Task.sleep(nanoseconds: 5_000_000)
+    }
+    #expect(!state.isTranslating)
+    #expect(await calls.ids == ["primary", "backup", "primary"])
+    #expect(state.outcomes.map(\.providerId) == ["primary"])
+    #expect(state.outcomes.first?.error == .network)
+    #expect(state.pendingProviders.isEmpty)
+    #expect(await state.history.all().isEmpty)
+}
+
+@MainActor
+@Test func correctingOCRCandidateCancelsPreviousTranslation() async throws {
+    let state = makeContextTestState()
+    let calls = AppProviderCalls()
+    state.registry.removeAll()
+    state.registry.register(AppMVPFixtureEngine(id: "primary", calls: calls, delayMs: 80))
+    state.openOCRWorkspace(result: OCRResult(
+        fullText: "First OCR sentence.\nSecond OCR sentence.",
+        blocks: [
+            OCRBlock(text: "First OCR sentence.", boundingBox: CGRect(x: 0.1, y: 0.8, width: 0.8, height: 0.1), confidence: 0.9),
+            OCRBlock(text: "Second OCR sentence.", boundingBox: CGRect(x: 0.1, y: 0.2, width: 0.8, height: 0.1), confidence: 0.9)
+        ], confidence: 0.9
+    ), providerName: "Fixture OCR")
+    let replacement = try #require(state.ocrCandidates.first { $0.id != state.selectedOCRCandidateID })
+    state.translateDraft()
+    for _ in 0..<100 {
+        if await !calls.ids.isEmpty { break }
+        try await Task.sleep(nanoseconds: 5_000_000)
+    }
+
+    state.selectOCRCandidate(id: replacement.id, autoRun: false)
+    try await Task.sleep(nanoseconds: 100_000_000)
+
+    #expect(state.sourceDraft == replacement.text)
+    #expect(state.sourceText.isEmpty)
+    #expect(state.outcomes.isEmpty)
+    #expect(state.pendingProviders.isEmpty)
+    #expect(!state.isTranslating)
+    #expect(await state.history.all().isEmpty)
+}
+
+@MainActor
 @Test func structuredMeaningResultKeepsProviderCardForMultiParagraphText() {
-    let state = AppState()
+    let state = makeContextTestState()
     state.sourceDraft = "First paragraph.\n\nSecond paragraph."
     let interpretation = InterpretationResult(
         intendedMeaning: "说话者在表达两层意思。",
@@ -115,7 +428,7 @@ import ParrotCore
 
 @MainActor
 @Test func shortSelectionUsesCompactWorkspaceButManualInputDoesNot() {
-    let state = AppState()
+    let state = makeContextTestState()
 
     state.openWorkspace(
         text: "Ship the recommended result first.",
@@ -136,7 +449,7 @@ import ParrotCore
 
 @MainActor
 @Test func historyWorkspaceRestoresLanguageDirection() {
-    let state = AppState()
+    let state = makeContextTestState()
     let record = TranslationRecord(
         sourceText: "Review the release note.",
         translated: "リリースノートを確認してください。",
@@ -151,11 +464,15 @@ import ParrotCore
     #expect(state.sourceLanguage == .en)
     #expect(state.targetLanguage == .ja)
     #expect(state.currentOrigin == .history)
+    #expect(state.sourceText == record.sourceText)
+    #expect(state.primaryActionTranslatedText == record.translated)
+    #expect(state.savedRecordId == record.id)
+    #expect(!state.isTranslating)
 }
 
 @MainActor
 @Test func lookupPrefersDictionaryOutcomeAsPrimaryResult() {
-    let state = AppState()
+    let state = makeContextTestState()
     state.openWorkspace(
         text: "context",
         mode: .lookup,
@@ -189,98 +506,8 @@ import ParrotCore
 }
 
 @MainActor
-@Test func translationResultPresentationPrioritizesLLMSuccessesAndMovesFailuresLast() {
-    let slots: [TranslationSlot] = [
-        .outcome(AggregatedOutcome(
-            providerId: "google",
-            displayName: "Google",
-            result: TranslateResult(providerId: "google", translated: "谷歌结果"),
-            error: nil,
-            latencyMs: 10
-        )),
-        .outcome(AggregatedOutcome(
-            providerId: "baidu",
-            displayName: "Baidu",
-            result: nil,
-            error: .network,
-            latencyMs: 12
-        )),
-        .pending(PendingProviderViewState(
-            id: "microsoft",
-            displayName: "Microsoft",
-            modelName: nil,
-            isSlow: false
-        )),
-        .pending(PendingProviderViewState(
-            id: "ollama",
-            displayName: "Ollama",
-            modelName: "glm-5:cloud",
-            isSlow: true
-        )),
-        .pending(PendingProviderViewState(
-            id: "doubao#pending",
-            displayName: "豆包",
-            modelName: "doubao-pro",
-            isSlow: true
-        )),
-        .outcome(AggregatedOutcome(
-            providerId: "deepseek#alternate",
-            displayName: "DeepSeek",
-            result: TranslateResult(providerId: "deepseek#alternate", translated: "DeepSeek 结果"),
-            error: nil,
-            latencyMs: 20
-        )),
-        .outcome(AggregatedOutcome(
-            providerId: "doubao",
-            displayName: "豆包",
-            result: TranslateResult(providerId: "doubao", translated: "豆包结果"),
-            error: nil,
-            latencyMs: 18
-        )),
-        .outcome(AggregatedOutcome(
-            providerId: "qwen",
-            displayName: "通义千问",
-            result: nil,
-            error: .timeout,
-            latencyMs: 15_000
-        )),
-        .outcome(AggregatedOutcome(
-            providerId: "doubao#failed",
-            displayName: "豆包",
-            modelName: "doubao-lite-32k",
-            result: nil,
-            error: .rateLimited,
-            latencyMs: 300
-        )),
-        .outcome(AggregatedOutcome(
-            providerId: "custom-model-provider",
-            displayName: "Custom Model Provider",
-            modelName: "custom-translate-1",
-            result: TranslateResult(providerId: "custom-model-provider", translated: "自定义模型结果"),
-            error: nil,
-            latencyMs: 25
-        ))
-    ]
-
-    let providerIDs = sortedTranslationSlotsForPresentation(slots).map(\.id)
-
-    #expect(providerIDs == [
-        "doubao",
-        "deepseek#alternate",
-        "custom-model-provider",
-        "google",
-        "doubao#pending",
-        "ollama",
-        "microsoft",
-        "doubao#failed",
-        "qwen",
-        "baidu"
-    ])
-}
-
-@MainActor
 @Test func manualPolishOpensNativePolishWorkspace() {
-    let state = AppState()
+    let state = makeContextTestState()
 
     state.openManualPolishWorkspace()
 
@@ -289,7 +516,7 @@ import ParrotCore
 
 @MainActor
 @Test func manualPolishPrefillsFocusedInputDraft() {
-    let state = AppState()
+    let state = makeContextTestState()
 
     state.openManualPolishWorkspace(
         sourceApp: "Linear",
@@ -303,7 +530,7 @@ import ParrotCore
 
 @MainActor
 @Test func manualPolishBuildsToneVariantsAndCanSwitchTone() {
-    let state = AppState()
+    let state = makeContextTestState()
     state.openManualPolishWorkspace(initialDraft: "这个流程有点重。")
     state.outcomes = [
         AggregatedOutcome(
@@ -330,7 +557,7 @@ import ParrotCore
 
 @MainActor
 @Test func polishUsesDetectedSourceLanguageInsteadOfTargetLanguage() {
-    let state = AppState()
+    let state = makeContextTestState()
     state.setLanguageDirection(sourceCode: "auto", targetCode: "zh")
     state.registry.removeAll()
 
@@ -342,7 +569,7 @@ import ParrotCore
 
 @MainActor
 @Test func privateLocalWithoutLocalProviderDoesNotStartCloudTranslation() {
-    let state = AppState()
+    let state = makeContextTestState()
     state.registry.removeAll()
 
     state.openWorkspace(
@@ -357,12 +584,12 @@ import ParrotCore
     #expect(!state.isTranslating)
     #expect(state.pendingProviders.isEmpty)
     #expect(state.outcomes.isEmpty)
-    #expect(state.workspaceNotice?.primaryAction?.action == .openSettings)
+    #expect(state.workspaceNotice?.primaryAction?.action == .openTranslationSettings)
 }
 
 @MainActor
 @Test func saveCurrentExpressionPersistsToLearningVocabulary() {
-    let state = AppState()
+    let state = makeContextTestState()
     state.settings.learningVocabularyEntries = []
 
     state.openWorkspace(
@@ -392,7 +619,7 @@ import ParrotCore
 
 @MainActor
 @Test func ocrWorkspacePreservesCandidatesAndSwitchesDraft() throws {
-    let state = AppState()
+    let state = makeContextTestState()
     let body = [
         "AI products do not fail because translation is missing. They fail because users lose the next action.",
         "A workspace should help people understand, rewrite, reply, and remember."
@@ -423,7 +650,7 @@ import ParrotCore
 
 @MainActor
 @Test func ocrWorkspaceFallsBackToFullTextWhenGeometryIsNotReliable() {
-    let state = AppState()
+    let state = makeContextTestState()
     let result = OCRResult(
         fullText: "OCR fixture line 1\nOCR fixture line 2",
         blocks: [
@@ -437,4 +664,91 @@ import ParrotCore
 
     #expect(state.selectedOCRCandidate?.kind == .fullText)
     #expect(state.sourceDraft == "OCR fixture line 1\nOCR fixture line 2")
+}
+
+
+@MainActor
+private func makeContextTestState() -> AppState {
+    let defaults = UserDefaults(suiteName: "parrot.context-tests.\(UUID().uuidString)")!
+    for engine in EngineBootstrap.defaultOrder {
+        defaults.set(false, forKey: "engine.\(engine).enabled")
+    }
+    let base = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+    let settings = AppSettings(defaults: defaults, terminologyStore: TerminologyStore(fileURL: base.appendingPathComponent("terminology.json")))
+    return AppState(settings: settings, history: HistoryStore(fileURL: base.appendingPathComponent("history.json")))
+}
+
+@MainActor
+@Test func disabledEnginesShowRecoveryAndKeepTheSource() {
+    let state = makeContextTestState()
+    state.translate("Keep this draft")
+    #expect(!state.isTranslating)
+    #expect(state.sourceDraft == "Keep this draft")
+    #expect(state.workspaceNotice?.primaryAction?.action == .openTranslationSettings)
+    #expect(state.outcomes.isEmpty)
+}
+
+@MainActor
+private func waitForMVPTranslation(_ state: AppState) async throws {
+    for _ in 0..<200 {
+        if !state.isTranslating, state.savedRecordId != nil { return }
+        try await Task.sleep(nanoseconds: 5_000_000)
+    }
+    #expect(!state.isTranslating)
+    #expect(state.savedRecordId != nil)
+}
+
+private actor AppProviderCalls {
+    var ids: [String] = []
+    func record(_ id: String) { ids.append(id) }
+}
+
+private actor AppDirectionRequests {
+    var requests: [TranslateRequest] = []
+    func record(_ request: TranslateRequest) { requests.append(request) }
+}
+
+private struct AppDirectionFixtureEngine: TranslationProvider {
+    let calls: AppDirectionRequests
+    let id = "direction-fixture"
+    let displayName = "Direction Fixture"
+    let supportedLanguages: [Language] = [.auto, .zh, .en]
+    let capabilities = ProviderCapabilities()
+
+    func translate(_ request: TranslateRequest) async throws -> TranslateResult {
+        await calls.record(request)
+        return TranslateResult(providerId: id,
+            translated: "\(request.from.code ?? "auto")->\(request.to.code ?? "auto")")
+    }
+}
+
+private struct AppMVPFixtureEngine: TranslationProvider {
+    let id: String
+    let calls: AppProviderCalls
+    var fails = false
+    var delayMs: UInt64 = 0
+    var failure: ProviderError?
+    var suspendUntilCancelled = false
+    var displayName: String { id }
+    var supportedLanguages: [Language] { [.auto, .zh, .en] }
+    var capabilities: ProviderCapabilities { ProviderCapabilities() }
+
+    func translate(_ req: TranslateRequest) async throws -> TranslateResult {
+        await calls.record(id)
+        if suspendUntilCancelled {
+            // A cancellation test needs an in-flight request, independent of how
+            // quickly the main actor returns to the test under parallel load.
+            let (stream, continuation) = AsyncStream<Void>.makeStream()
+            await withTaskCancellationHandler {
+                for await _ in stream {}
+            } onCancel: {
+                continuation.finish()
+            }
+            try Task.checkCancellation()
+        }
+        if delayMs > 0 { try await Task.sleep(nanoseconds: delayMs * 1_000_000) }
+        if let failure { throw failure }
+        if fails { throw ProviderError.network }
+        return TranslateResult(providerId: id, translated: "\(req.context?.profile.rawValue ?? "quickTranslate"):\(req.text)")
+    }
 }

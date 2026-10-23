@@ -6,6 +6,7 @@ import SwiftUI
 /// Tracks workspace-level chrome that lives outside translation state.
 final class FloatingPanelPresentation: ObservableObject {
     @Published var isPinned = false
+    @Published var isCapturingSelection = false
 }
 
 private final class WorkspacePanel: NSPanel {
@@ -33,9 +34,8 @@ private final class WorkspacePanel: NSPanel {
 @MainActor
 final class FloatingPanel {
     private enum Metrics {
-        static let defaultContentSize = NSSize(width: 560, height: 640)
-        static let compactContentSize = NSSize(width: 560, height: 460)
-        static let minContentSize = NSSize(width: 520, height: 320)
+        static let initialContentSize = FloatingPanelSizing.initialContentSize
+        static let minContentSize = FloatingPanelSizing.minimumContentSize
     }
 
     private var panel: NSPanel?
@@ -55,10 +55,15 @@ final class FloatingPanel {
     private var globalMouseDownMonitor: Any?
     private var localMouseDownMonitor: Any?
     private var moveObserver: NSObjectProtocol?
-    private var isHiding = false
     private var isProgrammaticMove = false
     private var userPositionedPanel = false
-    private var lastStableFrame: NSRect?
+    private var userResizedPanel = false
+    private var lastProgrammaticFrame: NSRect?
+    private var geometryRevision = 0
+    private var latestContentMetrics: FloatingPanelContentMetrics?
+    private var automaticResizeScheduled = false
+    private var sizingSessionID: String?
+    private var mayShrinkAutomaticSize = true
     private var suppressFocusLossHideUntil: Date?
 
     init(
@@ -87,41 +92,29 @@ final class FloatingPanel {
             suppressFocusLossHideUntil = Date().addingTimeInterval(0.8)
         }
         let wasVisible = panel?.isVisible == true
-        applyWorkspaceMetrics(resetSize: !wasVisible)
-        if !wasVisible {
+        let shouldPlaceNearCursor = !wasVisible && !userPositionedPanel
+            && !userResizedPanel && !presentation.isPinned
+        if shouldPlaceNearCursor {
             anchorPoint = NSEvent.mouseLocation
-            userPositionedPanel = false
         }
         // Force a layout pass so the window adopts the current content size before positioning.
         panel?.layoutIfNeeded()
-        if !wasVisible {
+        if shouldPlaceNearCursor {
             placeNearAnchor()
         } else {
             keepCurrentPlacement()
         }
-        if presentation.isPinned && wasVisible {
-            if focusComposer {
-                panel?.makeKeyAndOrderFront(nil)
-                requestComposerFocusOnNextRunLoop()
-            } else {
-                panel?.orderFrontRegardless()
-            }
-            return
-        }
-        isHiding = false
-        // Use-and-dismiss entrance: fade in only. Size is user-adjustable, so avoid height animation.
-        panel?.alphaValue = 0
+        // Show immediately. Repeated requests update the same visible panel without
+        // restarting a fade or racing a previous dismissal animation.
+        panel?.alphaValue = 1
         if focusComposer {
             panel?.makeKeyAndOrderFront(nil)
             requestComposerFocusOnNextRunLoop()
         } else {
             panel?.orderFrontRegardless()
         }
-        NSAnimationContext.runAnimationGroup { ctx in
-            ctx.duration = 0.18
-            ctx.timingFunction = CAMediaTimingFunction(name: .easeOut)
-            panel?.animator().alphaValue = 1
-        }
+        installOutsideClickMonitors()
+        scheduleAutomaticResize()
     }
 
     func hide(force: Bool = false) {
@@ -129,10 +122,8 @@ final class FloatingPanel {
         panel?.contentMinSize = Metrics.minContentSize
         panel?.orderOut(nil)
         panel?.alphaValue = 1
-        isHiding = false
+        removeOutsideClickMonitors()
         suppressFocusLossHideUntil = nil
-        userPositionedPanel = false
-        lastStableFrame = nil
     }
 
     /// Before capturing selected text, hide only transient panels. A pinned panel should keep
@@ -145,6 +136,15 @@ final class FloatingPanel {
         }
     }
 
+    func beginSelectionCapture() {
+        presentation.isCapturingSelection = true
+        show()
+    }
+
+    func endSelectionCapture() {
+        presentation.isCapturingSelection = false
+    }
+
     func refreshTitle() {
         panel?.title = L("Parrot 翻译")
         panel?.setAccessibilityTitle(L("Parrot 翻译"))
@@ -152,7 +152,8 @@ final class FloatingPanel {
 
     private func requestComposerFocusOnNextRunLoop() {
         DispatchQueue.main.async { [weak self] in
-            self?.state.requestComposerFocus()
+            guard let self, !self.presentation.isCapturingSelection else { return }
+            self.state.requestComposerFocus()
         }
     }
 
@@ -167,7 +168,11 @@ final class FloatingPanel {
             onReplaceInSourceApp: onReplaceInSourceApp,
             onReturnToSourceApp: onReturnToSourceApp,
             onWorkspaceNoticeAction: onWorkspaceNoticeAction,
-            onClose: { [weak self] in self?.requestClose() }
+            onClose: { [weak self] in self?.requestClose() },
+            onContentMetricsChange: { [weak self] metrics in
+                self?.latestContentMetrics = metrics
+                self?.scheduleAutomaticResize()
+            }
         ))
         hosting.sizingOptions = []
         self.hosting = hosting
@@ -179,7 +184,7 @@ final class FloatingPanel {
         p.titleVisibility = .hidden
         p.titlebarAppearsTransparent = true
         p.contentMinSize = Metrics.minContentSize
-        p.setContentSize(Metrics.defaultContentSize)
+        p.setContentSize(Metrics.initialContentSize)
         p.isReleasedWhenClosed = false
         p.isFloatingPanel = true
         p.level = .floating
@@ -200,25 +205,26 @@ final class FloatingPanel {
         resizeObserver = NotificationCenter.default.addObserver(
             forName: NSWindow.didResizeNotification, object: p, queue: .main
         ) { [weak self] _ in
-            Task { @MainActor [weak self] in self?.preservePlacementAfterResize() }
+            // Notifications arrive on the main queue: classify the geometry change
+            // immediately, before the programmatic-change guard is cleared.
+            MainActor.assumeIsolated { self?.preservePlacementAfterResize() }
         }
 
         screenObserver = NotificationCenter.default.addObserver(
             forName: NSWindow.didChangeScreenNotification, object: p, queue: .main
         ) { [weak self] _ in
-            Task { @MainActor [weak self] in self?.keepCurrentPlacement() }
+            MainActor.assumeIsolated {
+                self?.keepCurrentPlacement()
+                self?.scheduleAutomaticResize()
+            }
         }
 
         moveObserver = NotificationCenter.default.addObserver(
             forName: NSWindow.didMoveNotification, object: p, queue: .main
         ) { [weak self] _ in
-            Task { @MainActor [weak self] in
-                guard let self else { return }
-                if self.isProgrammaticMove {
-                    return
-                }
+            MainActor.assumeIsolated {
+                guard let self, !self.isProgrammaticGeometryChange else { return }
                 self.userPositionedPanel = true
-                self.lastStableFrame = self.panel?.frame
             }
         }
 
@@ -231,21 +237,71 @@ final class FloatingPanel {
             }
         }
 
-        installOutsideClickMonitors()
     }
 
-    private func applyWorkspaceMetrics(resetSize: Bool) {
-        guard let panel else { return }
-        panel.contentMinSize = Metrics.minContentSize
-        let currentSize = panel.contentView?.frame.size ?? panel.frame.size
-        let shouldResize = resetSize
-            || currentSize.width < Metrics.minContentSize.width
-            || currentSize.height < Metrics.minContentSize.height
-        guard shouldResize else { return }
-        panel.setContentSize(state.prefersCompactWorkspace ? Metrics.compactContentSize : Metrics.defaultContentSize)
-        if panel.isVisible {
-            keepCurrentPlacement()
+    private func scheduleAutomaticResize() {
+        guard !automaticResizeScheduled else { return }
+        automaticResizeScheduled = true
+        DispatchQueue.main.async { [weak self] in
+            guard let self else { return }
+            self.automaticResizeScheduled = false
+            self.resizeToMeasuredContent()
         }
+    }
+
+    private func resizeToMeasuredContent() {
+        guard let panel, panel.isVisible, !userResizedPanel,
+              !panel.inLiveResize, let metrics = latestContentMetrics,
+              let screen = panel.screen ?? WindowPlacement.screen(containing: panel.frame.origin) else { return }
+        if sizingSessionID != metrics.sessionID {
+            sizingSessionID = metrics.sessionID
+            mayShrinkAutomaticSize = true
+        }
+        let currentFrame = panel.frame
+        let hostingView = hosting?.view ?? panel.contentView
+        let viewSize = hostingView?.bounds.size
+            ?? panel.contentRect(forFrameRect: currentFrame).size
+        let safeArea = hostingView?.safeAreaInsets ?? NSEdgeInsets()
+        // A full-size content view includes the transparent title bar, while
+        // SwiftUI lays out this document inside the hosting view's safe area.
+        // Compare measured content with that usable area, reserving each inset
+        // once instead of assuming the full NSView height can display results.
+        let currentContentSize = CGSize(
+            width: max(0, viewSize.width - safeArea.left - safeArea.right),
+            height: max(0, viewSize.height - safeArea.top - safeArea.bottom)
+        )
+        let frameChrome = CGSize(
+            width: max(0, currentFrame.width - currentContentSize.width),
+            height: max(0, currentFrame.height - currentContentSize.height)
+        )
+        let preservePosition = userPositionedPanel || presentation.isPinned
+
+        // Width affects text wrapping. Set it first, then use the fresh layout's
+        // document height instead of fitting the stale, narrower measurement.
+        let widthFrame = FloatingPanelSizing.frame(
+            current: currentFrame,
+            desiredContentSize: CGSize(width: metrics.preferredWidth, height: currentContentSize.height),
+            frameChrome: frameChrome, visibleFrame: screen.visibleFrame,
+            allowShrink: mayShrinkAutomaticSize, preservePosition: preservePosition
+        )
+        if abs(widthFrame.width - currentFrame.width) > 1 {
+            moveProgrammatically { panel.setFrame(widthFrame, display: true) }
+            return
+        }
+        guard abs(metrics.contentSize.width - currentContentSize.width) <= 1 else { return }
+        let fitted = FloatingPanelSizing.frame(
+            current: currentFrame,
+            desiredContentSize: CGSize(width: metrics.preferredWidth,
+                                       height: ceil(metrics.contentSize.height + metrics.chromeHeight)),
+            frameChrome: frameChrome, visibleFrame: screen.visibleFrame,
+            allowShrink: mayShrinkAutomaticSize, preservePosition: preservePosition
+        )
+        mayShrinkAutomaticSize = false
+        guard abs(fitted.width - currentFrame.width) > 1
+                || abs(fitted.height - currentFrame.height) > 1
+                || abs(fitted.minX - currentFrame.minX) > 1
+                || abs(fitted.minY - currentFrame.minY) > 1 else { return }
+        moveProgrammatically { panel.setFrame(fitted, display: true) }
     }
 
     private func requestClose() {
@@ -293,6 +349,13 @@ final class FloatingPanel {
         }
     }
 
+    private func removeOutsideClickMonitors() {
+        if let globalMouseDownMonitor { NSEvent.removeMonitor(globalMouseDownMonitor) }
+        if let localMouseDownMonitor { NSEvent.removeMonitor(localMouseDownMonitor) }
+        globalMouseDownMonitor = nil
+        localMouseDownMonitor = nil
+    }
+
     private static func screenPoint(for event: NSEvent) -> NSPoint {
         if let window = event.window {
             return window.convertPoint(toScreen: event.locationInWindow)
@@ -316,19 +379,7 @@ final class FloatingPanel {
                 return
             }
         }
-        guard !isHiding else { return }
-        isHiding = true
-        NSAnimationContext.runAnimationGroup { ctx in
-            ctx.duration = 0.12
-            ctx.timingFunction = CAMediaTimingFunction(name: .easeIn)
-            panel.animator().alphaValue = 0
-        } completionHandler: { [weak self, weak panel] in
-            Task { @MainActor [weak self, weak panel] in
-                panel?.orderOut(nil)
-                panel?.alphaValue = 1
-                self?.isHiding = false
-            }
-        }
+        hide(force: true)
     }
 
     private func lowerUnpinnedWorkspace() {
@@ -346,32 +397,41 @@ final class FloatingPanel {
     private func keepCurrentPlacement() {
         guard let panel else { return }
         moveProgrammatically {
-            WindowPlacement.clamp(panel)
+            let anchor = panel.screen.map { NSPoint(x: $0.frame.midX, y: $0.frame.midY) }
+            WindowPlacement.clamp(panel, near: anchor)
         }
     }
 
     private func preservePlacementAfterResize() {
         guard let panel else { return }
-        guard !isProgrammaticMove else { return }
+        guard !isProgrammaticGeometryChange else { return }
+        userResizedPanel = true
+        userPositionedPanel = true
 
-        let clamped = WindowPlacement.clampedFrame(panel.frame)
-        guard !NSEqualRects(panel.frame, clamped) else {
-            userPositionedPanel = true
-            lastStableFrame = panel.frame
-            return
-        }
+        let anchor = panel.screen.map { NSPoint(x: $0.frame.midX, y: $0.frame.midY) }
+        let clamped = WindowPlacement.clampedFrame(panel.frame, near: anchor)
+        guard !NSEqualRects(panel.frame, clamped) else { return }
 
         moveProgrammatically {
             panel.setFrame(clamped, display: true)
         }
     }
 
+    private var isProgrammaticGeometryChange: Bool {
+        isProgrammaticMove || (panel.map { current in
+            lastProgrammaticFrame.map { NSEqualRects(current.frame, $0) } ?? false
+        } ?? false)
+    }
+
     private func moveProgrammatically(_ action: () -> Void) {
+        geometryRevision += 1
+        let revision = geometryRevision
         isProgrammaticMove = true
         action()
-        lastStableFrame = panel?.frame
+        lastProgrammaticFrame = panel?.frame
         DispatchQueue.main.async { [weak self] in
-            self?.isProgrammaticMove = false
+            guard let self, self.geometryRevision == revision else { return }
+            self.isProgrammaticMove = false
         }
     }
 

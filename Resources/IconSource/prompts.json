@@ -1,0 +1,32 @@
+{
+  "selection": "White tile with a conspicuous restrained-blue half-body parrot, approved on 2026-10-23.",
+  "tool": "built-in image_gen",
+  "appIcon": {
+    "tool": "built-in image_gen",
+    "date": "2026-10-23",
+    "intent": "White tile and more conspicuous restrained blue parrot",
+    "prompt": "Use case: precise-object-edit. Asset type: production macOS Parrot app icon.\nInput image 1 is the sole EDIT TARGET. Preserve this exact established half-body parrot identity and layout. Change only the tile/background color and the existing bird fill.\nReplace the warm stone-gray rounded-square tile with a clean opaque pure WHITE #FFFFFF tile, flat and smooth, with no gray/beige tint, mottled texture, stone grain or gradient. The eye hole, beak channel, and curved wing separation must now reveal this same white tile.\nRefine the blue parrot fill to a slightly deeper, clearly legible yet moderately muted blue, target #3F719B. Make the bird conspicuous on white by luminance contrast and solid clean edges, with restrained saturation. No neon, cyan, turquoise, electric blue, excessive chroma, washed-out pastel or nearly black navy. Keep the bird flat and uniform with no texture or shading.\nPreserve the exact silhouette, round crown, circular eye, strongly hooked upper beak, small separate lower-beak island, curved negative-space wing line, proportions, position, size, tile dimensions and corner curvature. Do not redraw, simplify or enlarge the bird. Keep real transparent alpha ONLY outside the rounded-square tile, cleanly antialiased with no stray flecks or noise. The tile interior must remain opaque white. No outline, border, glow, shadow, extra shapes, text, watermark, comparison layout or mockup. Output one square clean production icon.",
+    "targetBird": "#3F719B",
+    "targetTile": "#FFFFFF",
+    "transparent_background": true,
+    "processing": "Generated PNG copied byte-for-byte; existing exporter handles alpha cleanup, trim and native resizing only.",
+    "reference": "Previously approved half-body blue parrot on a warm-stone tile; only colors were revised.",
+    "generatedArtifact": "exec-ef7f912e-ecd2-4f0f-b7e1-c9799c9493b9.png"
+  },
+  "menuBar": {
+    "selected_concept": "half-body",
+    "generated_on": "2026-10-23",
+    "tool": "built-in image_gen.imagegen",
+    "intent": "precise background-extraction and monochrome recoloring of the user-approved second design",
+    "transparent_background": true,
+    "prompt": "Use case: background-extraction. Asset type: production macOS menu bar monochrome template. The referenced half-body parrot image is the EXACT EDIT TARGET, an approved brand identity. This is precise extraction and recoloring ONLY, absolutely no redesign. Preserve the exact existing right-facing parrot silhouette, proportions, round head, circular eye placement and size, hooked upper beak, small lower-beak green shape, short neck, rounded breast, lower body point, and existing single curved wing separation gap. Every curve, relative dimension, angle and negative-space gap must stay the same. Extract the existing dark-green bird from its white image field to genuine transparent alpha. Recolor all existing green parts to pure solid black #000000, with no texture or shading. Convert the white background AND white eye hole AND white beak separation gaps AND white curved wing separation gap to actual transparency; these are cutouts, never white paint. Keep the existing separate beak/wing/body components at exactly their original relationships. Output one single black flat mark on a 1024x1024 transparent canvas, centered, proportionally fitted to approximately75% canvas height, enough breathing room on every side. No tile, no background, no border, no shadow, no new shapes, no changes to the silhouette, no simplification, no stylization, no extra feather, no additional eye, no text, no letters, no numbers, no watermark. The result must be recognizably and geometrically the exact same approved half-body parrot, only black with transparent cutouts and exterior.",
+    "processing": "Tool original copied byte-for-byte, unchanged.",
+    "reference": "Approved half-body parrot silhouette."
+  },
+  "colorNote": "Actual PNG is authoritative; blue target #3F719B, white tile target #FFFFFF.",
+  "export": "python3 scripts/export-icons.py",
+  "sha256": {
+    "AppIcon.generated.png": "b564f382626b3327ca5015373d7a24b10249d1df3938b486e0f0c217ddd31b59",
+    "MenuBar.generated.png": "6740b033cd4b611df1b34c8d1b052cdf31490722ef1d9ed0f8160fa1305972c9"
+  }
+}

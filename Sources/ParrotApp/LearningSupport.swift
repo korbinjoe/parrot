@@ -1022,12 +1022,14 @@ private struct LearningTermButton: View {
             .foregroundStyle(selected ? Theme.Palette.accent : Theme.Palette.label)
             .padding(.horizontal, 4)
             .padding(.vertical, 2)
+            .frame(minHeight: 28)
             .background(background)
             .clipShape(RoundedRectangle(cornerRadius: 6))
             .overlay(
                 RoundedRectangle(cornerRadius: 6)
                     .strokeBorder(border, lineWidth: 0.5)
             )
+            .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
     }
@@ -1083,13 +1085,14 @@ struct LearningStripView: View {
                         }
                         .foregroundStyle(selectedID == expression.id ? Theme.Palette.accent : Theme.Palette.label2)
                         .padding(.horizontal, 8)
-                        .frame(height: 24)
+                        .frame(minHeight: 28)
                         .background(selectedID == expression.id ? Theme.Palette.bgSelection : Theme.Palette.bgControl)
                         .clipShape(Capsule())
                         .overlay(
                             Capsule()
                                 .strokeBorder(selectedID == expression.id ? Theme.Palette.accent.opacity(0.48) : Theme.Palette.separator, lineWidth: 0.5)
                         )
+                        .contentShape(Rectangle())
                     }
                     .buttonStyle(.plain)
                 }
@@ -1144,14 +1147,17 @@ struct LearningContextCard: View {
                         .foregroundStyle(Theme.Palette.label3)
                         .lineLimit(1)
                     Spacer()
-                    Button(mastered ? L("已标记认识") : L("认识")) { onKnown() }
-                        .buttonStyle(.borderless)
-                        .font(Theme.Font.callout)
-                        .foregroundStyle(mastered ? Theme.Palette.success : Theme.Palette.label2)
-                        .padding(.horizontal, 10)
-                        .frame(height: 28)
-                        .background(Theme.Palette.bgControl)
-                        .clipShape(RoundedRectangle(cornerRadius: Theme.Radius.control))
+                    Button(action: onKnown) {
+                        Text(mastered ? L("已标记认识") : L("认识"))
+                            .font(Theme.Font.callout)
+                            .foregroundStyle(mastered ? Theme.Palette.success : Theme.Palette.label2)
+                            .padding(.horizontal, 10)
+                            .frame(minHeight: 30)
+                            .background(Theme.Palette.bgControl)
+                            .clipShape(RoundedRectangle(cornerRadius: Theme.Radius.control))
+                            .contentShape(Rectangle())
+                    }
+                    .buttonStyle(.plain)
                     Button(saved ? L("已加入词库") : L("加入词库")) { onSave() }
                         .buttonStyle(PrimaryActionButtonStyle())
                 }
@@ -1253,24 +1259,28 @@ struct LearningMicroPracticeView: View {
                 .fixedSize(horizontal: false, vertical: true)
             HStack(spacing: 6) {
                 ForEach(options, id: \.self) { option in
-                    Button(option) {
+                    Button {
                         selected = option
                         if isCorrect(option) {
                             onCorrect()
                         } else {
                             onWrong()
                         }
+                    } label: {
+                        Text(option)
+                            .font(Theme.Font.callout)
+                            .foregroundStyle(optionForeground(option))
+                            .padding(.horizontal, 8)
+                            .frame(maxWidth: .infinity, minHeight: 30)
+                            .background(optionBackground(option))
+                            .clipShape(RoundedRectangle(cornerRadius: Theme.Radius.control))
+                            .overlay(
+                                RoundedRectangle(cornerRadius: Theme.Radius.control)
+                                    .strokeBorder(optionBorder(option), lineWidth: 0.5)
+                            )
+                            .contentShape(Rectangle())
                     }
                     .buttonStyle(.plain)
-                    .font(Theme.Font.callout)
-                    .foregroundStyle(optionForeground(option))
-                    .frame(maxWidth: .infinity, minHeight: 30)
-                    .background(optionBackground(option))
-                    .clipShape(RoundedRectangle(cornerRadius: Theme.Radius.control))
-                    .overlay(
-                        RoundedRectangle(cornerRadius: Theme.Radius.control)
-                            .strokeBorder(optionBorder(option), lineWidth: 0.5)
-                    )
                 }
             }
             if let selected {

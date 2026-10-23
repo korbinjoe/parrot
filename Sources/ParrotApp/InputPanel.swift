@@ -202,7 +202,8 @@ private struct InputView: View {
                     Image(systemName: "xmark.circle.fill")
                         .font(.system(size: 15, weight: .medium))
                         .foregroundStyle(Theme.Palette.label3)
-                        .frame(width: 24, height: 24)
+                        .frame(width: 32, height: 32)
+                        .contentShape(Rectangle())
                 }
                 .buttonStyle(.plain)
                 .help(L("关闭"))

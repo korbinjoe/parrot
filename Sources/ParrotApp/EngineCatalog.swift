@@ -53,7 +53,7 @@ enum EngineCatalog {
             descriptor("deepseek", "DeepSeek", .llm, account: AppSettings.deepSeekAccount, env: "DEEPSEEK_API_KEY", placeholder: "API Key", defaultModel: "deepseek-chat"),
             descriptor("gemini", "Gemini", .llm, account: AppSettings.geminiAccount, env: "GEMINI_API_KEY", placeholder: "API Key", defaultModel: "gemini-2.0-flash"),
             descriptor("groq", "Groq", .llm, account: AppSettings.groqAccount, env: "GROQ_API_KEY", placeholder: "API Key", defaultModel: "llama-3.3-70b-versatile"),
-            descriptor("ollama", "Ollama", .llm, noCredentialNote: "本地服务 · 无需 Key", defaultModel: "glm-5:cloud", defaultEndpoint: "http://127.0.0.1:11434/v1/chat/completions", supportsValidation: false),
+            descriptor("ollama", "Ollama", .llm, noCredentialNote: "本地服务 · 无需 Key", defaultModel: "glm-5:cloud", defaultEndpoint: "http://127.0.0.1:11434/v1/chat/completions"),
             descriptor("qwen", "通义千问", .llm, account: AppSettings.qwenAccount, env: "DASHSCOPE_API_KEY", placeholder: "DashScope Key", defaultModel: "qwen-turbo"),
             descriptor("doubao", "豆包", .llm, account: AppSettings.doubaoAccount, env: "DOUBAO_API_KEY", placeholder: "方舟 API Key", defaultModel: "doubao-lite-32k"),
             descriptor("kimi", "Kimi", .llm, account: AppSettings.kimiAccount, env: "MOONSHOT_API_KEY", placeholder: "Moonshot Key", defaultModel: "moonshot-v1-8k"),
@@ -80,19 +80,6 @@ enum EngineCatalog {
     static func descriptor(for id: String) -> EngineDescriptor? {
         let engineID = EngineModelConfig.baseEngineID(forProviderID: id)
         return all.first { $0.id == engineID }
-    }
-
-    /// Result-page priority within the same completion state. Doubao leads the
-    /// LLM group, other model-backed engines follow, and classic MT engines keep
-    /// their configured relative order after that.
-    static func resultPresentationPriority(for providerID: String, modelName: String? = nil) -> Int {
-        let engineID = EngineModelConfig.baseEngineID(forProviderID: providerID)
-        if engineID == "doubao" { return 0 }
-        let hasRuntimeModel = modelName?
-            .trimmingCharacters(in: .whitespacesAndNewlines)
-            .isEmpty == false
-        if hasRuntimeModel || descriptor(for: engineID)?.defaultModel != nil { return 1 }
-        return 2
     }
 
     static func orderedDescriptors(settings: AppSettings) -> [EngineDescriptor] {

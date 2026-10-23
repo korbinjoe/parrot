@@ -5,12 +5,31 @@ import ParrotCore
 import ParrotEngines
 import UniformTypeIdentifiers
 
+@MainActor
+final class SettingsNavigation: ObservableObject {
+    @Published var selection: SettingsView.Pane = .general
+    @Published var focusedServiceID: String?
+    @Published var retryProviderID: String?
+    @Published var routeID = UUID()
+
+    func open(pane: SettingsView.Pane?, serviceID: String?, retryProviderID: String?) {
+        if let pane {
+            selection = pane
+            if serviceID == nil { focusedServiceID = nil }
+        }
+        if let serviceID { focusedServiceID = CredentialCatalog.normalizedServiceID(serviceID) }
+        self.retryProviderID = retryProviderID
+        if pane != nil || serviceID != nil { routeID = UUID() }
+    }
+}
+
 /// Hosts the SwiftUI settings UI in a standard titled window (separate from the floating panel).
 @MainActor
 final class SettingsWindow {
     private let state: AppState
     private let onRetryProvider: (String) -> Void
     private var window: NSWindow?
+    private let navigation = SettingsNavigation()
 
     init(state: AppState, onRetryProvider: @escaping (String) -> Void = { _ in }) {
         self.state = state
@@ -18,40 +37,39 @@ final class SettingsWindow {
     }
 
     func show(
-        pane: SettingsView.Pane = .general,
+        pane: SettingsView.Pane? = nil,
         focusServiceID: String? = nil,
         retryProviderID: String? = nil
     ) {
-        if window == nil {
+        navigation.open(pane: pane, serviceID: focusServiceID, retryProviderID: retryProviderID)
+        let firstPresentation = window == nil
+        if firstPresentation {
             let hosting = NSHostingController(rootView: SettingsView(
                 state: state,
-                initialPane: pane,
-                focusedServiceID: focusServiceID,
-                retryProviderID: retryProviderID,
-                onRetryProvider: onRetryProvider
+                navigation: navigation,
+                onRetryProvider: { [weak self] id in
+                    self?.window?.orderOut(nil)
+                    self?.onRetryProvider(id)
+                }
             ))
             let win = NSWindow(contentViewController: hosting)
             configureTitle(for: win)
-            win.styleMask = [.titled, .closable, .miniaturizable, .resizable]
+            win.styleMask = [.titled, .closable, .resizable]
             win.isReleasedWhenClosed = false
             win.contentMinSize = NSSize(width: 720, height: 520)
             win.setContentSize(NSSize(width: 820, height: 650))
+            win.standardWindowButton(.zoomButton)?.isEnabled = false
+            win.setFrameAutosaveName("ParrotSettings")
             window = win
-        } else {
-            window?.contentViewController = NSHostingController(rootView: SettingsView(
-                state: state,
-                initialPane: pane,
-                focusedServiceID: focusServiceID,
-                retryProviderID: retryProviderID,
-                onRetryProvider: onRetryProvider
-            ))
         }
         if let window {
             configureTitle(for: window)
         }
         NSApp.activate(ignoringOtherApps: true)
-        if let window {
+        if firstPresentation, let window {
             WindowPlacement.center(window)
+        } else if let window {
+            WindowPlacement.clamp(window)
         }
         window?.makeKeyAndOrderFront(nil)
     }
@@ -87,7 +105,8 @@ private struct SettingsMiniButtonStyle: ButtonStyle {
             .font(Theme.Font.caption)
             .foregroundStyle(foregroundColor)
             .padding(.horizontal, 9)
-            .frame(height: 24)
+            .frame(minHeight: 28)
+            .contentShape(Rectangle())
             .background(backgroundColor(isPressed: configuration.isPressed))
             .clipShape(RoundedRectangle(cornerRadius: Theme.Radius.control))
             .overlay(
@@ -130,6 +149,7 @@ private struct KeyFilterChipStyle: ButtonStyle {
             .foregroundStyle(selected ? Theme.Palette.accent : Theme.Palette.label2)
             .padding(.horizontal, 10)
             .frame(height: 25)
+            .contentShape(Rectangle())
             .background(backgroundColor(isPressed: configuration.isPressed))
             .clipShape(Capsule())
             .overlay(
@@ -141,6 +161,37 @@ private struct KeyFilterChipStyle: ButtonStyle {
     private func backgroundColor(isPressed: Bool) -> Color {
         if isPressed { return Theme.Palette.bgSelection }
         return selected ? Theme.Palette.accentSoft : Theme.Palette.bgControl
+    }
+}
+
+/// Keep the entire disclosure heading interactive, including its trailing space.
+private struct SettingsDisclosureGroupStyle: DisclosureGroupStyle {
+    func makeBody(configuration: Configuration) -> some View {
+        VStack(alignment: .leading, spacing: 0) {
+            Button {
+                withAnimation(.easeInOut(duration: 0.15)) {
+                    configuration.isExpanded.toggle()
+                }
+            } label: {
+                HStack(spacing: 7) {
+                    Image(systemName: configuration.isExpanded ? "chevron.down" : "chevron.right")
+                        .font(.system(size: 10, weight: .semibold))
+                        .foregroundStyle(Theme.Palette.label2)
+                        .frame(width: 12)
+                        .accessibilityHidden(true)
+                    configuration.label
+                    Spacer(minLength: 0)
+                }
+                .frame(maxWidth: .infinity, minHeight: 32, alignment: .leading)
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .accessibilityValue(configuration.isExpanded ? L("已展开") : L("已折叠"))
+
+            if configuration.isExpanded {
+                configuration.content
+            }
+        }
     }
 }
 
@@ -206,8 +257,8 @@ struct SettingsView: View {
     let state: AppState
     @ObservedObject private var settings: AppSettings
     @ObservedObject private var permissions: PermissionsHolder
-    private let initialFocusedServiceID: String?
-    private let retryProviderID: String?
+    @ObservedObject private var navigation: SettingsNavigation
+    private var retryProviderID: String? { navigation.retryProviderID }
     private let onRetryProvider: (String) -> Void
 
     enum Pane: String, CaseIterable, Identifiable {
@@ -243,22 +294,30 @@ struct SettingsView: View {
         }
     }
 
-    @State private var selection: Pane = .general
-    @State private var focusedServiceID: String?
+    private var selection: Pane {
+        get { navigation.selection }
+        nonmutating set { navigation.selection = newValue }
+    }
+    private var focusedServiceID: String? {
+        get { navigation.focusedServiceID }
+        nonmutating set { navigation.focusedServiceID = newValue }
+    }
     @State private var secretDrafts: [String: String] = [:]
     @State private var modelListDrafts: [String: [EngineModelConfig]] = [:]
     @State private var endpointDrafts: [String: String] = [:]
     @State private var validateNote: String = ""
     @State private var savedNote: String = ""
     @State private var keySearchText = ""
-    @State private var keyFilter: KeyFilter = .needsAction
+    @State private var keyFilter: KeyFilter = .configured
     @State private var showProviderPicker = false
     @State private var providerPickerSearchText = ""
-    @State private var credentialNotes: [String: CredentialNote] = [:]
+    @StateObject private var credentialOperations = CredentialOperationState()
+    private var credentialNotes: [String: CredentialNote] { credentialOperations.notes }
+    @State private var credentialIssues: [String: [CredentialFormIssue]] = [:]
+    @State private var regionDrafts: [String: String] = [:]
+    @State private var draftsLoaded = false
     @State private var engineOrderDraft: [String] = []
-    @State private var showMachineEngines = true
-    @State private var showLLMEngines = true
-    @State private var showMoreEngines = true
+    @State private var showEngineCatalog = false
     @State private var recordingShortcut: ShortcutAction?
     @State private var shortcutMonitor: Any?
     @State private var terminologySearchText = ""
@@ -303,13 +362,16 @@ struct SettingsView: View {
         var text: String {
             switch self {
             case .saved(let message), .failed(let message), .valid(let message): return message
-            case .validating: return L("正在验证…")
+            case .validating: return L("正在测试连接…")
             }
         }
 
+        var isFailure: Bool { if case .failed = self { return true }; return false }
+
         var color: Color {
             switch self {
-            case .saved, .valid: return Theme.Palette.success
+            case .saved: return Theme.Palette.label2
+            case .valid: return Theme.Palette.success
             case .failed: return Theme.Palette.danger
             case .validating: return Theme.Palette.label2
             }
@@ -355,19 +417,14 @@ struct SettingsView: View {
 
     init(
         state: AppState,
-        initialPane: Pane = .general,
-        focusedServiceID: String? = nil,
-        retryProviderID: String? = nil,
+        navigation: SettingsNavigation,
         onRetryProvider: @escaping (String) -> Void = { _ in }
     ) {
         self.state = state
         self.settings = state.settings
         self.permissions = state.permissionsHolder
-        self.initialFocusedServiceID = CredentialCatalog.normalizedServiceID(focusedServiceID)
-        self.retryProviderID = retryProviderID
+        self.navigation = navigation
         self.onRetryProvider = onRetryProvider
-        _selection = State(initialValue: initialPane)
-        _focusedServiceID = State(initialValue: CredentialCatalog.normalizedServiceID(focusedServiceID))
     }
 
     var body: some View {
@@ -377,8 +434,8 @@ struct SettingsView: View {
             ScrollViewReader { proxy in
                 ScrollView {
                     content
-                        .padding(.horizontal, 22)
-                        .padding(.vertical, 20)
+                        .padding(.horizontal, 28)
+                        .padding(.vertical, 26)
                         .frame(maxWidth: .infinity, alignment: .leading)
                 }
                 .background(Theme.Palette.bgCanvas)
@@ -388,7 +445,8 @@ struct SettingsView: View {
                 .onChange(of: selection) { _ in
                     revealFocusedCredential(with: proxy)
                 }
-                .onChange(of: focusedServiceID) { _ in
+                .onChange(of: navigation.routeID) { _ in
+                    if navigation.focusedServiceID != nil { focusCredentialService(navigation.focusedServiceID) }
                     revealFocusedCredential(with: proxy)
                 }
             }
@@ -396,10 +454,18 @@ struct SettingsView: View {
         .frame(minWidth: 720, minHeight: 520)
         .onAppear {
             state.refreshPermissions()
-            loadAdvancedDrafts()
-            engineOrderDraft = EngineBootstrap.resolvedOrder(settings.engineOrder)
-            if initialFocusedServiceID != nil {
-                selection = .keys
+            if !draftsLoaded {
+                loadAdvancedDrafts()
+                engineOrderDraft = EngineBootstrap.resolvedOrder(settings.engineOrder)
+                draftsLoaded = true
+            }
+            if selection == .keys, let serviceID = navigation.focusedServiceID {
+                focusCredentialService(serviceID)
+            }
+        }
+        .onChange(of: settings.advancedFeaturesEnabled) { enabled in
+            if !enabled && !basicPanes.contains(selection) {
+                selection = .general
             }
         }
     }
@@ -407,16 +473,38 @@ struct SettingsView: View {
     // MARK: - Sidebar
 
     private var sidebar: some View {
-        VStack(alignment: .leading, spacing: 2) {
-            ForEach(Pane.allCases) { pane in
+        VStack(alignment: .leading, spacing: 4) {
+            HStack(spacing: 10) {
+                Image(nsImage: NSApp.applicationIconImage)
+                    .resizable()
+                    .frame(width: 32, height: 32)
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("Parrot")
+                        .font(.system(size: 15, weight: .medium))
+                        .foregroundStyle(Theme.Palette.label)
+                    Text(L("设置"))
+                        .font(Theme.Font.caption)
+                        .foregroundStyle(Theme.Palette.label2)
+                }
+            }
+            .padding(.horizontal, 8)
+            .padding(.top, 6)
+            .padding(.bottom, 18)
+            ForEach(visiblePanes) { pane in
                 sidebarRow(pane)
             }
             Spacer()
         }
         .padding(.horizontal, Theme.Spacing.s8)
         .padding(.vertical, 10)
-        .frame(width: 184)
-        .background(Theme.Palette.bgSidebar)
+        .frame(width: 188)
+        .background(MacMaterialBackground(material: .sidebar))
+    }
+
+    private var basicPanes: [Pane] { [.general, .engines, .keys, .shortcuts, .about] }
+
+    private var visiblePanes: [Pane] {
+        settings.advancedFeaturesEnabled ? Pane.allCases : basicPanes
     }
 
     private func sidebarRow(_ pane: Pane) -> some View {
@@ -425,26 +513,30 @@ struct SettingsView: View {
             selection = pane
         } label: {
             HStack(spacing: 9) {
-                Image(systemName: pane.icon).frame(width: 16)
+                Image(systemName: pane.icon)
+                    .font(.system(size: 13, weight: .regular))
+                    .foregroundStyle(selected ? Theme.Palette.accent : Theme.Palette.label2)
+                    .frame(width: 18)
                 Text(pane.title)
                 Spacer()
                 if pane == .keys, keyDescriptorsNeedingAttention.count > 0 {
                     Text("\(keyDescriptorsNeedingAttention.count)")
                         .font(.system(size: 10, weight: .semibold))
-                        .foregroundStyle(Theme.Palette.warning)
+                        .foregroundStyle(Theme.Palette.label2)
                         .frame(minWidth: 18, minHeight: 18)
                         .padding(.horizontal, 3)
-                        .background(Theme.Palette.warning.opacity(0.14))
+                        .background(Theme.Palette.bgControl)
                         .clipShape(Capsule())
                 }
             }
             .padding(.horizontal, 10)
-            .frame(minHeight: 32)
+            .frame(minHeight: 34)
             .frame(maxWidth: .infinity, alignment: .leading)
+            .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
         .font(Theme.Font.body)
-        .foregroundStyle(selected ? Theme.Palette.label : Theme.Palette.label)
+        .foregroundStyle(Theme.Palette.label)
         .background(selected ? Theme.Palette.bgSelection : Color.clear)
         .clipShape(RoundedRectangle(cornerRadius: 8))
         .contentShape(Rectangle())
@@ -485,22 +577,37 @@ struct SettingsView: View {
                 }
                 formHelpText("界面语言会立即应用；默认翻译语言不受影响。")
                 settingRow("默认来源语言") {
-                    Picker("", selection: $settings.sourceLanguageCode) {
+                    Picker("", selection: Binding(
+                        get: { settings.sourceLanguageCode },
+                        set: { state.setLanguageDirection(sourceCode: $0) }
+                    )) {
                         Text(L("自动")).tag("auto")
                         ForEach(languages, id: \.0) { code, name in Text(name).tag(code) }
                     }
                     .labelsHidden()
                     .frame(width: 140)
-                    .onChange(of: settings.sourceLanguageCode) { _ in state.applySettings() }
                 }
                 settingRow("默认目标语言") {
-                    Picker("", selection: $settings.targetLanguageCode) {
+                    Picker("", selection: Binding(
+                        get: { settings.targetLanguageCode },
+                        set: { state.setLanguageDirection(targetCode: $0) }
+                    )) {
                         ForEach(languages, id: \.0) { code, name in Text(name).tag(code) }
                     }
                     .labelsHidden()
                     .frame(width: 140)
-                    .onChange(of: settings.targetLanguageCode) { _ in state.applySettings() }
                 }
+            }
+            formGroup {
+                settingRow("高级功能") {
+                    Toggle("", isOn: $settings.advancedFeaturesEnabled)
+                        .labelsHidden()
+                        .accessibilityLabel(L("高级功能"))
+                        .toggleStyle(.switch)
+                        .controlSize(.small)
+                        .onChange(of: settings.advancedFeaturesEnabled) { _ in state.applySettings() }
+                }
+                formHelpText("按需开启语境分析、润色、学习和更多设置。已有数据会保留。")
             }
         }
     }
@@ -508,27 +615,68 @@ struct SettingsView: View {
     private var enginesPane: some View {
         VStack(alignment: .leading, spacing: 0) {
             sectionTitle("翻译引擎")
+            formGroup {
+                settingRow("翻译方式") {
+                    Picker(L("翻译方式"), selection: translationComparisonBinding) {
+                        Text(L("单引擎")).tag(false)
+                        Text(L("多引擎对比")).tag(true)
+                    }
+                        .pickerStyle(.segmented)
+                        .labelsHidden()
+                        .accessibilityLabel(L("翻译方式"))
+                        .frame(width: 270)
+                }
+                formHelpText(translationModeDescription)
+            }
             subsectionTitle("已开启")
-            Text(L("结果面板按这里的顺序显示；用箭头调整优先级。"))
+            Text(L(settings.compareTranslations
+                   ? "结果按下方顺序展示。用箭头调整顺序。"
+                   : "首个已配置的引擎优先使用。用箭头调整首选和备用顺序。"))
                 .font(Theme.Font.caption)
                 .foregroundStyle(Theme.Palette.label3)
                 .padding(.bottom, Theme.Spacing.s8)
             enabledEngineOptionsGroup
 
-            subsectionTitle("基础服务")
-            engineOptionsGroup(disabledEngineOptions(in: .base), emptyText: "基础服务都已开启")
-
-            disclosureSection("国内与云厂商", isExpanded: $showMachineEngines) {
-                engineOptionsGroup(disabledEngineOptions(in: .machine), emptyText: "国内与云厂商引擎都已开启")
+            disclosureSection("添加翻译引擎", isExpanded: $showEngineCatalog) {
+                if EngineCatalog.all.allSatisfy({ settings.isEngineEnabled($0.id) }) {
+                    emptyEngineRow("全部翻译引擎都已开启")
+                } else {
+                    availableEngineSection("基础服务", category: .base)
+                    availableEngineSection("国内与云厂商", category: .machine)
+                    availableEngineSection("LLM 服务", category: .llm)
+                    availableEngineSection("更多服务", category: .more)
+                }
             }
+        }
+    }
 
-            disclosureSection("LLM 服务", isExpanded: $showLLMEngines) {
-                engineOptionsGroup(disabledEngineOptions(in: .llm), emptyText: "LLM 服务都已开启")
+    private var translationComparisonBinding: Binding<Bool> {
+        Binding(
+            get: { settings.compareTranslations },
+            set: { compare in
+                guard settings.compareTranslations != compare else { return }
+                settings.compareTranslations = compare
+                state.applySettings()
             }
+        )
+    }
 
-            disclosureSection("更多服务", isExpanded: $showMoreEngines) {
-                engineOptionsGroup(disabledEngineOptions(in: .more), emptyText: "更多服务都已开启")
-            }
+    private var translationModeDescription: String {
+        if settings.compareTranslations {
+            return L("同时请求已配置并启用的模型，结果按下方顺序展示。")
+        }
+        if let preferred = configuredEngineOptions.first {
+            return L("默认先使用 %@，失败时按顺序尝试备用引擎。需要时可在译文中临时对比。", preferred.name)
+        }
+        return L("开启并配置一个引擎后即可翻译。单引擎模式会优先使用下方第一个已配置的引擎。")
+    }
+
+    @ViewBuilder
+    private func availableEngineSection(_ title: String, category: EngineCategory) -> some View {
+        let options = disabledEngineOptions(in: category)
+        if !options.isEmpty {
+            subsectionTitle(title)
+            engineOptionsGroup(options, emptyText: "")
         }
     }
 
@@ -573,6 +721,11 @@ struct SettingsView: View {
 
     private var enabledEngineOptions: [EngineDescriptor] {
         orderableEngineIDs.compactMap { EngineCatalog.descriptor(for: $0) }
+    }
+
+    private var configuredEngineOptions: [EngineDescriptor] {
+        let activeIDs = Set(state.registry.activeProviders().map { EngineModelConfig.baseEngineID(forProviderID: $0.id) })
+        return enabledEngineOptions.filter { activeIDs.contains($0.id) }
     }
 
     private var effectiveEngineOrder: [String] {
@@ -984,8 +1137,8 @@ struct SettingsView: View {
 
     private func engineOptionRow(_ descriptor: EngineDescriptor) -> some View {
         engineRow(
-            descriptor.name,
-            note: settings.engineStatusText(descriptor),
+            descriptor,
+            note: engineConfigurationDescription(descriptor),
             status: status(descriptor),
             isOn: binding(forEngine: descriptor.id)
         )
@@ -1004,15 +1157,15 @@ struct SettingsView: View {
                     Text(descriptor.name)
                         .font(Theme.Font.body)
                         .foregroundStyle(Theme.Palette.label)
-                    if let note = settings.engineStatusText(descriptor) {
-                        Text(L(note))
-                            .font(Theme.Font.caption)
-                            .foregroundStyle(Theme.Palette.label3)
-                            .lineLimit(1)
-                    }
+                    Text(enabledEngineDescription(descriptor))
+                        .font(Theme.Font.caption)
+                        .foregroundStyle(Theme.Palette.label3)
+                        .fixedSize(horizontal: false, vertical: true)
                 }
                 Spacer(minLength: Theme.Spacing.s8)
                 Circle().fill(status(descriptor).color).frame(width: 7, height: 7)
+                    .accessibilityHidden(true)
+                engineConfigurationButton(descriptor)
                 HStack(spacing: 2) {
                     reorderButton(
                         systemName: "chevron.up",
@@ -1031,15 +1184,59 @@ struct SettingsView: View {
                 }
                 Toggle("", isOn: binding(forEngine: descriptor.id))
                     .labelsHidden()
+                    .accessibilityLabel(L("启用 %@", descriptor.name))
                     .toggleStyle(.switch)
                     .controlSize(.small)
             }
             .padding(.horizontal, Theme.Spacing.s12)
             .padding(.vertical, 8)
-            .frame(minHeight: 44)
+            .frame(minHeight: 52)
             Divider()
         }
         .background(Color.clear)
+    }
+
+    private func enabledEngineDescription(_ descriptor: EngineDescriptor) -> String {
+        let configuration = engineConfigurationDescription(descriptor)
+        guard configuredEngineOptions.contains(where: { $0.id == descriptor.id }) else {
+            return configuration
+        }
+        let isFirst = configuredEngineOptions.first?.id == descriptor.id
+        let role: String
+        if settings.compareTranslations {
+            role = isFirst ? L("首先展示") : L("参与对比")
+        } else {
+            role = isFirst ? L("首选") : L("备用")
+        }
+        return "\(role) · \(configuration)"
+    }
+
+    private func engineConfigurationDescription(_ descriptor: EngineDescriptor) -> String {
+        if descriptor.requiresCredential, !settings.isEngineConfigured(descriptor) {
+            return descriptor.credential?.missingText ?? L("需要配置凭证")
+        }
+        if let defaultModel = descriptor.defaultModel {
+            let models = settings.modelConfigs(for: descriptor.id, defaultModel: defaultModel)
+                .filter(\.enabled)
+            if models.isEmpty { return L("未启用模型，请先配置") }
+            let modelSummary = models.count == 1
+                ? models[0].trimmedName
+                : L("已启用 %d 个模型", models.count)
+            let configuration = descriptor.requiresCredential ? L("已配置") : L("无需 Key")
+            return "\(configuration) · \(modelSummary)"
+        }
+        return descriptor.noCredentialNote ?? L("已配置")
+    }
+
+    @ViewBuilder
+    private func engineConfigurationButton(_ descriptor: EngineDescriptor) -> some View {
+        if CredentialCatalog.descriptor(matching: descriptor.id) != nil {
+            Button(L("配置")) { focusCredentialService(descriptor.id) }
+                .buttonStyle(.bordered)
+                .controlSize(.small)
+                .accessibilityLabel(L("配置 %@", descriptor.name))
+                .help(L("配置 %@", descriptor.name))
+        }
     }
 
     private func emptyEngineRow(_ text: String) -> some View {
@@ -1056,10 +1253,22 @@ struct SettingsView: View {
     private var keysPane: some View {
         VStack(alignment: .leading, spacing: Theme.Spacing.s12) {
             keyPaneHeader
-            keySummaryGrid
             keySearchAndFilter
+            if !keyVisibleDescriptors.isEmpty {
+                Picker(L("服务"), selection: Binding(
+                    get: { selectedCredentialDescriptor?.id ?? "" },
+                    set: { focusedServiceID = $0 }
+                )) {
+                    ForEach(keyVisibleDescriptors) { descriptor in
+                        Text(descriptor.name).tag(descriptor.id)
+                    }
+                }
+                .pickerStyle(.menu)
+                .accessibilityLabel(L("配置服务"))
+                .padding(.bottom, Theme.Spacing.s4)
+            }
             selectedCredentialForm
-            keyServiceSections
+            if keyVisibleDescriptors.isEmpty { keyEmptyState }
             keyFootnote
         }
     }
@@ -1070,7 +1279,7 @@ struct SettingsView: View {
                 Text(L("密钥"))
                     .font(.system(size: 22, weight: .semibold))
                     .foregroundStyle(Theme.Palette.label)
-                Text(L("默认展示需要处理和已生效的服务；完整 provider 目录通过选择器添加，不再把所有低频服务平铺在主页面。"))
+                Text(L("密钥、模型和服务地址在保存后生效。"))
                     .font(Theme.Font.body)
                     .foregroundStyle(Theme.Palette.label2)
                     .fixedSize(horizontal: false, vertical: true)
@@ -1080,9 +1289,10 @@ struct SettingsView: View {
                 providerPickerSearchText = ""
                 showProviderPicker = true
             } label: {
-                Label(L("添加 Provider"), systemImage: "plus")
+                Label(L("添加服务…"), systemImage: "plus")
             }
-            .buttonStyle(SettingsMiniButtonStyle(prominence: .accent))
+            .buttonStyle(.bordered)
+            .controlSize(.regular)
             .popover(isPresented: $showProviderPicker, arrowEdge: .top) {
                 keyProviderPicker
                     .frame(width: 390, height: 500)
@@ -1119,19 +1329,18 @@ struct SettingsView: View {
     }
 
     private var keySearchAndFilter: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            NativeSearchField("搜索服务、Key 或环境变量", text: $keySearchText)
-                .frame(maxWidth: 420, minHeight: 28, alignment: .leading)
-
-            HStack(spacing: 7) {
+        HStack(spacing: Theme.Spacing.s12) {
+            NativeSearchField("搜索服务", text: $keySearchText)
+                .frame(maxWidth: .infinity, minHeight: 28, alignment: .leading)
+            Picker(L("显示服务"), selection: $keyFilter) {
                 ForEach(KeyFilter.allCases) { filter in
-                    Button(filter.title) {
-                        keyFilter = filter
-                    }
-                    .buttonStyle(KeyFilterChipStyle(selected: keyFilter == filter))
+                    Text(filter.title).tag(filter)
                 }
-                Spacer(minLength: 0)
             }
+            .pickerStyle(.menu)
+            .labelsHidden()
+            .accessibilityLabel(L("显示服务"))
+            .frame(width: 120)
         }
     }
 
@@ -1177,48 +1386,28 @@ struct SettingsView: View {
     }
 
     private var keyFootnote: some View {
-        HStack(alignment: .top, spacing: Theme.Spacing.s8) {
-            Image(systemName: "key.fill")
-                .font(.system(size: 12, weight: .semibold))
-                .foregroundStyle(Color(nsColor: .systemBlue))
-                .frame(width: 28, height: 28)
-                .background(Color(nsColor: .systemBlue).opacity(0.12))
-                .clipShape(RoundedRectangle(cornerRadius: 8))
-            VStack(alignment: .leading, spacing: 2) {
-                Text(L("密钥存储在本机密钥库"))
-                    .font(Theme.Font.body)
-                    .foregroundStyle(Theme.Palette.label)
-                Text(L("存储路径：~/Library/Application Support/Parrot/secrets.json。环境变量和系统配置优先于本机保存；清除 Key 不会影响历史记录、收藏或当前草稿。"))
-                    .font(Theme.Font.callout)
-                    .foregroundStyle(Theme.Palette.label2)
-                    .fixedSize(horizontal: false, vertical: true)
-            }
-        }
-        .padding(Theme.Spacing.s12)
-        .background(Theme.Palette.bgContent)
-        .clipShape(RoundedRectangle(cornerRadius: 8))
-        .overlay(RoundedRectangle(cornerRadius: 8).strokeBorder(Theme.Palette.hairline, lineWidth: 0.5))
+        Text(L("密钥保存在此 Mac。测试连接不会保存更改；切换页面或关闭设置会保留本次草稿。"))
+            .font(Theme.Font.caption)
+            .foregroundStyle(Theme.Palette.label2)
+            .fixedSize(horizontal: false, vertical: true)
+            .padding(.top, Theme.Spacing.s12)
     }
 
     private var keyProviderPicker: some View {
         VStack(alignment: .leading, spacing: Theme.Spacing.s12) {
             HStack(alignment: .top) {
                 VStack(alignment: .leading, spacing: 2) {
-                    Text(L("选择 Provider"))
+                    Text(L("选择服务"))
                         .font(.system(size: 15, weight: .semibold))
                         .foregroundStyle(Theme.Palette.label)
-                    Text(L("按服务类型选择，不把低频 provider 固定平铺。"))
+                    Text(L("选择要添加或配置的服务。"))
                         .font(Theme.Font.callout)
                         .foregroundStyle(Theme.Palette.label2)
                 }
                 Spacer()
-                Button {
+                IconButton("xmark", help: "关闭") {
                     showProviderPicker = false
-                } label: {
-                    Image(systemName: "xmark")
                 }
-                .buttonStyle(.borderless)
-                .foregroundStyle(Theme.Palette.label2)
             }
 
             NativeSearchField("OpenAI、DeepL、OCR、腾讯…", text: $providerPickerSearchText)
@@ -1272,7 +1461,8 @@ struct SettingsView: View {
                     .foregroundStyle(Theme.Palette.label3)
             }
             .padding(8)
-            .frame(minHeight: 56)
+            .frame(maxWidth: .infinity, minHeight: 56, alignment: .leading)
+            .contentShape(Rectangle())
             .background(Color.clear)
             .clipShape(RoundedRectangle(cornerRadius: 8))
         }
@@ -1282,10 +1472,10 @@ struct SettingsView: View {
 
     private var keyEmptyState: some View {
         VStack(alignment: .leading, spacing: 2) {
-            Text(L("没有匹配的 Provider"))
+            Text(L(keySearchText.isEmpty && keyFilter == .needsAction ? "目前没有需要处理的服务" : "没有匹配的服务"))
                 .font(Theme.Font.body.weight(.semibold))
                 .foregroundStyle(Theme.Palette.label)
-            Text(L("清空搜索，或通过添加 Provider 打开完整目录。"))
+            Text(L("清空搜索、选择全部，或添加一个服务。"))
                 .font(Theme.Font.callout)
                 .foregroundStyle(Theme.Palette.label2)
         }
@@ -1326,11 +1516,12 @@ struct SettingsView: View {
                 }
                 keyProviderPill(text: keyProviderStatusText(for: descriptor), tone: tone)
             }
+            .padding(10)
+            .frame(maxWidth: .infinity, minHeight: 64, alignment: .leading)
+            .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
         .id(descriptor.id)
-        .padding(10)
-        .frame(minHeight: 64)
         .background(highlighted ? Theme.Palette.bgSelection : Theme.Palette.bgContent)
         .clipShape(RoundedRectangle(cornerRadius: 8))
         .overlay(
@@ -1343,90 +1534,117 @@ struct SettingsView: View {
     private var selectedCredentialForm: some View {
         if let descriptor = selectedCredentialDescriptor {
             credentialDetailForm(descriptor)
-                .id(descriptor.id)
+                .id("credential-detail-\(descriptor.id)")
         }
     }
 
     private func credentialDetailForm(_ descriptor: CredentialDescriptor) -> some View {
         let status = credentialDisplayStatus(for: descriptor)
         let note = credentialNotes[descriptor.id]
+        let dirty = isCredentialServiceDirty(descriptor)
+        let running = credentialOperations.isRunning(serviceID: descriptor.id)
 
-        return VStack(alignment: .leading, spacing: Theme.Spacing.s12) {
-            HStack(alignment: .center, spacing: 10) {
-                keyProviderLogo(descriptor)
-                VStack(alignment: .leading, spacing: 2) {
-                    Text(descriptor.name)
-                        .font(.system(size: 15, weight: .semibold))
-                        .foregroundStyle(Theme.Palette.label)
-                    Text(status.fromPrimaryEnv ? L("环境变量已生效，本机 Key 可作为备用。") : (descriptor.note ?? L("配置这个 Provider 的 Key、Model 与 Endpoint。")))
-                        .font(Theme.Font.caption)
-                        .foregroundStyle(Theme.Palette.label2)
-                        .fixedSize(horizontal: false, vertical: true)
+        return VStack(alignment: .leading, spacing: 16) {
+            HStack(spacing: 10) {
+                Image(systemName: descriptor.id == "ollama" ? "desktopcomputer" : "network")
+                    .font(.system(size: 22)).foregroundStyle(Theme.Palette.label2)
+                VStack(alignment: .leading, spacing: 4) {
+                    Text(descriptor.name).font(.system(size: 16, weight: .semibold))
+                    Text(dirty ? L("当前为未保存草稿，测试不会修改生效配置。") : status.configured ? L("配置已保存，连接状态以测试结果为准。") : L("填写服务配置后，可先测试再保存。"))
+                        .font(Theme.Font.caption).foregroundStyle(Theme.Palette.label2)
                 }
                 Spacer()
-                Button {
-                    focusedServiceID = nil
-                } label: {
-                    Image(systemName: "xmark")
-                }
-                .buttonStyle(.borderless)
-                .foregroundStyle(Theme.Palette.label2)
+                if dirty { settingsStatusBadge("未保存", tone: .secondary) }
             }
-
+            Divider()
+            if let engineID = descriptor.linkedEngineID {
+                HStack {
+                    Text(L("用于翻译"))
+                    Spacer()
+                    Toggle(L("用于翻译"), isOn: binding(forEngine: engineID))
+                        .labelsHidden().toggleStyle(.switch).controlSize(.small)
+                        .accessibilityLabel(L("启用 %@ 翻译", descriptor.name))
+                }
+                Text(L("开关立即生效。密钥、模型和地址需单独保存。"))
+                    .font(Theme.Font.caption).foregroundStyle(Theme.Palette.label2)
+            }
             if let credential = descriptor.credential {
-                VStack(alignment: .leading, spacing: Theme.Spacing.s8) {
-                    credentialSecretRow(
-                        descriptor: descriptor,
-                        credential: credential,
-                        status: status,
-                        dirty: isCredentialServiceDirty(descriptor)
-                    )
-                    if status.fromPrimaryEnv {
-                        formHelpText(L("%@ 已生效并优先于本机保存。要改用本机 Key，请移除该环境变量后重启 Parrot。", credential.env))
-                    }
+                credentialSecretRow(descriptor: descriptor, credential: credential, status: status, dirty: false)
+                credentialIssue(descriptor, field: .secret)
+                if status.fromPrimaryEnv {
+                    formHelpText(L("%@ 已生效并优先于本机保存。要改用本机 Key，请移除该环境变量后重启 Parrot。", credential.env))
+                } else if status.fromFallback {
+                    Text(L("%@。留空继续复用；填写专用密钥并保存后才会替换。", status.text))
+                        .font(Theme.Font.caption).foregroundStyle(Theme.Palette.label2)
+                } else if status.configured {
+                    Text(L("留空会保留现有密钥；填写新值并保存后才会替换。"))
+                        .font(Theme.Font.caption).foregroundStyle(Theme.Palette.label2)
                 }
             }
-
-            if descriptor.defaultModel != nil || descriptor.defaultEndpoint != nil {
-                VStack(alignment: .leading, spacing: Theme.Spacing.s8) {
-                    if descriptor.defaultModel != nil {
-                        credentialModelList(descriptor)
-                    }
-                    if descriptor.defaultEndpoint != nil {
-                        credentialTextFieldRow("Endpoint", placeholder: endpointPlaceholder(for: descriptor), text: endpointBinding(for: descriptor))
-                    }
+            if descriptor.defaultModel != nil { credentialModelList(descriptor) }
+            if descriptor.defaultEndpoint != nil {
+                credentialTextFieldRow("服务地址", placeholder: endpointPlaceholder(for: descriptor), text: endpointBinding(for: descriptor))
+                credentialIssue(descriptor, field: .endpoint)
+                Text(L("留空使用默认服务地址。"))
+                    .font(Theme.Font.caption).foregroundStyle(Theme.Palette.label2)
+            }
+            if let region = currentRegion(for: descriptor) {
+                credentialTextFieldRow("区域", placeholder: region, text: regionBinding(for: descriptor))
+                credentialIssue(descriptor, field: .region)
+                if descriptor.id == "microsoft" || descriptor.id == "microsoft-tts" {
+                    Text(L("Microsoft 翻译和语音共用此区域。"))
+                        .font(Theme.Font.caption).foregroundStyle(Theme.Palette.label2)
                 }
             }
-
-            HStack(alignment: .center, spacing: Theme.Spacing.s8) {
-                Button(L("验证")) { validateCredentialService(descriptor) }
-                    .buttonStyle(SettingsMiniButtonStyle())
-                    .disabled(credentialNotes[descriptor.id] == .validating)
-                if let credential = descriptor.credential {
-                    Button(L("清除")) { clearSecret(credential.account, serviceID: descriptor.id) }
-                        .buttonStyle(SettingsMiniButtonStyle())
-                        .disabled(!settings.hasStoredSecret(account: credential.account))
-                }
-                if canRetryFromCredential(descriptor) {
-                    Button(L("保存并重试")) { saveAndRetryCredentialService(descriptor) }
-                        .buttonStyle(SettingsMiniButtonStyle(prominence: .accent))
+            Divider()
+            HStack(spacing: 8) {
+                if running {
+                    ProgressView().controlSize(.small)
+                    Button(L("取消测试")) { credentialOperations.cancel(serviceID: descriptor.id) }
                 } else {
-                    Button(L("保存到本机")) { saveCredentialService(descriptor) }
-                        .buttonStyle(SettingsMiniButtonStyle(prominence: .accent))
+                    Button(descriptor.supportsValidation ? L("测试连接") : L("检查配置")) {
+                        validateCredentialService(descriptor)
+                    }
                 }
-                if let note {
-                    Text(note.text)
-                        .font(Theme.Font.caption)
-                        .foregroundStyle(note.color)
-                        .fixedSize(horizontal: false, vertical: true)
+                if dirty {
+                    Button(L("还原更改")) { resetCredentialDraft(descriptor) }
                 }
                 Spacer(minLength: 0)
+                if let credential = descriptor.credential, settings.hasStoredSecret(account: credential.account) {
+                    Button(L("移除密钥…"), role: .destructive) { clearSecret(credential.account, serviceID: descriptor.id) }
+                }
+                Button(canRetryFromCredential(descriptor) ? L("保存并重试") : L("保存")) {
+                    if canRetryFromCredential(descriptor) { saveAndRetryCredentialService(descriptor) }
+                    else { saveCredentialService(descriptor) }
+                }
+                .buttonStyle(.borderedProminent)
+                .disabled(!dirty && !canRetryFromCredential(descriptor))
+            }
+            .buttonStyle(.bordered).controlSize(.regular)
+            if let note {
+                Label(note.text, systemImage: note == .validating ? "clock" : note.isFailure ? "exclamationmark.circle" : "checkmark.circle")
+                    .font(Theme.Font.callout).foregroundStyle(note.color)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .accessibilityLabel(note.text)
             }
         }
-        .padding(14)
+        .onSubmit {
+            if canRetryFromCredential(descriptor) { saveAndRetryCredentialService(descriptor) }
+            else if isCredentialServiceDirty(descriptor) { saveCredentialService(descriptor) }
+        }
+        .padding(18)
         .background(Theme.Palette.bgContent)
-        .clipShape(RoundedRectangle(cornerRadius: 8))
-        .overlay(RoundedRectangle(cornerRadius: 8).strokeBorder(Theme.Palette.accent.opacity(0.28), lineWidth: 1.5))
+        .clipShape(RoundedRectangle(cornerRadius: Theme.Radius.group))
+        .overlay(RoundedRectangle(cornerRadius: Theme.Radius.group).strokeBorder(Theme.Palette.hairline, lineWidth: 0.5))
+    }
+
+    @ViewBuilder
+    private func credentialIssue(_ descriptor: CredentialDescriptor, field: CredentialFormIssue.Field) -> some View {
+        ForEach(Array((credentialIssues[descriptor.id] ?? []).filter { $0.field == field }.enumerated()), id: \.offset) { _, issue in
+            Label(issue.message, systemImage: "exclamationmark.circle")
+                .font(Theme.Font.caption).foregroundStyle(Theme.Palette.danger)
+                .fixedSize(horizontal: false, vertical: true)
+        }
     }
 
     private func credentialSecretRow(
@@ -1442,6 +1660,7 @@ struct SettingsView: View {
                 .textFieldStyle(.roundedBorder)
                 .controlSize(.small)
                 .font(Theme.Font.callout)
+                .accessibilityLabel(L("%@ API Key", descriptor.name))
                 .focused($focusedCredentialFieldID, equals: descriptor.id)
                 .disabled(status.fromPrimaryEnv)
                 .frame(minWidth: 180, idealWidth: 320, maxWidth: 380, minHeight: 22, idealHeight: 22, maxHeight: 22)
@@ -1455,6 +1674,7 @@ struct SettingsView: View {
         HStack(alignment: .center, spacing: Theme.Spacing.s8) {
             formRowLabel(label)
             TextField(placeholder, text: text)
+                .accessibilityLabel(L(label))
                 .textFieldStyle(.roundedBorder)
                 .controlSize(.small)
                 .font(Theme.Font.callout)
@@ -1466,8 +1686,8 @@ struct SettingsView: View {
     private func credentialModelList(_ descriptor: CredentialDescriptor) -> some View {
         VStack(alignment: .leading, spacing: Theme.Spacing.s8) {
             HStack(spacing: Theme.Spacing.s8) {
-                formRowLabel("Model")
-                Text(L("模型"))
+                formRowLabel("模型")
+                Text(L("仅使用已启用的模型"))
                     .font(Theme.Font.caption)
                     .foregroundStyle(Theme.Palette.label2)
                 Spacer(minLength: 0)
@@ -1481,6 +1701,7 @@ struct SettingsView: View {
 
             ForEach(Array(modelConfigsDraft(for: descriptor).enumerated()), id: \.element.id) { index, model in
                 modelConfigRow(model, descriptor: descriptor, index: index)
+                credentialIssue(descriptor, field: .model(model.id))
             }
         }
     }
@@ -1494,21 +1715,23 @@ struct SettingsView: View {
             Spacer()
                 .frame(width: 64)
             TextField(descriptor.defaultModel ?? "model", text: modelNameBinding(for: descriptor, modelID: model.id))
+                .accessibilityLabel(L("模型 %d 名称", index + 1))
                 .textFieldStyle(.roundedBorder)
                 .controlSize(.small)
                 .font(Theme.Font.callout)
-                .frame(minWidth: 180, idealWidth: 300, maxWidth: 360, minHeight: 22, idealHeight: 22, maxHeight: 22)
+                .frame(minWidth: 140, idealWidth: 300, maxWidth: 360, minHeight: 22, idealHeight: 22, maxHeight: 22)
             Toggle("", isOn: modelEnabledBinding(for: descriptor, modelID: model.id))
                 .labelsHidden()
                 .toggleStyle(.switch)
                 .controlSize(.small)
                 .help(L("启用模型"))
+                .accessibilityLabel(L("启用模型 %d", index + 1))
             IconButton("trash", help: "删除模型", size: 11) {
                 removeModelConfig(model.id, from: descriptor)
             }
             .disabled(model.id == EngineModelConfig.primaryID || modelConfigsDraft(for: descriptor).count <= 1)
             if index == 0 {
-                Text(L("默认"))
+                Text(L("首个"))
                     .font(Theme.Font.tag)
                     .foregroundStyle(Theme.Palette.label2)
                     .padding(.horizontal, 6)
@@ -1528,14 +1751,13 @@ struct SettingsView: View {
     }
 
     private func formHelpText(_ text: String) -> some View {
-        HStack(alignment: .top, spacing: Theme.Spacing.s8) {
-            Spacer()
-                .frame(width: 64)
-            Text(L(text))
-                .font(Theme.Font.caption)
-                .foregroundStyle(Theme.Palette.label3)
-                .fixedSize(horizontal: false, vertical: true)
-        }
+        Text(L(text))
+            .font(Theme.Font.caption)
+            .foregroundStyle(Theme.Palette.label2)
+            .fixedSize(horizontal: false, vertical: true)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(.horizontal, Theme.Spacing.s12)
+            .padding(.vertical, Theme.Spacing.s8)
     }
 
     private enum SettingsBadgeTone {
@@ -1662,9 +1884,9 @@ struct SettingsView: View {
     // MARK: - Row builders
 
     private func sectionTitle(_ t: String) -> some View {
-        Text(L(t)).font(.system(size: 17, weight: .semibold))
+        Text(L(t)).font(.system(size: 22, weight: .medium))
             .foregroundStyle(Theme.Palette.label)
-            .padding(.bottom, Theme.Spacing.s12)
+            .padding(.bottom, Theme.Spacing.s20)
     }
 
     private func subsectionTitle(_ t: String) -> some View {
@@ -1686,10 +1908,11 @@ struct SettingsView: View {
             .padding(.top, Theme.Spacing.s8)
         } label: {
             Text(L(title))
-                .font(.system(size: 13, weight: .semibold))
+                .font(.system(size: 13, weight: .medium))
                 .foregroundStyle(Theme.Palette.label)
         }
-        .padding(.top, Theme.Spacing.s12)
+        .disclosureGroupStyle(SettingsDisclosureGroupStyle())
+        .padding(.top, Theme.Spacing.s16)
     }
 
     private func settingRow<Control: View>(_ label: String, @ViewBuilder control: () -> Control) -> some View {
@@ -1700,9 +1923,9 @@ struct SettingsView: View {
                 control()
             }
             .padding(.horizontal, Theme.Spacing.s12)
-            .padding(.vertical, 7)
-            .frame(minHeight: 38)
-            Divider()
+            .padding(.vertical, 10)
+            .frame(minHeight: 44)
+            Divider().opacity(0.45)
         }
         .background(Color.clear)
     }
@@ -1746,28 +1969,30 @@ struct SettingsView: View {
         .background(Color.clear)
     }
 
-    private func engineRow(_ name: String, note: String?, status: EngineStatus, isOn: Binding<Bool>) -> some View {
+    private func engineRow(_ descriptor: EngineDescriptor, note: String?, status: EngineStatus, isOn: Binding<Bool>) -> some View {
         VStack(spacing: 0) {
             HStack(spacing: Theme.Spacing.s8) {
                 VStack(alignment: .leading, spacing: 2) {
-                    Text(L(name))
+                    Text(descriptor.name)
                         .font(Theme.Font.body)
                         .foregroundStyle(Theme.Palette.label)
                     if let note {
                         Text(L(note))
                             .font(Theme.Font.caption)
                             .foregroundStyle(Theme.Palette.label3)
-                            .lineLimit(1)
+                            .fixedSize(horizontal: false, vertical: true)
                     }
                 }
                 Spacer()
                 Circle().fill(status.color).frame(width: 7, height: 7)
+                    .accessibilityHidden(true)
+                engineConfigurationButton(descriptor)
                 Toggle("", isOn: isOn).labelsHidden().toggleStyle(.switch).controlSize(.small)
-                    .onChange(of: isOn.wrappedValue) { _ in state.applySettings() }
+                    .accessibilityLabel(L("启用 %@", descriptor.name))
             }
             .padding(.horizontal, Theme.Spacing.s12)
             .padding(.vertical, 8)
-            .frame(minHeight: 44)
+            .frame(minHeight: 52)
             Divider()
         }
         .background(Color.clear)
@@ -1783,7 +2008,8 @@ struct SettingsView: View {
             Image(systemName: systemName)
                 .font(.system(size: 10, weight: .semibold))
                 .foregroundStyle(disabled ? Theme.Palette.label3.opacity(0.45) : Theme.Palette.label2)
-                .frame(width: 22, height: 22)
+                .frame(width: 28, height: 28)
+                .contentShape(Rectangle())
         }
         .buttonStyle(.borderless)
         .background(disabled ? Theme.Palette.bgControl.opacity(0.25) : Theme.Palette.bgControl)
@@ -1800,12 +2026,16 @@ struct SettingsView: View {
             HStack {
                 Text(action.title).font(Theme.Font.body).foregroundStyle(Theme.Palette.label)
                 Spacer()
-                Button(isRecording ? L("按键中…") : key) {
+                Button {
                     beginShortcutRecording(action)
+                } label: {
+                    Text(isRecording ? L("按键中…") : key)
+                        .font(.system(size: 12, weight: .medium))
+                        .foregroundStyle(isRecording ? Theme.Palette.accent : Theme.Palette.label)
+                        .padding(.horizontal, 9)
+                        .frame(minHeight: 28)
+                        .contentShape(Rectangle())
                 }
-                .font(.system(size: 12, weight: .medium))
-                .foregroundStyle(isRecording ? Theme.Palette.accent : Theme.Palette.label)
-                .padding(.horizontal, 9).padding(.vertical, 3)
                 .background(isRecording ? Theme.Palette.bgSelection : Theme.Palette.bgControl)
                 .clipShape(RoundedRectangle(cornerRadius: 6))
                 .overlay(RoundedRectangle(cornerRadius: 6).strokeBorder(isRecording ? Theme.Palette.accent : Theme.Palette.separator, lineWidth: 0.5))
@@ -1821,13 +2051,12 @@ struct SettingsView: View {
 
     private func callout(_ text: String) -> some View {
         Text(L(text))
-            .font(Theme.Font.callout).foregroundStyle(Theme.Palette.label2)
+            .font(Theme.Font.callout)
+            .foregroundStyle(Theme.Palette.label2)
+            .lineSpacing(3)
             .fixedSize(horizontal: false, vertical: true)
             .frame(maxWidth: .infinity, alignment: .leading)
-            .padding(Theme.Spacing.s12)
-            .background(Theme.Palette.bgContent)
-            .clipShape(RoundedRectangle(cornerRadius: Theme.Radius.group))
-            .overlay(RoundedRectangle(cornerRadius: Theme.Radius.group).strokeBorder(Theme.Palette.hairline, lineWidth: 0.5))
+            .padding(.horizontal, 2)
             .padding(.top, Theme.Spacing.s12)
     }
 
@@ -1838,7 +2067,7 @@ struct SettingsView: View {
         .background(Theme.Palette.bgContent)
         .clipShape(RoundedRectangle(cornerRadius: Theme.Radius.group))
         .overlay(RoundedRectangle(cornerRadius: Theme.Radius.group).strokeBorder(Theme.Palette.hairline, lineWidth: 0.5))
-        .padding(.bottom, Theme.Spacing.s16)
+        .padding(.bottom, Theme.Spacing.s20)
     }
 
     // MARK: - Helpers
@@ -1912,6 +2141,7 @@ struct SettingsView: View {
            (endpointDrafts[descriptor.id] ?? currentEndpoint(for: descriptor)) != currentEndpoint(for: descriptor) {
             return true
         }
+        if let region = currentRegion(for: descriptor), (regionDrafts[descriptor.id] ?? region) != region { return true }
         return false
     }
 
@@ -1928,97 +2158,127 @@ struct SettingsView: View {
         return descriptor.linkedEngineID != nil && descriptor.matchesServiceID(retryProviderID)
     }
 
+    private func formIssues(for descriptor: CredentialDescriptor) -> [CredentialFormIssue] {
+        var issues = CredentialDraftValidation.issues(
+            descriptor: descriptor,
+            secret: descriptor.credential.map { secretDrafts[$0.account] ?? "" } ?? "",
+            models: modelConfigsDraft(for: descriptor),
+            endpoint: endpointDrafts[descriptor.id] ?? currentEndpoint(for: descriptor),
+            region: regionDrafts[descriptor.id] ?? currentRegion(for: descriptor)
+        )
+        if descriptor.requiresCredential && !hasSecretDraft(for: descriptor) && !credentialDisplayStatus(for: descriptor).configured {
+            issues.append(.init(field: .secret, message: L("请输入此服务的密钥。")))
+        }
+        return issues
+    }
+
+    private func checkCredentialDraft(_ descriptor: CredentialDescriptor) -> Bool {
+        let issues = formIssues(for: descriptor)
+        credentialIssues[descriptor.id] = issues
+        guard issues.isEmpty else {
+            credentialOperations.set(.failed(L("请修正标出的项目后重试。")), for: descriptor.id)
+            return false
+        }
+        return true
+    }
+
     @discardableResult
     private func saveCredentialService(_ descriptor: CredentialDescriptor, showNote: Bool = true) -> Bool {
-        let trim: (String) -> String = { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
-        var ok = true
-
+        guard checkCredentialDraft(descriptor) else { return false }
         if let credential = descriptor.credential {
-            let value = trim(secretDrafts[credential.account] ?? "")
+            let value = (secretDrafts[credential.account] ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
             if !value.isEmpty {
-                if settings.setKey(value, account: credential.account) {
-                    secretDrafts[credential.account] = ""
-                } else {
-                    ok = false
+                guard settings.setKey(value, account: credential.account) else {
+                    credentialOperations.set(.failed(L("无法保存，请检查本机存储权限后重试。")), for: descriptor.id)
+                    return false
                 }
+                secretDrafts[credential.account] = ""
             }
         }
-
         if descriptor.defaultModel != nil {
             saveModelConfigs(modelConfigsDraft(for: descriptor), for: descriptor)
             modelListDrafts[descriptor.id] = currentModelConfigs(for: descriptor)
         }
-
         if descriptor.defaultEndpoint != nil {
-            let value = trim(endpointDrafts[descriptor.id] ?? currentEndpoint(for: descriptor))
-            saveEndpoint(value, for: descriptor)
+            saveEndpoint((endpointDrafts[descriptor.id] ?? currentEndpoint(for: descriptor)).trimmingCharacters(in: .whitespacesAndNewlines), for: descriptor)
             endpointDrafts[descriptor.id] = currentEndpoint(for: descriptor)
         }
-
-        state.applySettings()
-        if showNote {
-            credentialNotes[descriptor.id] = ok ? .saved(L("已保存到本机 ✓")) : .failed(L("保存失败：检查 secrets.json 权限。"))
-            clearCredentialNote(descriptor.id)
+        if let region = regionDrafts[descriptor.id] ?? currentRegion(for: descriptor) {
+            if descriptor.id == "amazon" { settings.amazonRegion = region.trimmingCharacters(in: .whitespacesAndNewlines) }
+            else { settings.microsoftRegion = region.trimmingCharacters(in: .whitespacesAndNewlines) }
+            regionDrafts[descriptor.id] = currentRegion(for: descriptor)
+            if descriptor.id == "microsoft" || descriptor.id == "microsoft-tts" {
+                for id in ["microsoft", "microsoft-tts"] { credentialOperations.invalidate(serviceID: id) }
+            }
         }
-        return ok
+        state.applySettings()
+        credentialOperations.invalidate(serviceID: descriptor.id)
+        if showNote { credentialOperations.set(.saved(L("已保存。新配置将在下次翻译时使用。")), for: descriptor.id) }
+        return true
     }
 
     private func saveAndRetryCredentialService(_ descriptor: CredentialDescriptor) {
-        guard saveCredentialService(descriptor, showNote: false) else {
-            credentialNotes[descriptor.id] = .failed(L("保存失败，未重试。"))
-            clearCredentialNote(descriptor.id)
+        guard saveCredentialService(descriptor, showNote: false), let providerID = retryProviderID else { return }
+        credentialOperations.set(.saved(L("已保存，已发起 %@ 重试。", descriptor.name)), for: descriptor.id)
+        guard state.registry.activeProviders().contains(where: { $0.id == providerID }) else {
+            credentialOperations.set(.saved(L("已保存。原服务或模型已停用，请选择其他模型后重新翻译。")), for: descriptor.id)
             return
         }
-        guard let providerID = descriptor.linkedEngineID else {
-            credentialNotes[descriptor.id] = .valid(L("已保存。当前服务无需翻译重试。"))
-            clearCredentialNote(descriptor.id)
-            return
-        }
-        credentialNotes[descriptor.id] = .saved(L("已保存，正在重试 %@…", descriptor.name))
         onRetryProvider(providerID)
-        clearCredentialNote(descriptor.id, after: 3)
     }
 
     private func validateCredentialService(_ descriptor: CredentialDescriptor) {
-        guard saveCredentialService(descriptor, showNote: false) else {
-            credentialNotes[descriptor.id] = .failed(L("保存失败，无法验证。"))
-            clearCredentialNote(descriptor.id)
+        guard checkCredentialDraft(descriptor) else { return }
+        guard descriptor.supportsValidation else {
+            credentialOperations.set(.saved(L("填写检查通过，尚未连接服务。")), for: descriptor.id)
             return
         }
-
-        guard credentialDisplayStatus(for: descriptor).configured || !descriptor.requiresCredential else {
-            credentialNotes[descriptor.id] = .failed(L("未配置：先输入并保存 Key。"))
-            clearCredentialNote(descriptor.id)
+        let targets = EngineValidator.makeDraftProviders(
+            descriptor: descriptor, settings: settings,
+            secretDraft: descriptor.credential.map { secretDrafts[$0.account] ?? "" } ?? "",
+            models: modelConfigsDraft(for: descriptor),
+            endpoint: endpointDrafts[descriptor.id] ?? currentEndpoint(for: descriptor),
+            region: regionDrafts[descriptor.id] ?? currentRegion(for: descriptor)
+        )
+        guard !targets.isEmpty else {
+            credentialOperations.set(.failed(L("无法创建服务连接，请检查配置。")), for: descriptor.id)
             return
         }
-
-        guard let engineID = descriptor.linkedEngineID, descriptor.supportsValidation else {
-            credentialNotes[descriptor.id] = .valid(descriptor.requiresCredential ? L("已配置 ✓") : L("此服务无需在线验证"))
-            clearCredentialNote(descriptor.id)
-            return
-        }
-
-        credentialNotes[descriptor.id] = .validating
-        Task { @MainActor in
-            guard let provider = EngineValidator.makeConfiguredProvider(id: engineID, settings: settings) else {
-                credentialNotes[descriptor.id] = .failed(L("服务未启用或不可用。"))
-                clearCredentialNote(descriptor.id)
-                return
-            }
-            switch await EngineValidator.validateDetailed(provider) {
+        credentialOperations.run(serviceID: descriptor.id) {
+            switch await EngineValidator.validateTargets(targets) {
             case .passed:
-                credentialNotes[descriptor.id] = .valid(L("验证通过 ✓"))
-            case .failed(let message):
-                credentialNotes[descriptor.id] = .failed(message)
+                return .valid(descriptor.defaultModel != nil ? L("连接成功，%d 个已启用模型均通过测试。", targets.count) : L("连接成功。"))
+            case .failed(let message): return .failed(message)
             }
-            clearCredentialNote(descriptor.id, after: 4)
         }
     }
 
-    private func clearCredentialNote(_ serviceID: String, after seconds: Double = 2.5) {
-        DispatchQueue.main.asyncAfter(deadline: .now() + seconds) {
-            credentialNotes[serviceID] = nil
+    private func credentialDraftChanged(_ serviceID: String) {
+        credentialOperations.invalidate(serviceID: serviceID)
+        credentialIssues[serviceID] = nil
+    }
+
+    private func resetCredentialDraft(_ descriptor: CredentialDescriptor) {
+        if let credential = descriptor.credential { secretDrafts[credential.account] = "" }
+        modelListDrafts[descriptor.id] = currentModelConfigs(for: descriptor)
+        endpointDrafts[descriptor.id] = currentEndpoint(for: descriptor)
+        regionDrafts[descriptor.id] = currentRegion(for: descriptor)
+        credentialDraftChanged(descriptor.id)
+    }
+
+    private func currentRegion(for descriptor: CredentialDescriptor) -> String? {
+        switch descriptor.id {
+        case "amazon": return settings.amazonRegion
+        case "microsoft", "microsoft-tts": return settings.microsoftRegion
+        default: return nil
         }
+    }
+
+    private func regionBinding(for descriptor: CredentialDescriptor) -> Binding<String> {
+        Binding(get: { regionDrafts[descriptor.id] ?? currentRegion(for: descriptor) ?? "" }, set: {
+            regionDrafts[descriptor.id] = $0
+            credentialDraftChanged(descriptor.id)
+        })
     }
 
     private func focusCredentialService(_ serviceID: String?) {
@@ -2041,7 +2301,7 @@ struct SettingsView: View {
               let serviceID = focusedServiceID else { return }
         DispatchQueue.main.async {
             withAnimation(.easeInOut(duration: 0.18)) {
-                proxy.scrollTo(serviceID, anchor: .center)
+                proxy.scrollTo("credential-detail-\(serviceID)", anchor: .top)
             }
             focusedCredentialFieldID = serviceID
         }
@@ -2103,10 +2363,11 @@ struct SettingsView: View {
 
     private var keyVisibleDescriptors: [CredentialDescriptor] {
         let query = keySearchText.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
-        return allCredentialDescriptors.filter { descriptor in
+        let filtered = allCredentialDescriptors.filter { descriptor in
             let matchesSearch = query.isEmpty || descriptor.searchableText.contains(query)
             return matchesSearch && keyDescriptor(descriptor, matches: keyFilter)
         }
+        return TranslationResultOrdering.ordered(filtered, providerOrder: state.providerDisplayOrder, providerID: \.id)
     }
 
     private func keyDescriptor(_ descriptor: CredentialDescriptor, matches filter: KeyFilter) -> Bool {
@@ -2131,8 +2392,7 @@ struct SettingsView: View {
     }
 
     private var selectedCredentialDescriptor: CredentialDescriptor? {
-        guard let focusedServiceID else { return nil }
-        return CredentialCatalog.descriptor(matching: focusedServiceID)
+        keyVisibleDescriptors.first(where: { $0.id == focusedServiceID }) ?? keyVisibleDescriptors.first
     }
 
     private var keyConfiguredDescriptorCount: Int {
@@ -2243,63 +2503,22 @@ struct SettingsView: View {
 
     private func keyProviderSubtitle(for descriptor: CredentialDescriptor) -> String {
         let status = credentialDisplayStatus(for: descriptor)
-        if status.fromPrimaryEnv { return status.text }
-        if status.configured { return status.text }
-        if let credential = descriptor.credential {
-            if isCredentialServiceActive(descriptor) {
-                return L("已启用 · Key 缺失 · %@", credential.env)
-            }
-            return credential.env
-        }
-        if let endpoint = descriptor.defaultEndpoint, !endpoint.isEmpty {
-            return endpoint
-        }
-        return descriptor.note ?? L("无需 Key")
+        if status.fromPrimaryEnv { return L("使用环境变量") }
+        if status.fromFallback { return status.text }
+        if descriptor.credential == nil { return descriptor.note ?? L("无需 Key") }
+        if status.configured { return L("已保存密钥") }
+        return isCredentialServiceActive(descriptor) ? L("已启用，需要配置密钥") : L("需要密钥")
     }
 
     private func keyProviderLogo(_ descriptor: CredentialDescriptor, size: CGFloat = 38) -> some View {
-        let title = keyProviderLogoTitle(for: descriptor)
-        return Text(title)
-            .font(.system(size: size >= 38 ? 12 : 11, weight: .bold))
-            .foregroundStyle(keyLogoForeground(for: descriptor))
+        let symbol = descriptor.id == "ollama" ? "desktopcomputer" : descriptor.category == .ocr ? "doc.text.viewfinder" : descriptor.category == .tts ? "waveform" : "network"
+        return Image(systemName: symbol)
+            .font(.system(size: 17))
+            .foregroundStyle(Theme.Palette.label2)
             .frame(width: size, height: size)
-            .background(keyLogoBackground(for: descriptor))
+            .background(Theme.Palette.bgControl)
             .clipShape(RoundedRectangle(cornerRadius: 8))
-    }
-
-    private func keyProviderLogoTitle(for descriptor: CredentialDescriptor) -> String {
-        switch descriptor.id {
-        case "openai": return "AI"
-        case "deepl": return "DL"
-        case "google": return "G"
-        case "opencode": return "OC"
-        case "deepseek": return "DS"
-        case "azure-openai": return "AZ"
-        case "ollama": return "OL"
-        case "google-tts": return "TTS"
-        case "amazon": return "AWS"
-        default:
-            let trimmed = descriptor.name.trimmingCharacters(in: .whitespacesAndNewlines)
-            return String(trimmed.prefix(1))
-        }
-    }
-
-    private func keyLogoForeground(for descriptor: CredentialDescriptor) -> Color {
-        switch keyTone(for: descriptor) {
-        case .need: return Theme.Palette.warning
-        case .ready: return Theme.Palette.success
-        case .env: return Color(nsColor: .systemBlue)
-        case .plain: return Theme.Palette.label2
-        }
-    }
-
-    private func keyLogoBackground(for descriptor: CredentialDescriptor) -> Color {
-        switch keyTone(for: descriptor) {
-        case .need: return Theme.Palette.warning.opacity(0.16)
-        case .ready: return Theme.Palette.success.opacity(0.14)
-        case .env: return Color(nsColor: .systemBlue).opacity(0.12)
-        case .plain: return Theme.Palette.bgControl
-        }
+            .accessibilityHidden(true)
     }
 
     private func keyProviderPill(text: String, tone: KeyProviderTone) -> some View {
@@ -2333,14 +2552,22 @@ struct SettingsView: View {
     private func secretBinding(for account: String) -> Binding<String> {
         Binding(
             get: { secretDrafts[account] ?? "" },
-            set: { secretDrafts[account] = $0 }
+            set: {
+                secretDrafts[account] = $0
+                for descriptor in allCredentialDescriptors where descriptor.credential?.account == account {
+                    credentialDraftChanged(descriptor.id)
+                }
+            }
         )
     }
 
     private func endpointBinding(for descriptor: CredentialDescriptor) -> Binding<String> {
         Binding(
             get: { endpointDrafts[descriptor.id] ?? currentEndpoint(for: descriptor) },
-            set: { endpointDrafts[descriptor.id] = $0 }
+            set: {
+                endpointDrafts[descriptor.id] = $0
+                credentialDraftChanged(descriptor.id)
+            }
         )
     }
 
@@ -2378,6 +2605,7 @@ struct SettingsView: View {
         guard let index = configs.firstIndex(where: { $0.id == modelID }) else { return }
         mutate(&configs[index])
         modelListDrafts[descriptor.id] = configs
+        credentialDraftChanged(descriptor.id)
     }
 
     private func modelNameBinding(for descriptor: CredentialDescriptor, modelID: String) -> Binding<String> {
@@ -2406,6 +2634,7 @@ struct SettingsView: View {
         var configs = modelConfigsDraft(for: descriptor)
         configs.append(EngineModelConfig(name: "", enabled: true))
         modelListDrafts[descriptor.id] = configs
+        credentialDraftChanged(descriptor.id)
     }
 
     private func removeModelConfig(_ modelID: String, from descriptor: CredentialDescriptor) {
@@ -2414,6 +2643,7 @@ struct SettingsView: View {
         guard configs.count > 1 else { return }
         configs.removeAll { $0.id == modelID }
         modelListDrafts[descriptor.id] = configs
+        credentialDraftChanged(descriptor.id)
     }
 
     private func currentEndpoint(for descriptor: CredentialDescriptor) -> String {
@@ -2457,32 +2687,7 @@ struct SettingsView: View {
         NSWorkspace.shared.open(url)
     }
 
-    private func saveKeys() {
-        let trim: (String) -> String = { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
-        var ok = true
-        for descriptor in allCredentialDescriptors {
-            if let credential = descriptor.credential {
-                ok = saveSecret(trim(secretDrafts[credential.account] ?? ""), account: credential.account) && ok
-            }
-            if descriptor.defaultModel != nil {
-                saveModelConfigs(modelConfigsDraft(for: descriptor), for: descriptor)
-            }
-            if descriptor.defaultEndpoint != nil {
-                saveEndpoint(trim(endpointDrafts[descriptor.id] ?? currentEndpoint(for: descriptor)), for: descriptor)
-            }
-        }
-        clearKeyFields()
-        loadAdvancedDrafts()
-        state.applySettings()
-        savedNote = ok ? L("已保存全部更改 ✓") : L("部分密钥保存失败")
-        DispatchQueue.main.asyncAfter(deadline: .now() + 2) { savedNote = "" }
-    }
 
-    @discardableResult
-    private func saveSecret(_ value: String, account: String) -> Bool {
-        guard !value.isEmpty else { return true }
-        return settings.setKey(value, account: account)
-    }
 
     private func saveModelConfigs(_ configs: [EngineModelConfig], for descriptor: CredentialDescriptor) {
         let cleaned = configs.compactMap { config -> EngineModelConfig? in
@@ -2511,17 +2716,14 @@ struct SettingsView: View {
     }
 
     private func clearSecret(_ account: String, serviceID: String? = nil) {
-        guard confirm(title: L("清除这项密钥？"), message: L("清除后，对应服务会在下次翻译时显示为需配置。")) else { return }
-        settings.removeKey(account: account)
+        guard confirm(title: L("移除此密钥？"), message: L("移除后，使用此密钥的服务需要重新配置。历史记录和当前原文会保留。")) else { return }
+        guard settings.removeKey(account: account) else {
+            if let serviceID { credentialOperations.set(.failed(L("移除失败，请稍后重试。")), for: serviceID) }
+            return
+        }
         secretDrafts[account] = ""
         state.applySettings()
-        if let serviceID {
-            credentialNotes[serviceID] = .saved(L("已清除 ✓"))
-            clearCredentialNote(serviceID)
-        } else {
-            savedNote = L("已清除 ✓")
-            DispatchQueue.main.asyncAfter(deadline: .now() + 2) { savedNote = "" }
-        }
+        if let serviceID { credentialOperations.set(.saved(L("已移除本机密钥。")), for: serviceID) }
     }
 
     private func confirm(title: String, message: String) -> Bool {
@@ -2529,9 +2731,11 @@ struct SettingsView: View {
         alert.messageText = title
         alert.informativeText = message
         alert.alertStyle = .warning
-        alert.addButton(withTitle: L("继续"))
         alert.addButton(withTitle: L("取消"))
-        return alert.runModal() == .alertFirstButtonReturn
+        let removeButton = alert.addButton(withTitle: L("移除密钥"))
+        removeButton.hasDestructiveAction = true
+        removeButton.keyEquivalent = ""
+        return alert.runModal() == .alertSecondButtonReturn
     }
 
     private func clearKeyFields() {

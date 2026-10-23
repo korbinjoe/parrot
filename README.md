@@ -4,11 +4,17 @@
 
 Open-source translation and OCR for macOS and iOS: translate selected text, capture text from screenshots, look up words, compare translation engines, and connect LLMs through plugins.
 
+Translate with one preferred engine and an automatic backup by default. Captured and typed source text stays editable in the same workspace; compare more engines when you need another wording.
+
 [Download the latest release](https://github.com/korbinjoe/parrot/releases/latest)
 
 <p align="center">
   <img src="docs/screenshots/app-icon.png" alt="Parrot" width="128">
   <img src="docs/screenshots/menubar-icon.png" alt="Parrot" width="64">
+</p>
+
+<p align="center">
+  <img src="docs/screenshots/native-translation-dark.png" alt="Editable Parrot translation workspace" width="620">
 </p>
 
 ## Platforms
@@ -23,14 +29,18 @@ Open-source translation and OCR for macOS and iOS: translate selected text, capt
 | Translate selected text | `⌥D`, menu, or PopClip |
 | Dictionary lookup | `⌥E`, menu, or PopClip |
 | Screenshot OCR and translation | `⌥S` or menu |
-| Translate typed text | `⌥A` or menu |
-| Compare multiple engines | Automatic aggregation of enabled providers |
-| Terminology glossary | Settings → Terminology; [guide](./docs/terminology.md) |
-| History and favorites | Save and search translations; ⭐ in the panel |
-| Text-to-speech | Read source text or translations aloud; 🔊 in the panel |
+| Translate typed text | `⌥A` or menu; edit and retranslate in place |
+| Compare multiple engines | Result → More, or Settings → Translate |
+| Terminology glossary | Advanced features → Settings → Terminology; [guide](./docs/terminology.md) |
+| History and favorites | Menu → History; reopen, edit, and retranslate |
+| Text-to-speech | Result → More → Read aloud |
 | JavaScript plugins | Extend LLM and dictionary support; [development guide](./docs/plugin-development.md) |
 | PopClip integration | Install `examples/Parrot.popclipext` |
 | URL integration | `parrot://translate?text=` or `parrot://lookup?text=` |
+
+Choose the preferred engine and backup order in Settings → Translate. Enable advanced features in Settings → General for context, polishing, learning, and additional settings. Existing history and configuration are retained.
+
+Menu rows and disclosure headings are clickable across their full width, and common icon controls have larger hit targets. The app icon uses a white tile and restrained blue parrot.
 
 ## Engines and credentials
 

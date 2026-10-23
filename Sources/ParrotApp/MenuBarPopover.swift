@@ -5,6 +5,7 @@ import ParrotCore
 /// then settings/quit. Replaces the bare `NSMenu` so it can share the app's design tokens.
 struct MenuBarPopoverView: View {
     @ObservedObject var state: AppState
+    @ObservedObject var settings: AppSettings
     @ObservedObject var permissions: PermissionsHolder
 
     let onSelection: () -> Void
@@ -48,7 +49,6 @@ struct MenuBarPopoverView: View {
                 action: onScreenshot
             )
             actionRow("keyboard", "输入翻译", "⌥A", action: onInput)
-            actionRow("sparkles", "输入润色", "草稿", action: onPolishInput)
 
             sectionDivider
 
@@ -66,18 +66,38 @@ struct MenuBarPopoverView: View {
 
             sectionDivider
 
-            actionRow("brain.head.profile", "今日复习", "3 分钟", action: onLearningReview)
-            actionRow("text.book.closed", "个人词库", "高频词", action: onVocabulary)
-            actionRow("slider.horizontal.3", "规则记忆", "场景", action: onContextMemory)
-
-            sectionDivider
+            if settings.advancedFeaturesEnabled {
+                Menu {
+                    Button(L("输入润色"), action: onPolishInput)
+                    Button(L("今日复习"), action: onLearningReview)
+                    Button(L("个人词库"), action: onVocabulary)
+                    Button(L("规则记忆"), action: onContextMemory)
+                } label: {
+                    HStack(spacing: 9) {
+                        Image(systemName: "ellipsis.circle")
+                            .frame(width: 16)
+                            .foregroundStyle(Theme.Palette.label2)
+                        Text(L("更多工具"))
+                            .font(Theme.Font.body)
+                            .foregroundStyle(Theme.Palette.label)
+                        Spacer(minLength: 0)
+                    }
+                    .padding(.horizontal, 9)
+                    .frame(minHeight: 31)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .contentShape(Rectangle())
+                }
+                .menuStyle(.borderlessButton)
+                .padding(.trailing, 9)
+                sectionDivider
+            }
 
             actionRow("gearshape", "设置…", "⌘,", action: onSettings)
             actionRow("power", "退出 Parrot", "⌘Q", action: onQuit)
         }
-        .padding(6)
-        .frame(width: 248)
-        .background(Theme.Palette.bgContent)
+        .padding(8)
+        .frame(width: 264)
+        .background(MacMaterialBackground(material: .popover))
         .onAppear {
             state.refreshPermissions()
             loadRecents()
@@ -95,10 +115,13 @@ struct MenuBarPopoverView: View {
     ) -> some View {
         HoverRow(action: action, disabled: disabled) {
             HStack(spacing: 9) {
-                Image(systemName: icon).frame(width: 16).foregroundStyle(Theme.Palette.label2)
+                Image(systemName: icon)
+                    .font(.system(size: 13, weight: .regular))
+                    .frame(width: 18)
+                    .foregroundStyle(Theme.Palette.label2)
                 Text(L(title)).font(Theme.Font.body).foregroundStyle(Theme.Palette.label)
                 Spacer(minLength: 0)
-                Text(L(shortcut)).font(Theme.Font.caption).foregroundStyle(Theme.Palette.label3)
+                Text(L(shortcut)).font(.system(size: 11, design: .monospaced)).foregroundStyle(Theme.Palette.label3)
             }
         }
         .accessibilityLabel(L(title))
@@ -108,8 +131,11 @@ struct MenuBarPopoverView: View {
     private func plainRow(_ title: String, icon: String, action: @escaping () -> Void) -> some View {
         HoverRow(action: action) {
             HStack(spacing: 9) {
-                Image(systemName: icon).frame(width: 16).foregroundStyle(Theme.Palette.label2)
-                Text(L(title)).font(Theme.Font.body).foregroundStyle(Theme.Palette.accent)
+                Image(systemName: icon)
+                    .font(.system(size: 13, weight: .regular))
+                    .frame(width: 18)
+                    .foregroundStyle(Theme.Palette.label2)
+                Text(L(title)).font(Theme.Font.body).foregroundStyle(Theme.Palette.label2)
                 Spacer(minLength: 0)
             }
         }
@@ -132,9 +158,14 @@ struct MenuBarPopoverView: View {
                         .foregroundStyle(Theme.Palette.label3)
                 }
                 Spacer(minLength: 0)
-                Button(L("设置")) { onSettings() }
-                    .buttonStyle(.borderless)
-                    .font(Theme.Font.caption)
+                Button(action: onSettings) {
+                    Text(L("设置"))
+                        .font(Theme.Font.caption)
+                        .padding(.horizontal, 7)
+                        .frame(minHeight: 28)
+                        .contentShape(Rectangle())
+                }
+                .buttonStyle(.borderless)
             }
             .padding(.horizontal, 9)
             .padding(.vertical, 8)
@@ -147,7 +178,7 @@ struct MenuBarPopoverView: View {
     private func recentRow(_ rec: TranslationRecord) -> some View {
         HoverRow(action: { onRetranslate(rec) }) {
             HStack(spacing: Theme.Spacing.s8) {
-                VStack(alignment: .leading, spacing: 1) {
+                VStack(alignment: .leading, spacing: 3) {
                     Text(rec.sourceText)
                         .font(.system(size: 12))
                         .foregroundStyle(Theme.Palette.label)
@@ -170,11 +201,11 @@ struct MenuBarPopoverView: View {
     private func sectionLabel(_ t: String) -> some View {
         Text(L(t)).font(Theme.Font.caption).foregroundStyle(Theme.Palette.label3)
             .fontWeight(.semibold)
-            .padding(.horizontal, 9).padding(.top, 2).padding(.bottom, 4)
+            .padding(.horizontal, 10).padding(.top, 4).padding(.bottom, 6)
     }
 
     private var sectionDivider: some View {
-        Divider().padding(.horizontal, 5).padding(.vertical, 5)
+        Divider().opacity(0.45).padding(.horizontal, 8).padding(.vertical, 7)
     }
 
     private func loadRecents() {
@@ -195,15 +226,15 @@ private struct HoverRow<Content: View>: View {
         Button(action: action) {
             content()
                 .padding(.horizontal, 9)
-                .frame(minHeight: 28)
+                .frame(minHeight: 31)
                 .frame(maxWidth: .infinity, alignment: .leading)
+                .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
         .disabled(disabled)
         .opacity(disabled ? 0.55 : 1)
         .background(!disabled && hovering ? Theme.Palette.bgSelection : Color.clear)
         .clipShape(RoundedRectangle(cornerRadius: 8))
-        .contentShape(Rectangle())
         .onHover { hovering = $0 }
     }
 }

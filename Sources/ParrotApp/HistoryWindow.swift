@@ -181,7 +181,7 @@ private struct HistoryView: View {
             }
         }
         .frame(width: 280)
-        .background(Theme.Palette.bgSidebar)
+        .background(MacMaterialBackground(material: .sidebar))
     }
 
     private var filterBar: some View {
@@ -214,9 +214,13 @@ private struct HistoryView: View {
                     } label: {
                         Image(systemName: "line.3.horizontal.decrease.circle")
                             .foregroundStyle(model.langPair.isEmpty ? Theme.Palette.label2 : Theme.Palette.accent)
+                            .frame(width: 32, height: 32)
+                            .contentShape(Rectangle())
                     }
                     .menuStyle(.borderlessButton)
                     .fixedSize()
+                    .help(L("全部语言"))
+                    .accessibilityLabel(L("全部语言"))
                 }
             }
         }
@@ -239,6 +243,7 @@ private struct HistoryView: View {
     private var detailColumn: some View {
         if let rec = model.filteredRecords.first(where: { $0.id == model.selectedId }) {
             HistoryDetail(record: rec,
+                          providerDisplayOrder: state.providerDisplayOrder,
                           onRetranslate: { onRetranslate(rec) },
                           onCopy: { copy($0) },
                           onSpeak: { state.speakTranslation($0) },
@@ -301,11 +306,12 @@ private struct HistoryRow: View {
                 .foregroundStyle(Theme.Palette.label2)
                 .lineLimit(1)
         }
-        .padding(.horizontal, 10).padding(.vertical, 9)
+        .padding(.horizontal, 12).padding(.vertical, 11)
         .frame(minHeight: 54)
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(selected ? Theme.Palette.bgSelection : Color.clear)
         .clipShape(RoundedRectangle(cornerRadius: 9))
+        .contentShape(Rectangle())
     }
 }
 
@@ -313,6 +319,7 @@ private struct HistoryRow: View {
 
 private struct HistoryDetail: View {
     let record: TranslationRecord
+    let providerDisplayOrder: [String]
     let onRetranslate: () -> Void
     let onCopy: (String) -> Void
     let onSpeak: (String) -> Void
@@ -321,26 +328,26 @@ private struct HistoryDetail: View {
 
     var body: some View {
         ScrollView {
-            VStack(alignment: .leading, spacing: Theme.Spacing.s12) {
+            VStack(alignment: .leading, spacing: Theme.Spacing.s20) {
                 header
                 sourceBlock
                 translationCard
             }
-            .padding(18)
+            .padding(24)
             .frame(maxWidth: .infinity, alignment: .leading)
         }
-        .background(Theme.Palette.bgCanvas)
+        .background(Theme.Palette.bgPanel)
     }
 
     private var header: some View {
         HStack(spacing: Theme.Spacing.s8) {
             LangPill(from: Language(code: record.sourceLang), to: Language(code: record.targetLang))
             Spacer(minLength: 0)
-            Button { onFavorite() } label: {
-                Image(systemName: record.isFavorite ? "star.fill" : "star")
-                    .foregroundStyle(record.isFavorite ? Theme.Palette.star : Theme.Palette.label2)
-            }
-            .buttonStyle(.borderless).help(L("收藏"))
+            IconButton(
+                record.isFavorite ? "star.fill" : "star",
+                help: record.isFavorite ? "取消收藏" : "收藏",
+                foreground: record.isFavorite ? Theme.Palette.star : Theme.Palette.label2
+            ) { onFavorite() }
             IconButton("doc.on.doc", help: "复制译文") { onCopy(record.translated) }
             IconButton("speaker.wave.2", help: "朗读译文") { onSpeak(record.translated) }
             IconButton("trash", help: "删除") { onDelete() }
@@ -348,37 +355,44 @@ private struct HistoryDetail: View {
     }
 
     private var sourceBlock: some View {
-        Text(record.sourceText)
-            .font(Theme.Font.body)
-            .foregroundStyle(Theme.Palette.label)
-            .textSelection(.enabled)
-            .fixedSize(horizontal: false, vertical: true)
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .padding(Theme.Spacing.s12)
-            .background(Theme.Palette.bgContent)
-            .clipShape(RoundedRectangle(cornerRadius: Theme.Radius.group))
-            .overlay(RoundedRectangle(cornerRadius: Theme.Radius.group).strokeBorder(Theme.Palette.hairline, lineWidth: 0.5))
+        VStack(alignment: .leading, spacing: Theme.Spacing.s8) {
+            Text(L("原文"))
+                .font(Theme.Font.callout.weight(.medium))
+                .foregroundStyle(Theme.Palette.label2)
+            Text(record.sourceText)
+                .font(Theme.Font.body)
+                .foregroundStyle(Theme.Palette.label)
+                .lineSpacing(3)
+                .textSelection(.enabled)
+                .fixedSize(horizontal: false, vertical: true)
+                .frame(maxWidth: .infinity, alignment: .leading)
+        }
+    }
+
+    private var orderedOutcomes: [TranslationRecordOutcome] {
+        TranslationResultOrdering.ordered(
+            record.displayOutcomes,
+            providerOrder: providerDisplayOrder,
+            providerID: \.providerId
+        )
     }
 
     private var translationCard: some View {
-        VStack(alignment: .leading, spacing: Theme.Spacing.s8) {
-            ForEach(record.displayOutcomes) { outcome in
+        VStack(alignment: .leading, spacing: Theme.Spacing.s16) {
+            Divider().opacity(0.6)
+            Text(L("译文"))
+                .font(Theme.Font.callout.weight(.medium))
+                .foregroundStyle(Theme.Palette.label2)
+            ForEach(orderedOutcomes) { outcome in
                 outcomeCard(outcome)
             }
             Button { onRetranslate() } label: {
-                Label(L("重新翻译"), systemImage: "arrow.clockwise")
+                Label(L("打开翻译"), systemImage: "arrow.up.forward.square")
             }
             .buttonStyle(PrimaryActionButtonStyle())
             .padding(.top, Theme.Spacing.s4)
         }
-        .padding(14)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(Theme.Palette.bgContent)
-        .clipShape(RoundedRectangle(cornerRadius: Theme.Radius.group))
-        .overlay(
-            RoundedRectangle(cornerRadius: Theme.Radius.group)
-                .strokeBorder(Theme.Palette.hairline, lineWidth: 0.5)
-        )
     }
 
     private func outcomeCard(_ outcome: TranslationRecordOutcome) -> some View {
@@ -432,22 +446,18 @@ private struct HistoryDetail: View {
         }
         .padding(.bottom, Theme.Spacing.s8)
         .overlay(alignment: .bottom) {
-            if outcome.id != record.displayOutcomes.last?.id {
+            if outcome.id != orderedOutcomes.last?.id {
                 Divider()
             }
         }
     }
 
     private func outcomeTag(_ text: String, foreground: Color, background: Color) -> some View {
-        Text(L(text).uppercased())
-            .font(Theme.Font.tag)
+        Text(L(text))
+            .font(Theme.Font.caption)
             .lineLimit(1)
             .truncationMode(.middle)
-            .foregroundStyle(foreground)
-            .padding(.horizontal, 6)
-            .padding(.vertical, 2)
-            .background(background)
-            .clipShape(RoundedRectangle(cornerRadius: 5))
+            .foregroundStyle(Theme.Palette.label2)
     }
 
     private var dateLine: some View {

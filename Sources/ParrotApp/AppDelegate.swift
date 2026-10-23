@@ -1,5 +1,6 @@
 import AppKit
 import SwiftUI
+import Combine
 import ApplicationServices
 import Carbon.HIToolbox
 import ParrotCore
@@ -42,17 +43,31 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private lazy var contextMemoryWindow = ContextMemoryWindow(state: state)
     private let popover = NSPopover()
     private var previousFrontmostApp: NSRunningApplication?
+    private var lastExternalFrontmostApp: NSRunningApplication?
     private var sourceReplacementTargetApp: NSRunningApplication?
     private var sourceReplacementShouldReplaceFocusedInput = false
     private var shortcutObserver: NSObjectProtocol?
     private var languageObserver: NSObjectProtocol?
+    private var workspaceActivationObserver: NSObjectProtocol?
+    private var advancedFeaturesObserver: AnyCancellable?
     private var lastHotkeyFireByAction: [String: Date] = [:]
     private var demoRecorder: DemoScreenRecorder?
+    private var selectionCaptureTask: Task<Void, Never>?
+    private var selectionCaptureID: UUID?
 
     private var hotkeys: [HotKey] = []
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         terminateOtherRunningInstances()
+        rememberExternalApp(NSWorkspace.shared.frontmostApplication)
+        workspaceActivationObserver = NSWorkspace.shared.notificationCenter.addObserver(
+            forName: NSWorkspace.didActivateApplicationNotification,
+            object: nil,
+            queue: .main
+        ) { [weak self] notification in
+            let app = notification.userInfo?[NSWorkspace.applicationUserInfoKey] as? NSRunningApplication
+            Task { @MainActor [weak self] in self?.rememberExternalApp(app) }
+        }
         NSAppleEventManager.shared().setEventHandler(
             self,
             andSelector: #selector(handleGetURLEvent(_:withReplyEvent:)),
@@ -60,6 +75,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             andEventID: AEEventID(kAEGetURL)
         )
         setupMainMenu()
+        advancedFeaturesObserver = state.settings.$advancedFeaturesEnabled.dropFirst().sink { [weak self] _ in
+            Task { @MainActor [weak self] in self?.setupMainMenu() }
+        }
         setupStatusItem()
         registerHotKeys()
         shortcutObserver = NotificationCenter.default.addObserver(
@@ -79,6 +97,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         state.refreshPermissions()
         DebugLog.log("launch: pid=\(getpid()) AXIsProcessTrusted=\(state.permissions.accessibilityGranted) screenRecording=\(state.permissions.screenRecordingGranted) exe=\(Bundle.main.executablePath ?? "?")")
         startDemoRecorderIfRequested()
+    }
+
+    func applicationWillTerminate(_ notification: Notification) {
+        cancelSelectionCapture()
     }
 
     private func startDemoRecorderIfRequested() {
@@ -123,13 +145,22 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
         let appMenuItem = NSMenuItem()
         let appMenu = NSMenu(title: "Parrot")
+        appMenu.addItem(appCommand("划词翻译", action: #selector(translateSelectionFromMenu), key: ""))
+        appMenu.addItem(appCommand("查词", action: #selector(lookupSelectionFromMenu), key: ""))
+        appMenu.addItem(appCommand("截图翻译", action: #selector(translateScreenshot), key: ""))
         appMenu.addItem(appCommand("输入翻译", action: #selector(showInput), key: ""))
-        appMenu.addItem(appCommand("输入润色", action: #selector(showPolishInput), key: ""))
         appMenu.addItem(appCommand("聚焦源文", action: #selector(focusSourceComposer), key: "l"))
         appMenu.addItem(appCommand("查看历史", action: #selector(showHistory), key: ""))
-        appMenu.addItem(appCommand("今日复习", action: #selector(showLearningReview), key: ""))
-        appMenu.addItem(appCommand("个人词库", action: #selector(showVocabulary), key: ""))
-        appMenu.addItem(appCommand("规则记忆", action: #selector(showContextMemory), key: ""))
+        if state.settings.advancedFeaturesEnabled {
+            let toolsItem = NSMenuItem(title: L("更多工具"), action: nil, keyEquivalent: "")
+            let toolsMenu = NSMenu(title: L("更多工具"))
+            toolsMenu.addItem(appCommand("输入润色", action: #selector(showPolishInput), key: ""))
+            toolsMenu.addItem(appCommand("今日复习", action: #selector(showLearningReview), key: ""))
+            toolsMenu.addItem(appCommand("个人词库", action: #selector(showVocabulary), key: ""))
+            toolsMenu.addItem(appCommand("规则记忆", action: #selector(showContextMemory), key: ""))
+            toolsItem.submenu = toolsMenu
+            appMenu.addItem(toolsItem)
+        }
         appMenu.addItem(appCommand("设置…", action: #selector(showSettings), key: ","))
         appMenu.addItem(.separator())
         appMenu.addItem(NSMenuItem(title: L("退出 Parrot"), action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q"))
@@ -222,12 +253,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         item.button?.image = makeStatusItemImage()
         item.button?.imagePosition = .imageOnly
         item.button?.toolTip = "Parrot"
+        item.button?.setAccessibilityLabel(L("Parrot 菜单"))
+        item.button?.setAccessibilityIdentifier("parrot.status-item")
         item.button?.action = #selector(togglePopover)
         item.button?.target = self
         self.statusItem = item
 
         let content = MenuBarPopoverView(
             state: state,
+            settings: state.settings,
             permissions: state.permissionsHolder,
             onSelection: { [weak self] in self?.closePopoverRestoringPreviousApp { self?.translateSelection() } },
             onLookup: { [weak self] in self?.closePopoverRestoringPreviousApp { self?.lookupSelection() } },
@@ -279,10 +313,18 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     /// Selection and lookup need the original app to be frontmost before AX/⌘C capture runs.
     /// The status-item popover activates Parrot, so restore focus and let AppKit settle first.
     private func closePopoverRestoringPreviousApp(_ action: @escaping () -> Void) {
+        let popoverWasShown = popover.isShown
+        let candidates = [
+            NSWorkspace.shared.frontmostApplication,
+            popoverWasShown ? previousFrontmostApp : nil,
+            lastExternalFrontmostApp
+        ]
+        let app = candidates.compactMap { $0 }.first {
+            $0.processIdentifier != getpid() && !$0.isTerminated
+        }
         popover.performClose(nil)
-        let app = previousFrontmostApp
         previousFrontmostApp = nil
-        if let app, app.processIdentifier != getpid(), !app.isTerminated {
+        if let app {
             app.activate(options: [.activateIgnoringOtherApps])
             Task { @MainActor in
                 try? await Task.sleep(nanoseconds: 120_000_000)
@@ -291,6 +333,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         } else {
             action()
         }
+    }
+
+    private func rememberExternalApp(_ app: NSRunningApplication?) {
+        guard let app, app.processIdentifier != getpid(), !app.isTerminated else { return }
+        lastExternalFrontmostApp = app
     }
 
     // MARK: - Hotkeys
@@ -329,12 +376,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     deinit {
+        selectionCaptureTask?.cancel()
         if let shortcutObserver { NotificationCenter.default.removeObserver(shortcutObserver) }
+        if let languageObserver { NotificationCenter.default.removeObserver(languageObserver) }
+        if let workspaceActivationObserver { NSWorkspace.shared.notificationCenter.removeObserver(workspaceActivationObserver) }
     }
 
     // MARK: - Actions
 
     @objc private func focusSourceComposer() {
+        cancelSelectionCapture()
         floating.show(focusComposer: true)
     }
 
@@ -354,60 +405,87 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     @objc private func translateSelection() {
-        state.refreshPermissions()
-        guard state.permissions.accessibilityGranted else {
-            showPermissionNotice(.accessibility)
-            return
-        }
-        let sourceApp = captureReplacementTarget()
-        state.resetManualLearningSelection()
-        floating.prepareForExternalCapture()
-        let text = SelectionCapture.selectedText()
-        DebugLog.log("translateSelection: captured=\(text.map { "\"\($0.prefix(40))\" len=\($0.count)" } ?? "nil")")
-        guard let text, !text.isEmpty else {
-            showPreviousWorkspaceOrWarnIfNeeded()
-            return
-        }
-        if shouldRestorePreviousWorkspace(forCapturedText: text) {
-            restorePreviousWorkspace(reason: "selection unchanged")
-            return
-        }
-        runTranslation(text, origin: .selection, sourceApp: sourceAppName(sourceApp))
+        captureSelection(mode: .translate)
+    }
+
+    @objc private func translateSelectionFromMenu() {
+        closePopoverRestoringPreviousApp { [weak self] in self?.translateSelection() }
     }
 
     @objc private func lookupSelection() {
-        state.refreshPermissions()
+        captureSelection(mode: .lookup)
+    }
+
+    @objc private func lookupSelectionFromMenu() {
+        closePopoverRestoringPreviousApp { [weak self] in self?.lookupSelection() }
+    }
+
+    private func captureSelection(mode: TranslateMode) {
+        guard selectionCaptureTask == nil else { return }
+        // Screen-capture preflight is unrelated synchronous IPC on the selection path.
+        state.refreshPermissions(includeScreenRecording: false)
         guard state.permissions.accessibilityGranted else {
             showPermissionNotice(.accessibility)
             return
         }
-        let sourceApp = captureReplacementTarget()
-        state.resetManualLearningSelection()
-        floating.prepareForExternalCapture()
-        guard let text = SelectionCapture.selectedText(), !text.isEmpty else { warnIfNoAccessibility(); return }
-        runTranslation(text, mode: .lookup, origin: .lookup, sourceApp: sourceAppName(sourceApp))
-    }
-
-    /// When selection capture comes back empty, distinguish "no text selected" (silent — 即用即走)
-    /// from "Accessibility permission missing" (loud — otherwise the hotkey just appears dead, e.g.
-    /// after the app's identity changes and macOS drops the previously-granted permission).
-    private func warnIfNoAccessibility() {
-        guard !SelectionCapture.hasAccessibilityPermission(prompt: false) else { return }
-        showPermissionNotice(.accessibility)
-    }
-
-    private func showPreviousWorkspaceOrWarnIfNeeded() {
-        guard SelectionCapture.hasAccessibilityPermission(prompt: false) else {
-            showPermissionNotice(.accessibility)
+        guard let sourceApp = captureReplacementTarget() else {
+            DebugLog.log("selection-capture: no external source; opening input with notice")
+            state.showSelectionCaptureNotice(openInput: true)
+            floating.show(focusComposer: true)
             return
         }
-        restorePreviousWorkspace(reason: "no new selection")
+        rememberExternalApp(sourceApp)
+        state.resetManualLearningSelection()
+        floating.prepareForExternalCapture()
+        floating.beginSelectionCapture()
+        let captureID = UUID()
+        selectionCaptureID = captureID
+        selectionCaptureTask = Task { [weak self] in
+            guard let self else { return }
+            let text = await SelectionCapture.selectedText(from: sourceApp.processIdentifier)
+            guard selectionCaptureID == captureID, !Task.isCancelled else { return }
+            selectionCaptureTask = nil
+            selectionCaptureID = nil
+            floating.endSelectionCapture()
+            if NSWorkspace.shared.frontmostApplication?.processIdentifier != sourceApp.processIdentifier {
+                DebugLog.log("selection-capture: discarded because source is no longer foreground")
+                floating.hide(force: true)
+                return
+            }
+            DebugLog.log("selection capture: \(text.map { "len=\($0.count)" } ?? "nil")")
+            guard let text, !text.isEmpty else {
+                guard SelectionCapture.hasAccessibilityPermission(prompt: false) else {
+                    showPermissionNotice(.accessibility)
+                    return
+                }
+                state.showSelectionCaptureNotice(openInput: false)
+                floating.show()
+                return
+            }
+            state.dismissWorkspaceNotice()
+            if mode == .translate, shouldRestorePreviousWorkspace(forCapturedText: text) {
+                restorePreviousWorkspace(reason: "selection unchanged")
+                return
+            }
+            runTranslation(
+                text,
+                mode: mode,
+                origin: mode == .lookup ? .lookup : .selection,
+                sourceApp: sourceAppName(sourceApp)
+            )
+        }
+    }
+
+    private func cancelSelectionCapture() {
+        guard selectionCaptureTask != nil else { return }
+        selectionCaptureTask?.cancel()
+        selectionCaptureTask = nil
+        selectionCaptureID = nil
+        floating.endSelectionCapture()
     }
 
     private func shouldRestorePreviousWorkspace(forCapturedText text: String) -> Bool {
-        guard state.hasRestorableWorkspace else { return false }
-        let captured = text.trimmingCharacters(in: .whitespacesAndNewlines)
-        return !captured.isEmpty && captured == state.committedSourceTrimmed
+        state.canRestoreCapturedTranslation(text: text)
     }
 
     private func restorePreviousWorkspace(reason: String) {
@@ -446,6 +524,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     @objc private func translateScreenshot() {
+        cancelSelectionCapture()
         state.refreshPermissions()
         guard state.permissions.screenRecordingGranted else {
             state.showScreenRecordingPermissionIssue()
@@ -490,6 +569,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     @objc private func showInput() {
+        cancelSelectionCapture()
         let sourceApp = captureReplacementTarget(preferred: previousFrontmostApp)
         previousFrontmostApp = nil
         state.openManualInputWorkspace(sourceApp: sourceAppName(sourceApp))
@@ -497,6 +577,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     @objc private func showPolishInput() {
+        cancelSelectionCapture()
         let sourceApp = captureReplacementTarget(preferred: previousFrontmostApp)
         previousFrontmostApp = nil
         let initialDraft = captureFocusedInputDraft(from: sourceApp)
@@ -516,6 +597,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         windowTitle: String? = nil,
         sourceURL: String? = nil
     ) {
+        cancelSelectionCapture()
         if sourceApp == nil {
             sourceReplacementTargetApp = nil
             sourceReplacementShouldReplaceFocusedInput = false
@@ -535,9 +617,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     private func runHistoryTranslation(_ record: TranslationRecord) {
+        cancelSelectionCapture()
         let sourceApp = captureReplacementTarget(preferred: previousFrontmostApp)
         previousFrontmostApp = nil
-        state.openHistoryWorkspace(record, sourceApp: sourceAppName(sourceApp))
+        state.openHistoryWorkspace(record, autoRun: false, sourceApp: sourceAppName(sourceApp))
         floating.show()
     }
 
@@ -545,8 +628,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         switch action {
         case .retryScreenshot:
             translateScreenshot()
+        case .retryTranslation:
+            state.retryCurrentTranslation()
+            floating.show()
         case .openSettings:
             settingsWindow.show()
+        case .openTranslationSettings:
+            settingsWindow.show(pane: .engines)
         case .openScreenRecordingSettings:
             AppPermissions.openScreenRecordingSettings()
         case .openOCRSettings:

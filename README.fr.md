@@ -18,16 +18,19 @@ Outil libre de traduction et d’OCR pour macOS et iOS : traduction du texte sé
 
 ## Fonctionnalités
 
+Par défaut, la traduction utilise le moteur prioritaire et essaie automatiquement un autre moteur configuré en cas d’échec. La comparaison de plusieurs moteurs peut être activée à la demande. Le texte source saisi, sélectionné ou reconnu par OCR reste modifiable dans le même espace de traduction et peut être traduit à nouveau.
+
 | Fonctionnalité | Utilisation |
 | --- | --- |
 | Traduction du texte sélectionné | `⌥D`, menu ou PopClip |
 | Recherche dans le dictionnaire | `⌥E`, menu ou PopClip |
 | OCR et traduction de captures d’écran | `⌥S` ou menu |
 | Traduction du texte saisi | `⌥A` ou menu |
-| Comparaison de plusieurs moteurs | Agrégation automatique des résultats des fournisseurs activés |
-| Glossaire terminologique | Réglages → Terminologie ; [guide](./docs/terminology.md) |
+| Comparaison de plusieurs moteurs | Activer depuis le menu More ou Réglages → Traduction |
+| Apprentissage, contexte et reformulation | Activer Advanced Features dans Réglages → Général |
+| Glossaire terminologique | Activer Advanced Features, puis Réglages → Terminologie ; [guide](./docs/terminology.md) |
 | Historique et favoris | Enregistrer et rechercher des traductions ; ⭐ dans le panneau |
-| Synthèse vocale | Lire le texte source ou la traduction ; 🔊 dans le panneau |
+| Synthèse vocale | Lire le texte source ou la traduction ; menu More |
 | Plugins JavaScript | Ajouter des LLM et dictionnaires ; [guide de développement](./docs/plugin-development.md) |
 | Intégration PopClip | Installer `examples/Parrot.popclipext` |
 | Intégration par URL | `parrot://translate?text=` ou `parrot://lookup?text=` |

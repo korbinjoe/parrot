@@ -98,6 +98,66 @@ private func record(_ src: String, _ dst: String, fav: Bool = false) -> Translat
     #expect(all.first?.translated == "持久")
 }
 
+@Test func historyDefersDiskReadUntilFirstOperation() async throws {
+    let url = FileManager.default.temporaryDirectory
+        .appendingPathComponent("parrot-lazy-history-\(UUID().uuidString).json")
+    defer { try? FileManager.default.removeItem(at: url) }
+    let store = HistoryStore(fileURL: url)
+    let encoder = JSONEncoder()
+    encoder.dateEncodingStrategy = .iso8601
+    let existing = record("saved", "已有记录")
+    try encoder.encode([existing]).write(to: url)
+
+    // The store is constructed during app startup; disk I/O belongs to its actor's
+    // first operation. Later reads use the loaded snapshot instead of rereading JSON.
+    #expect(await store.all().map(\.id) == [existing.id])
+    try encoder.encode([record("external", "外部修改")]).write(to: url)
+    #expect(await store.all().map(\.id) == [existing.id])
+}
+
+@Test func firstHistoryMutationPreservesPreviouslySavedRecords() async {
+    let url = FileManager.default.temporaryDirectory
+        .appendingPathComponent("parrot-lazy-mutation-\(UUID().uuidString).json")
+    defer { try? FileManager.default.removeItem(at: url) }
+    let original = HistoryStore(fileURL: url)
+    await original.add(record("saved", "已有记录"))
+
+    let reopened = HistoryStore(fileURL: url)
+    await reopened.add(record("new", "新记录"))
+    #expect(await reopened.all().map(\.sourceText) == ["new", "saved"])
+    #expect(await HistoryStore(fileURL: url).all().map(\.sourceText) == ["new", "saved"])
+}
+
+@Test func extendingHistoryOutcomesPreservesIdentityFavoriteAndMetadata() async {
+    let url = FileManager.default.temporaryDirectory
+        .appendingPathComponent("parrot-history-comparison-\(UUID().uuidString).json")
+    defer { try? FileManager.default.removeItem(at: url) }
+    let original = TranslationRecord(
+        sourceText: "Review this sentence.", translated: "原译文", providerId: "primary",
+        sourceLang: "en", targetLang: "zh",
+        createdAt: Date(timeIntervalSince1970: 1_730_000_000), isFavorite: true
+    )
+    await HistoryStore(fileURL: url).add(original)
+    let compared = [
+        TranslationRecordOutcome(providerId: "primary", displayName: "Primary", translated: "原译文"),
+        TranslationRecordOutcome(providerId: "comparison", displayName: "Comparison", translated: "比较译文")
+    ]
+    let reopened = HistoryStore(fileURL: url)
+    #expect(await reopened.updateOutcomes(
+        id: original.id, translated: "比较译文", providerId: "comparison", outcomes: compared
+    ))
+    let saved = await HistoryStore(fileURL: url).all().first
+    #expect(saved?.id == original.id)
+    #expect(saved?.createdAt == original.createdAt)
+    #expect(saved?.isFavorite == true)
+    #expect(saved?.sourceText == original.sourceText)
+    #expect(saved?.sourceLang == "en")
+    #expect(saved?.targetLang == "zh")
+    #expect(saved?.providerId == "comparison")
+    #expect(saved?.translated == "比较译文")
+    #expect(saved?.outcomes == compared)
+}
+
 @Test func capTrimsNonFavoritesFirst() async {
     let store = tempStore(max: 2)
     let fav = record("keep", "保留", fav: true)
