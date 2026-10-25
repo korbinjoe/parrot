@@ -504,7 +504,8 @@ struct SettingsView: View {
     private var basicPanes: [Pane] { [.general, .engines, .keys, .shortcuts, .about] }
 
     private var visiblePanes: [Pane] {
-        settings.advancedFeaturesEnabled ? Pane.allCases : basicPanes
+        // Keep the unfinished plugin interface hidden in advanced settings too.
+        settings.advancedFeaturesEnabled ? Pane.allCases.filter { $0 != .plugins } : basicPanes
     }
 
     private func sidebarRow(_ pane: Pane) -> some View {
